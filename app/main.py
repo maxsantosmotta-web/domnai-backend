@@ -1,6 +1,7 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
+from app.api.database import router as database_router
 from app.api.decisions import router as decisions_router
 from app.api.health import router as health_router
 from app.config import settings
@@ -33,9 +34,12 @@ def root():
             "/health",
             "/api/decisions/categories",
             "/api/decisions/analyze",
+            "/api/database/status",
+            "/api/database/init",
         ],
     }
 
 
 app.include_router(health_router)
 app.include_router(decisions_router)
+app.include_router(database_router)
