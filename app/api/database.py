@@ -1,7 +1,7 @@
 from fastapi import APIRouter
 
 from app.config import settings
-from app.database import Base, engine, is_database_configured
+from app.database import Base, get_database_url, get_engine, is_database_configured
 from app.services import count_saved_analyses
 
 router = APIRouter(prefix="/api/database", tags=["database"])
@@ -13,7 +13,7 @@ def database_env_check():
         "status": "ok",
         "appName": settings.app_name,
         "environment": settings.environment,
-        "databaseUrlConfigured": bool(settings.database_url),
+        "databaseUrlConfigured": bool(get_database_url()),
     }
 
 
@@ -24,18 +24,20 @@ def database_status():
     return {
         "status": "ok" if configured else "not_configured",
         "databaseConfigured": configured,
-        "databaseUrlConfigured": bool(settings.database_url),
+        "databaseUrlConfigured": bool(get_database_url()),
         "savedAnalyses": count_saved_analyses() if configured else None,
     }
 
 
 @router.post("/init")
 def initialize_database():
-    if not is_database_configured():
+    engine = get_engine()
+
+    if not is_database_configured() or engine is None:
         return {
             "status": "error",
             "message": "DATABASE_URL não configurada no ambiente do backend.",
-            "databaseUrlConfigured": bool(settings.database_url),
+            "databaseUrlConfigured": bool(get_database_url()),
         }
 
     Base.metadata.create_all(bind=engine)
