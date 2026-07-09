@@ -40,9 +40,12 @@ def initialize_database():
             "databaseUrlConfigured": bool(get_database_url()),
         }
 
+    from app import models  # noqa: F401
+
     Base.metadata.create_all(bind=engine)
 
     return {
         "status": "ok",
         "message": "Tabelas iniciais criadas ou já existentes.",
+        "tables": sorted(Base.metadata.tables.keys()),
     }
