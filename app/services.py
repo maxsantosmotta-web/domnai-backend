@@ -1,3 +1,5 @@
+from app.database import is_database_configured, session_scope
+from app.models import DecisionAnalysis
 from app.schemas import DecisionAnalysisRequest
 
 
@@ -44,8 +46,9 @@ def generate_initial_analysis(payload: DecisionAnalysisRequest):
     )
 
     context_preview = " ".join(payload.context.split())[:500]
+    recommendation = "Avance apenas se os benefícios forem maiores que os riscos, os custos estiverem claros e você tiver comparado alternativas suficientes."
 
-    return {
+    analysis = {
         "category": selected_category,
         "question": payload.question,
         "summary": "Análise inicial gerada para validar o fluxo do DomnAI antes da integração com IA real.",
@@ -74,6 +77,38 @@ def generate_initial_analysis(payload: DecisionAnalysisRequest):
                 "O que acontece se você decidir esperar mais alguns dias?",
             ],
         },
-        "recommendation": "Avance apenas se os benefícios forem maiores que os riscos, os custos estiverem claros e você tiver comparado alternativas suficientes.",
+        "recommendation": recommendation,
         "disclaimer": "Esta análise é informativa e não substitui orientação profissional jurídica, contábil, financeira ou técnica quando necessária.",
+        "persistence": {
+            "enabled": False,
+            "saved": False,
+            "id": None,
+        },
     }
+
+    if is_database_configured():
+        with session_scope() as session:
+            record = DecisionAnalysis(
+                category=selected_category["id"],
+                question=payload.question,
+                context_preview=context_preview,
+                recommendation=recommendation,
+            )
+            session.add(record)
+            session.flush()
+
+            analysis["persistence"] = {
+                "enabled": True,
+                "saved": True,
+                "id": record.id,
+            }
+
+    return analysis
+
+
+def count_saved_analyses() -> int | None:
+    if not is_database_configured():
+        return None
+
+    with session_scope() as session:
+        return session.query(DecisionAnalysis).count()
