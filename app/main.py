@@ -1,9 +1,9 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
+from app.api.decisions import router as decisions_router
+from app.api.health import router as health_router
 from app.config import settings
-from app.schemas import DecisionAnalysisRequest
-from app.services import generate_initial_analysis, get_decision_categories
 
 app = FastAPI(
     title=settings.app_name,
@@ -29,31 +29,13 @@ def root():
         "slogan": "Transforme escolhas em resultados com inteligência.",
         "proposal": "Plataforma de apoio à decisão baseada em análises textuais.",
         "phase": "MVP Backend",
+        "availableRoutes": [
+            "/health",
+            "/api/decisions/categories",
+            "/api/decisions/analyze",
+        ],
     }
 
 
-@app.get("/health")
-def health():
-    return {
-        "status": "ok",
-        "app": settings.app_name,
-        "version": settings.app_version,
-        "environment": settings.environment,
-    }
-
-
-@app.get("/api/decisions/categories")
-def decision_categories():
-    return {
-        "status": "ok",
-        "categories": get_decision_categories(),
-    }
-
-
-@app.post("/api/decisions/analyze")
-def analyze_decision(payload: DecisionAnalysisRequest):
-    return {
-        "status": "ok",
-        "app": settings.app_name,
-        "analysis": generate_initial_analysis(payload),
-    }
+app.include_router(health_router)
+app.include_router(decisions_router)
