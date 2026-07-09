@@ -12,7 +12,18 @@ Base = declarative_base()
 
 
 def get_database_url() -> str | None:
-    return os.getenv("DATABASE_URL")
+    database_url = os.getenv("DATABASE_URL")
+
+    if not database_url:
+        return None
+
+    if database_url.startswith("postgresql://"):
+        return database_url.replace("postgresql://", "postgresql+psycopg://", 1)
+
+    if database_url.startswith("postgres://"):
+        return database_url.replace("postgres://", "postgresql+psycopg://", 1)
+
+    return database_url
 
 
 @lru_cache(maxsize=1)
