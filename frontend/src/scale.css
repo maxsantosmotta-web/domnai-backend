@@ -1,15 +1,16 @@
 .official-logo {
-  width: min(75%, 375px);
+  width: min(64%, 319px);
 }
 
 .access-actions {
+  width: min(84%, 400px);
   gap: 10px;
-  margin-top: 12px;
+  margin-top: 18px;
 }
 
 .primary-button,
 .secondary-button {
-  min-height: 48px;
+  min-height: 43px;
   padding: 0 18px;
   font-size: 0.76rem;
 }
@@ -25,21 +26,21 @@
 
 .dashboard-logo,
 .brand-link img {
-  width: min(165px, 42vw);
+  width: min(132px, 34vw);
 }
 
 .back-link {
-  min-height: 36px;
-  padding: 0 13px;
+  min-height: 29px;
+  padding: 0 10px;
   border-color: rgba(225, 181, 77, 0.18);
-  border-radius: 9px;
-  font-size: 0.8rem;
+  border-radius: 8px;
+  font-size: 0.64rem;
 }
 
 .dashboard-content,
 .content-card {
   width: min(92%, 780px);
-  margin-top: 46px;
+  margin-top: 54px;
   padding: clamp(20px, 4vw, 36px);
   border-color: rgba(225, 181, 77, 0.11);
   border-radius: 18px;
@@ -114,17 +115,17 @@
   }
 
   .official-logo {
-    width: min(75%, 322px);
+    width: min(64%, 274px);
   }
 
   .access-actions {
-    width: min(88%, 360px);
-    margin-top: 10px;
+    width: min(82%, 330px);
+    margin-top: 16px;
   }
 
   .primary-button,
   .secondary-button {
-    min-height: 46px;
+    min-height: 41px;
     font-size: 0.72rem;
   }
 
@@ -149,19 +150,19 @@
 
   .dashboard-logo,
   .brand-link img {
-    width: min(145px, 38vw);
+    width: min(116px, 30vw);
   }
 
   .back-link {
-    min-height: 34px;
-    padding: 0 11px;
-    font-size: 0.76rem;
+    min-height: 27px;
+    padding: 0 9px;
+    font-size: 0.61rem;
   }
 
   .dashboard-content,
   .content-card {
     width: min(94%, 700px);
-    margin-top: 30px;
+    margin-top: 38px;
     padding: 20px;
     border-radius: 16px;
   }
@@ -193,18 +194,18 @@
   }
 
   .official-logo {
-    width: 74%;
+    width: 63%;
   }
 
   .access-actions {
-    width: 86%;
+    width: 80%;
     gap: 9px;
-    margin-top: 8px;
+    margin-top: 14px;
   }
 
   .primary-button,
   .secondary-button {
-    min-height: 44px;
+    min-height: 40px;
     font-size: 0.7rem;
   }
 
@@ -218,13 +219,19 @@
   }
 
   .brand-link img {
-    width: 132px;
+    width: 106px;
+  }
+
+  .back-link {
+    min-height: 26px;
+    padding: 0 8px;
+    font-size: 0.6rem;
   }
 
   .dashboard-content,
   .content-card {
     width: 96%;
-    margin-top: 24px;
+    margin-top: 32px;
     padding: 18px;
   }
 
