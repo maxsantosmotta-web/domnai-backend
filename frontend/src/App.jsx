@@ -1,7 +1,7 @@
 import React from 'react';
 import {
-  SignIn,
-  SignUp,
+  SignInButton,
+  SignUpButton,
   UserButton,
   useAuth,
 } from '@clerk/clerk-react';
@@ -30,48 +30,17 @@ function Landing() {
         />
 
         <div className="access-actions">
-          <Link className="primary-button auth-link-button" to="/cadastro">
-            Criar conta
-          </Link>
+          <SignUpButton mode="modal" forceRedirectUrl="/">
+            <button className="primary-button" type="button">Criar conta</button>
+          </SignUpButton>
 
-          <Link className="secondary-button auth-link-button" to="/login">
-            Fazer login
-          </Link>
+          <SignInButton mode="modal" forceRedirectUrl="/">
+            <button className="secondary-button" type="button">Fazer login</button>
+          </SignInButton>
         </div>
       </section>
 
       <FooterNavigation />
-    </main>
-  );
-}
-
-function AuthPage({ mode }) {
-  const isSignUp = mode === 'sign-up';
-
-  return (
-    <main className="auth-page">
-      <header className="auth-header">
-        <Link className="brand-link auth-brand" to="/" aria-label="Voltar para o DomnAI">
-          <img src={DOMNAI_LOGO} alt="DomnAI" />
-        </Link>
-        <Link className="back-link" to="/">Voltar</Link>
-      </header>
-
-      <section className="auth-content" aria-label={isSignUp ? 'Criar conta' : 'Fazer login'}>
-        {isSignUp ? (
-          <SignUp
-            routing="virtual"
-            signInUrl="/#/login"
-            forceRedirectUrl="/#/"
-          />
-        ) : (
-          <SignIn
-            routing="virtual"
-            signUpUrl="/#/cadastro"
-            forceRedirectUrl="/#/"
-          />
-        )}
-      </section>
     </main>
   );
 }
@@ -226,8 +195,8 @@ export default function App() {
   return (
     <Routes>
       <Route path="/" element={<Home />} />
-      <Route path="/login/*" element={<AuthPage mode="sign-in" />} />
-      <Route path="/cadastro/*" element={<AuthPage mode="sign-up" />} />
+      <Route path="/login/*" element={<Navigate to="/" replace />} />
+      <Route path="/cadastro/*" element={<Navigate to="/" replace />} />
       <Route path="/sobre" element={<InstitutionalPage page="sobre" />} />
       <Route path="/privacidade" element={<InstitutionalPage page="privacidade" />} />
       <Route path="/termos" element={<InstitutionalPage page="termos" />} />
