@@ -102,6 +102,41 @@
   font-size: 0.8rem !important;
 }
 
+/* Clerk profile menu: keep actions readable on the dark DomnAI background. */
+.cl-userButtonPopoverCard,
+.cl-userButtonPopoverMain {
+  background: #0b0b0b !important;
+  color: #ffffff !important;
+}
+
+.cl-userButtonPopoverCard {
+  border: 1px solid rgba(216, 170, 52, 0.24) !important;
+  box-shadow: 0 18px 45px rgba(0, 0, 0, 0.5) !important;
+}
+
+.cl-userPreviewMainIdentifier,
+.cl-userPreviewSecondaryIdentifier,
+.cl-userButtonPopoverActionButton,
+.cl-userButtonPopoverActionButtonText,
+.cl-userButtonPopoverActionButtonIcon {
+  color: #ffffff !important;
+  opacity: 1 !important;
+}
+
+.cl-userButtonPopoverActionButton {
+  background: transparent !important;
+}
+
+.cl-userButtonPopoverActionButton:hover,
+.cl-userButtonPopoverActionButton:focus-visible {
+  background: #171717 !important;
+}
+
+.cl-userButtonPopoverFooter {
+  background: #0b0b0b !important;
+  border-top: 1px solid rgba(216, 170, 52, 0.14) !important;
+}
+
 @media (max-width: 430px) {
   .custom-auth-backdrop {
     align-items: center !important;
