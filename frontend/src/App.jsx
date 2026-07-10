@@ -1,12 +1,12 @@
 import React, { useState } from 'react';
 import {
   AuthenticateWithRedirectCallback,
-  UserButton,
   useAuth,
   useSignIn,
   useSignUp,
 } from '@clerk/clerk-react';
 import { Link, Navigate, Route, Routes } from 'react-router-dom';
+import Dashboard from './Dashboard';
 import DOMNAI_LOGO from './assets/domnai-logo-oficial-transparente.png';
 
 function FooterNavigation() {
@@ -318,23 +318,6 @@ function Landing() {
           onSwitch={setAuthMode}
         />
       ) : null}
-    </main>
-  );
-}
-
-function Dashboard() {
-  return (
-    <main className="dashboard-page">
-      <header className="dashboard-header">
-        <img className="dashboard-logo" src={DOMNAI_LOGO} alt="DomnAI" />
-        <UserButton afterSignOutUrl="/" />
-      </header>
-
-      <section className="dashboard-content">
-        <p className="dashboard-eyebrow">Acesso confirmado</p>
-        <h1>Bem-vindo ao DomnAI</h1>
-        <p>Transforme escolhas em resultados com inteligência.</p>
-      </section>
     </main>
   );
 }
