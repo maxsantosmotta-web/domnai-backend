@@ -1,22 +1,25 @@
 .cl-modalBackdrop {
   position: fixed !important;
   inset: 0 !important;
+  z-index: 9999 !important;
   display: flex !important;
   align-items: center !important;
   justify-content: center !important;
   padding: 16px !important;
   overflow-y: auto !important;
-  background: rgba(5, 5, 5, 0.92) !important;
+  background: rgba(0, 0, 0, 0.58) !important;
 }
 
 .cl-modalContent {
-  width: 100% !important;
-  min-height: 100% !important;
+  width: auto !important;
+  min-height: 0 !important;
   display: flex !important;
   align-items: center !important;
   justify-content: center !important;
   padding: 0 !important;
+  margin: auto !important;
   background: transparent !important;
+  overflow: visible !important;
 }
 
 .cl-cardBox,
@@ -24,7 +27,7 @@
   width: min(92vw, 420px) !important;
   height: auto !important;
   min-height: 0 !important;
-  margin: auto !important;
+  margin: 0 auto !important;
 }
 
 .cl-main {
@@ -40,6 +43,7 @@
     align-items: flex-start !important;
   }
 
+  .cl-modalContent,
   .cl-cardBox {
     margin: 12px auto !important;
   }
