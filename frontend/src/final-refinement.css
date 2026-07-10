@@ -1,0 +1,105 @@
+.landing-page {
+  position: relative;
+  top: -50px;
+}
+
+.primary-button,
+.secondary-button {
+  min-height: 40px;
+}
+
+.access-actions {
+  margin-top: 22px;
+}
+
+.landing-footer {
+  margin-top: 6px;
+}
+
+.dashboard-logo,
+.brand-link img {
+  width: min(119px, 31vw);
+}
+
+.back-link {
+  min-height: 25px;
+  padding: 0 8px;
+  font-size: 0.54rem;
+}
+
+.dashboard-content,
+.content-card {
+  width: min(87%, 740px);
+  margin-top: 62px;
+}
+
+@media (max-width: 720px) {
+  .landing-page {
+    top: -50px;
+  }
+
+  .primary-button,
+  .secondary-button {
+    min-height: 38px;
+  }
+
+  .access-actions {
+    margin-top: 20px;
+  }
+
+  .landing-footer {
+    margin-top: 4px;
+  }
+
+  .dashboard-logo,
+  .brand-link img {
+    width: min(104px, 27vw);
+  }
+
+  .back-link {
+    min-height: 23px;
+    padding: 0 7px;
+    font-size: 0.52rem;
+  }
+
+  .dashboard-content,
+  .content-card {
+    width: min(89%, 660px);
+    margin-top: 46px;
+  }
+}
+
+@media (max-width: 430px) {
+  .landing-page {
+    top: -50px;
+  }
+
+  .primary-button,
+  .secondary-button {
+    min-height: 37px;
+  }
+
+  .access-actions {
+    margin-top: 18px;
+  }
+
+  .landing-footer {
+    margin-top: 2px;
+  }
+
+  .brand-link img {
+    width: 95px;
+  }
+
+  .back-link {
+    min-height: 22px;
+    padding: 0 7px;
+    font-size: 0.51rem;
+  }
+
+  .dashboard-content,
+  .content-card {
+    width: 91%;
+    margin-top: 40px;
+  }
+}
