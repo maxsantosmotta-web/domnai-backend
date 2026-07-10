@@ -1,7 +1,7 @@
 import React from 'react';
 import ReactDOM from 'react-dom/client';
 import { ClerkProvider } from '@clerk/clerk-react';
-import { BrowserRouter } from 'react-router-dom';
+import { HashRouter } from 'react-router-dom';
 import App from './App';
 import ErrorBoundary from './ErrorBoundary';
 import './styles.css';
@@ -58,9 +58,9 @@ async function startApplication() {
   ReactDOM.createRoot(rootElement).render(
     <ErrorBoundary>
       <ClerkProvider publishableKey={clerkPublishableKey} afterSignOutUrl="/">
-        <BrowserRouter>
+        <HashRouter>
           <App />
-        </BrowserRouter>
+        </HashRouter>
       </ClerkProvider>
     </ErrorBoundary>,
   );
