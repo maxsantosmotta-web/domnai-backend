@@ -1,17 +1,50 @@
 import React from 'react';
 import ReactDOM from 'react-dom/client';
 import { ClerkProvider } from '@clerk/clerk-react';
-import { BrowserRouter } from 'react-router-dom';
 import App from './App';
+import ErrorBoundary from './ErrorBoundary';
 import './styles.css';
 
 const rootElement = document.getElementById('root');
 
+function escapeHtml(value) {
+  return String(value)
+    .replaceAll('&', '&amp;')
+    .replaceAll('<', '&lt;')
+    .replaceAll('>', '&gt;')
+    .replaceAll('"', '&quot;')
+    .replaceAll("'", '&#039;');
+}
+
+function renderStartupError(error) {
+  const message = escapeHtml(error?.message || error || 'Erro desconhecido.');
+
+  console.error('[DomnAI] Falha na inicialização:', error);
+  rootElement.innerHTML = `
+    <main class="runtime-error-page" role="alert">
+      <section class="runtime-error-card">
+        <h1>DomnAI</h1>
+        <h2>Não foi possível concluir a abertura.</h2>
+        <p>${message}</p>
+        <button type="button" onclick="window.location.reload()">Tentar novamente</button>
+      </section>
+    </main>
+  `;
+}
+
+window.onerror = (message, source, lineno, colno, error) => {
+  console.error('[DomnAI] Erro global:', { message, source, lineno, colno, error });
+};
+
+window.onunhandledrejection = (event) => {
+  console.error('[DomnAI] Promise rejeitada sem tratamento:', event.reason);
+};
+
 rootElement.innerHTML = `
-  <main style="min-height:100vh;display:grid;place-items:center;background:#050505;color:#fff;font-family:system-ui;padding:24px;text-align:center">
+  <main class="startup-page" aria-live="polite">
     <div>
-      <h1 style="margin:0 0 12px;font-size:2rem">DomnAI</h1>
-      <p style="margin:0;color:#b8b8b8">Carregando acesso seguro...</p>
+      <h1>DomnAI</h1>
+      <p>Carregando acesso seguro...</p>
     </div>
   </main>
 `;
@@ -31,33 +64,16 @@ async function startApplication() {
 
   ReactDOM.createRoot(rootElement).render(
     <React.StrictMode>
-      <ClerkProvider
-        publishableKey={clerkPublishableKey}
-        isSatellite
-        domain={window.location.hostname}
-        signInUrl="/"
-        signUpUrl="/"
-        signInFallbackRedirectUrl="/"
-        signUpFallbackRedirectUrl="/"
-        afterSignOutUrl="/"
-      >
-        <BrowserRouter>
+      <ErrorBoundary>
+        <ClerkProvider
+          publishableKey={clerkPublishableKey}
+          afterSignOutUrl="/"
+        >
           <App />
-        </BrowserRouter>
-      </ClerkProvider>
+        </ClerkProvider>
+      </ErrorBoundary>
     </React.StrictMode>,
   );
 }
 
-startApplication().catch((error) => {
-  console.error(error);
-  rootElement.innerHTML = `
-    <main style="min-height:100vh;display:grid;place-items:center;background:#050505;color:#fff;font-family:system-ui;padding:24px;text-align:center">
-      <div>
-        <h1 style="margin:0 0 12px">DomnAI</h1>
-        <p style="margin:0;color:#b8b8b8">Não foi possível iniciar a autenticação.</p>
-        <button onclick="window.location.reload()" style="margin-top:18px;padding:12px 18px;border:1px solid #d5aa35;border-radius:10px;background:#d5aa35;color:#050505;font-weight:700">Tentar novamente</button>
-      </div>
-    </main>
-  `;
-});
+startApplication().catch(renderStartupError);
