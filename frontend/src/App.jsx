@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React from 'react';
 import {
   SignInButton,
   SignUpButton,
@@ -7,19 +7,6 @@ import {
 } from '@clerk/clerk-react';
 import { Link, Navigate, Route, Routes } from 'react-router-dom';
 import { DOMNAI_LOGO } from './logoData';
-
-const SPLASH_LIMIT_MS = 900;
-
-function Splash() {
-  return (
-    <main className="startup-page" aria-live="polite" aria-busy="true">
-      <div className="startup-content">
-        <span className="startup-mark">D</span>
-        <p>Verificando acesso...</p>
-      </div>
-    </main>
-  );
-}
 
 function FooterNavigation() {
   return (
@@ -32,7 +19,7 @@ function FooterNavigation() {
   );
 }
 
-function Landing({ authReady }) {
+function Landing() {
   return (
     <main className="landing-page">
       <section className="landing-card" aria-label="Acesso ao DomnAI">
@@ -42,27 +29,16 @@ function Landing({ authReady }) {
           alt="DomnAI — Transforme escolhas em resultados com inteligência."
         />
 
-        <p className="landing-copy">
-          Inteligência para pesquisar, comparar e tomar decisões melhores antes de agir.
-        </p>
+        <p className="landing-copy">Transforme escolhas em resultados com inteligência.</p>
 
         <div className="access-actions">
-          {authReady ? (
-            <>
-              <SignUpButton mode="modal" forceRedirectUrl="/">
-                <button className="primary-button" type="button">Criar conta</button>
-              </SignUpButton>
+          <SignUpButton mode="modal" forceRedirectUrl="/">
+            <button className="primary-button" type="button">Criar conta</button>
+          </SignUpButton>
 
-              <SignInButton mode="modal" forceRedirectUrl="/">
-                <button className="secondary-button" type="button">Fazer login</button>
-              </SignInButton>
-            </>
-          ) : (
-            <>
-              <button className="primary-button" type="button" disabled>Carregando acesso</button>
-              <button className="secondary-button" type="button" disabled>Fazer login</button>
-            </>
-          )}
+          <SignInButton mode="modal" forceRedirectUrl="/">
+            <button className="secondary-button" type="button">Fazer login</button>
+          </SignInButton>
         </div>
       </section>
 
@@ -90,22 +66,12 @@ function Dashboard() {
 
 function Home() {
   const { isLoaded, isSignedIn } = useAuth();
-  const [splashExpired, setSplashExpired] = useState(false);
 
-  useEffect(() => {
-    if (isLoaded) {
-      setSplashExpired(true);
-      return undefined;
-    }
+  if (isLoaded && isSignedIn) {
+    return <Dashboard />;
+  }
 
-    const timer = window.setTimeout(() => setSplashExpired(true), SPLASH_LIMIT_MS);
-    return () => window.clearTimeout(timer);
-  }, [isLoaded]);
-
-  if (!isLoaded && !splashExpired) return <Splash />;
-  if (!isLoaded) return <Landing authReady={false} />;
-  if (!isSignedIn) return <Landing authReady />;
-  return <Dashboard />;
+  return <Landing />;
 }
 
 const institutionalContent = {
