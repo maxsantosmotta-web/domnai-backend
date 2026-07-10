@@ -1,0 +1,144 @@
+:root {
+  font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  color: #ffffff;
+  background: #050505;
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  min-height: 100%;
+  margin: 0;
+}
+
+body {
+  min-width: 320px;
+  background:
+    radial-gradient(circle at 50% 32%, rgba(184, 135, 36, 0.12), transparent 34%),
+    linear-gradient(180deg, #050505 0%, #090909 52%, #020202 100%);
+}
+
+button,
+a {
+  font: inherit;
+}
+
+.landing-page {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 32px 20px 24px;
+}
+
+.landing-card {
+  width: min(100%, 620px);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.official-logo {
+  width: min(100%, 560px);
+  height: auto;
+  display: block;
+  object-fit: contain;
+  filter: drop-shadow(0 18px 46px rgba(218, 165, 32, 0.1));
+}
+
+.access-actions {
+  width: min(100%, 470px);
+  display: grid;
+  gap: 16px;
+  margin-top: 14px;
+}
+
+.primary-button,
+.secondary-button {
+  width: 100%;
+  min-height: 58px;
+  border-radius: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.16em;
+  font-weight: 750;
+  cursor: pointer;
+  transition: transform 160ms ease, box-shadow 160ms ease, border-color 160ms ease;
+}
+
+.primary-button {
+  border: 1px solid #e4bd4f;
+  color: #090909;
+  background: linear-gradient(135deg, #f3d36c 0%, #c89120 55%, #f0c85a 100%);
+  box-shadow: 0 12px 34px rgba(213, 160, 35, 0.2);
+}
+
+.secondary-button {
+  border: 1px solid rgba(228, 189, 79, 0.42);
+  color: #f2f2f2;
+  background: rgba(12, 12, 12, 0.74);
+}
+
+.primary-button:hover,
+.secondary-button:hover {
+  transform: translateY(-1px);
+}
+
+.primary-button:focus-visible,
+.secondary-button:focus-visible,
+.landing-footer a:focus-visible {
+  outline: 2px solid #e4bd4f;
+  outline-offset: 3px;
+}
+
+.signed-area {
+  margin-top: 18px;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  color: #d4d4d4;
+}
+
+.landing-footer {
+  margin-top: 42px;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 12px 22px;
+}
+
+.landing-footer a {
+  color: #7f7f7f;
+  text-decoration: none;
+  font-size: 0.92rem;
+}
+
+.landing-footer a:hover {
+  color: #d7b453;
+}
+
+@media (max-width: 600px) {
+  .landing-page {
+    justify-content: space-between;
+    padding-top: 54px;
+  }
+
+  .official-logo {
+    width: 100%;
+  }
+
+  .access-actions {
+    margin-top: 8px;
+  }
+
+  .landing-footer {
+    margin-top: 34px;
+    padding-bottom: 8px;
+  }
+}
