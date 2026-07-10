@@ -29,6 +29,56 @@ a {
   font: inherit;
 }
 
+.startup-page,
+.runtime-error-page {
+  min-height: 100vh;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  text-align: center;
+  background:
+    radial-gradient(circle at 50% 32%, rgba(184, 135, 36, 0.12), transparent 34%),
+    linear-gradient(180deg, #050505 0%, #090909 52%, #020202 100%);
+}
+
+.startup-page h1,
+.runtime-error-card h1 {
+  margin: 0 0 12px;
+  font-size: 2rem;
+}
+
+.startup-page p,
+.runtime-error-card p {
+  margin: 0;
+  color: #b8b8b8;
+}
+
+.runtime-error-card {
+  width: min(100%, 560px);
+  padding: 28px;
+  border: 1px solid rgba(228, 189, 79, 0.28);
+  border-radius: 18px;
+  background: rgba(10, 10, 10, 0.9);
+  box-shadow: 0 24px 70px rgba(0, 0, 0, 0.45);
+}
+
+.runtime-error-card h2 {
+  margin: 0 0 14px;
+  font-size: 1.15rem;
+  color: #f2f2f2;
+}
+
+.runtime-error-card button {
+  margin-top: 20px;
+  padding: 12px 18px;
+  border: 1px solid #d5aa35;
+  border-radius: 10px;
+  background: #d5aa35;
+  color: #050505;
+  font-weight: 700;
+  cursor: pointer;
+}
+
 .landing-page {
   min-height: 100vh;
   display: flex;
@@ -92,7 +142,8 @@ a {
 
 .primary-button:focus-visible,
 .secondary-button:focus-visible,
-.landing-footer a:focus-visible {
+.landing-footer a:focus-visible,
+.runtime-error-card button:focus-visible {
   outline: 2px solid #e4bd4f;
   outline-offset: 3px;
 }
