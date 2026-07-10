@@ -7,6 +7,7 @@ import ErrorBoundary from './ErrorBoundary';
 import './styles.css';
 import './scale.css';
 import './final-refinement.css';
+import './no-glow.css';
 
 const rootElement = document.getElementById('root');
 
