@@ -10,6 +10,134 @@ import './final-refinement.css';
 
 const rootElement = document.getElementById('root');
 
+const localization = {
+  signIn: {
+    start: {
+      title: 'Entrar no DomnAI',
+      subtitle: 'Acesse sua conta para continuar.',
+      actionText: 'Ainda não tem uma conta?',
+      actionLink: 'Criar conta',
+    },
+  },
+  signUp: {
+    start: {
+      title: 'Criar sua conta',
+      subtitle: 'Preencha seus dados para começar.',
+      actionText: 'Já possui uma conta?',
+      actionLink: 'Fazer login',
+    },
+  },
+  formFieldLabel__emailAddress: 'E-mail',
+  formFieldLabel__password: 'Senha',
+  formFieldInputPlaceholder__emailAddress: 'Digite seu e-mail',
+  formFieldInputPlaceholder__password: 'Digite sua senha',
+  formButtonPrimary: 'Continuar',
+  dividerText: 'ou',
+  socialButtonsBlockButton: 'Continuar com {{provider|titleize}}',
+  backButton: 'Voltar',
+};
+
+const appearance = {
+  layout: {
+    socialButtonsPlacement: 'top',
+    socialButtonsVariant: 'blockButton',
+  },
+  variables: {
+    colorPrimary: '#d8aa34',
+    colorBackground: '#080808',
+    colorInputBackground: '#111111',
+    colorInputText: '#ffffff',
+    colorText: '#ffffff',
+    colorTextSecondary: '#a8a8a8',
+    colorDanger: '#ff7474',
+    borderRadius: '14px',
+    fontFamily: 'Inter, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif',
+  },
+  elements: {
+    modalBackdrop: {
+      background: 'rgba(0, 0, 0, 0.84)',
+      backdropFilter: 'blur(6px)',
+    },
+    modalContent: {
+      background: 'transparent',
+      boxShadow: 'none',
+    },
+    cardBox: {
+      width: 'min(92vw, 420px)',
+      boxShadow: '0 24px 70px rgba(0, 0, 0, 0.72)',
+    },
+    card: {
+      background: 'linear-gradient(180deg, #101010 0%, #070707 100%)',
+      border: '1px solid rgba(216, 170, 52, 0.34)',
+      boxShadow: 'none',
+      padding: '28px 24px 22px',
+    },
+    headerTitle: {
+      color: '#ffffff',
+      fontSize: '1.42rem',
+      fontWeight: '700',
+      letterSpacing: '-0.02em',
+    },
+    headerSubtitle: {
+      color: '#a8a8a8',
+      fontSize: '0.94rem',
+      lineHeight: '1.5',
+    },
+    socialButtonsBlockButton: {
+      minHeight: '48px',
+      background: '#151515',
+      border: '1px solid rgba(216, 170, 52, 0.38)',
+      color: '#ffffff',
+      boxShadow: 'none',
+    },
+    socialButtonsBlockButtonText: {
+      color: '#ffffff',
+      fontWeight: '600',
+    },
+    dividerLine: {
+      background: 'rgba(216, 170, 52, 0.22)',
+    },
+    dividerText: {
+      color: '#8d8d8d',
+    },
+    formFieldLabel: {
+      color: '#ededed',
+      fontWeight: '600',
+    },
+    formFieldInput: {
+      minHeight: '48px',
+      background: '#111111',
+      border: '1px solid rgba(216, 170, 52, 0.24)',
+      color: '#ffffff',
+      boxShadow: 'none',
+    },
+    formButtonPrimary: {
+      minHeight: '48px',
+      background: 'linear-gradient(135deg, #f1cf69 0%, #d9aa31 55%, #b77b12 100%)',
+      color: '#080808',
+      fontWeight: '800',
+      letterSpacing: '0.06em',
+      boxShadow: '0 10px 24px rgba(216, 170, 52, 0.24)',
+    },
+    footer: {
+      background: '#0b0b0b',
+      borderTop: '1px solid rgba(216, 170, 52, 0.16)',
+    },
+    footerActionText: {
+      color: '#9d9d9d',
+    },
+    footerActionLink: {
+      color: '#e4bd55',
+      fontWeight: '700',
+    },
+    modalCloseButton: {
+      color: '#e8e8e8',
+      background: '#151515',
+      border: '1px solid rgba(216, 170, 52, 0.28)',
+    },
+  },
+};
+
 function escapeHtml(value) {
   return String(value)
     .replaceAll('&', '&amp;')
@@ -62,6 +190,8 @@ async function startApplication() {
       <ClerkProvider
         publishableKey={clerkPublishableKey}
         clerkJSUrl="https://cdn.jsdelivr.net/npm/@clerk/clerk-js@5/dist/clerk.browser.js"
+        localization={localization}
+        appearance={appearance}
         afterSignOutUrl="/#/"
       >
         <HashRouter>
