@@ -4,16 +4,25 @@ import DOMNAI_LOGO from './assets/domnai-logo-oficial-transparente.png';
 import './dashboard.css';
 
 const operations = [
+  { id: 'validacao-ideia', name: 'Validação de Ideias e Oportunidades', prompt: 'Informe a ideia, produto, serviço ou oportunidade para analisar demanda, público, concorrência, custos, riscos e potencial de retorno.', numeric: true },
+  { id: 'abrir-negocio', name: 'Abrir um Negócio do Zero', prompt: 'Conte qual negócio pretende abrir, quanto pretende investir, onde deseja atuar e se será físico, digital ou híbrido.', numeric: true },
+  { id: 'estrutura-negocio', name: 'Estruturação e Organização Empresarial', prompt: 'Conte como o negócio funciona para organizar modelo, processos, setores, responsabilidades, custos e próximos passos.', numeric: false },
+  { id: 'diagnostico-negocio', name: 'Diagnóstico do Negócio', prompt: 'Informe como sua empresa funciona hoje para identificar gargalos em vendas, custos, operação, equipe, margem e organização.', numeric: true },
+  { id: 'plano-acao', name: 'Plano de Ação Empresarial', prompt: 'Explique o problema ou objetivo para transformar a situação em ações organizadas por prioridade, prazo e impacto.', numeric: false },
+  { id: 'viabilidade', name: 'Análise de Viabilidade', prompt: 'Informe a decisão que está avaliando para analisar custos, riscos, retorno, prazo e alternativas antes de investir.', numeric: true },
+  { id: 'mercado-concorrencia', name: 'Pesquisa de Mercado e Concorrência', prompt: 'Informe o mercado, produto, serviço ou região para organizar concorrentes, preços, público, diferenciais e oportunidades.', numeric: true },
+  { id: 'gestao-financeira', name: 'Gestão Financeira Empresarial', prompt: 'Informe receitas, despesas, custos e período para organizar fluxo de caixa, margem e resultado.', numeric: true },
+  { id: 'precificacao', name: 'Precificação Estratégica', prompt: 'Informe custo, taxas, impostos, margem e demais despesas para calcular preço mínimo, ideal e promocional.', numeric: true },
+  { id: 'metas', name: 'Planejamento de Metas', prompt: 'Informe a meta de faturamento, lucro ou crescimento para calcular vendas necessárias, ticket médio, prazo e prioridades.', numeric: true },
+  { id: 'compras', name: 'Cotações e Compras Empresariais', prompt: 'Envie produtos, fornecedores ou orçamentos para comparar preço, frete, prazo, desconto e custo total.', numeric: true },
+  { id: 'fornecedores', name: 'Escolha de Fornecedores', prompt: 'Envie as opções de fornecedores para comparar preço, prazo, qualidade, reputação, frete e condições de pagamento.', numeric: true },
+  { id: 'negociacao', name: 'Negociação Estratégica', prompt: 'Explique o que precisa negociar e informe valores, condições e objetivo desejado.', numeric: false },
+  { id: 'dividas', name: 'Análise de Dívidas e Renegociação', prompt: 'Informe saldo, juros, parcelas e propostas de acordo para comparar cenários e identificar a opção menos pesada para o caixa.', numeric: true },
+  { id: 'investimentos', name: 'Análise de Investimentos', prompt: 'Informe valor, prazo, rentabilidade esperada e alternativas para comparar risco, liquidez e retorno.', numeric: true },
   { id: 'contrato', name: 'Análise Contratual', prompt: 'Envie o contrato em PDF, imagem ou texto para identificar riscos, multas, prazos e obrigações.', numeric: false },
+  { id: 'rescisao', name: 'Cálculo de Rescisão Trabalhista', prompt: 'Informe salário, datas, tipo de desligamento, férias e demais dados para estimar as verbas rescisórias.', numeric: true },
   { id: 'veiculos', name: 'Pesquisa e Comparação de Veículos', prompt: 'Informe placa, modelo, ano ou os veículos que deseja comparar por FIPE, mercado, consumo, manutenção e custo-benefício.', numeric: true },
   { id: 'imoveis', name: 'Análise Imobiliária', prompt: 'Envie os dados do imóvel para comparar preço, localização, documentação, financiamento e retorno.', numeric: true },
-  { id: 'compras', name: 'Cotações e Compras Empresariais', prompt: 'Envie produtos, fornecedores ou orçamentos para comparar preço, frete, prazo, desconto e custo total.', numeric: true },
-  { id: 'negociacao', name: 'Negociação Estratégica', prompt: 'Explique o que precisa negociar e informe valores, condições e objetivo desejado.', numeric: false },
-  { id: 'investimentos', name: 'Análise de Investimentos', prompt: 'Informe valor, prazo, rentabilidade esperada e alternativas para comparar risco, liquidez e retorno.', numeric: true },
-  { id: 'gestao-financeira', name: 'Gestão Financeira Empresarial', prompt: 'Informe receitas, despesas, custos e período para organizar fluxo de caixa, margem e resultado.', numeric: true },
-  { id: 'estrutura-negocio', name: 'Estruturação de Negócios', prompt: 'Conte sobre o negócio para organizar modelo, processos, setores, custos e próximos passos.', numeric: false },
-  { id: 'precificacao', name: 'Precificação Estratégica', prompt: 'Informe custo, taxas, impostos, margem e demais despesas para calcular preço mínimo, ideal e promocional.', numeric: true },
-  { id: 'rescisao', name: 'Cálculo de Rescisão Trabalhista', prompt: 'Informe salário, datas, tipo de desligamento, férias e demais dados para estimar as verbas rescisórias.', numeric: true },
 ];
 
 const initialMessages = [
