@@ -5,6 +5,7 @@ import { HashRouter } from 'react-router-dom';
 import App from './App';
 import ErrorBoundary from './ErrorBoundary';
 import './styles.css';
+import './scale.css';
 
 const rootElement = document.getElementById('root');
 
