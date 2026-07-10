@@ -14,7 +14,7 @@ const localization = {
   signIn: {
     start: {
       title: 'Entrar',
-      subtitle: 'Acesse sua conta para continuar.',
+      subtitle: '',
       actionText: 'Ainda não tem uma conta?',
       actionLink: 'Criar conta',
     },
@@ -22,7 +22,7 @@ const localization = {
   signUp: {
     start: {
       title: 'Criar conta',
-      subtitle: 'Preencha seus dados para começar.',
+      subtitle: '',
       actionText: 'Já possui uma conta?',
       actionLink: 'Fazer login',
     },
@@ -79,9 +79,7 @@ const appearance = {
       letterSpacing: '-0.02em',
     },
     headerSubtitle: {
-      color: '#a8a8a8',
-      fontSize: '0.94rem',
-      lineHeight: '1.5',
+      display: 'none',
     },
     socialButtonsBlockButton: {
       minHeight: '48px',
