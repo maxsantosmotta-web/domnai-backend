@@ -9,6 +9,8 @@ import './scale.css';
 import './final-refinement.css';
 import './no-glow.css';
 import './auth-modal.css';
+import './auth-compact.css';
+import './auth-enhancements.js';
 
 const rootElement = document.getElementById('root');
 
