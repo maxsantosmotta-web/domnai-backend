@@ -1,216 +1,292 @@
 import React, { useMemo, useState } from 'react';
-import { UserButton, useAuth } from '@clerk/clerk-react';
+import { UserButton } from '@clerk/clerk-react';
 import DOMNAI_LOGO from './assets/domnai-logo-oficial-transparente.png';
 import './dashboard.css';
 
-const tools = [
-  { id: 'contrato', title: 'Analisar contrato', description: 'Identifique riscos, obrigações, multas e pontos de atenção.', icon: '▤' },
-  { id: 'produto', title: 'Comparar produtos', description: 'Compare custo, benefício, qualidade e alternativas.', icon: '◇' },
-  { id: 'orcamento', title: 'Comparar orçamentos', description: 'Descubra qual proposta entrega o melhor valor.', icon: '≋' },
-  { id: 'proposta', title: 'Avaliar proposta', description: 'Entenda se as condições são justas antes de aceitar.', icon: '✓' },
-  { id: 'negociacao', title: 'Negociar preço', description: 'Organize argumentos para conseguir condições melhores.', icon: '↔' },
-  { id: 'empresa', title: 'Abrir empresa', description: 'Compare caminhos, custos e decisões iniciais do negócio.', icon: '⌂' },
-  { id: 'decisao-geral', title: 'Outra decisão', description: 'Analise qualquer escolha importante com mais clareza.', icon: '+' },
+const operations = [
+  { id: 'contrato', name: 'Análise Contratual', prompt: 'Envie o contrato em PDF, imagem ou texto para identificar riscos, multas, prazos e obrigações.', numeric: false },
+  { id: 'veiculos', name: 'Pesquisa e Comparação de Veículos', prompt: 'Informe placa, modelo, ano ou os veículos que deseja comparar por FIPE, mercado, consumo, manutenção e custo-benefício.', numeric: true },
+  { id: 'imoveis', name: 'Análise Imobiliária', prompt: 'Envie os dados do imóvel para comparar preço, localização, documentação, financiamento e retorno.', numeric: true },
+  { id: 'compras', name: 'Cotações e Compras Empresariais', prompt: 'Envie produtos, fornecedores ou orçamentos para comparar preço, frete, prazo, desconto e custo total.', numeric: true },
+  { id: 'negociacao', name: 'Negociação Estratégica', prompt: 'Explique o que precisa negociar e informe valores, condições e objetivo desejado.', numeric: false },
+  { id: 'investimentos', name: 'Análise de Investimentos', prompt: 'Informe valor, prazo, rentabilidade esperada e alternativas para comparar risco, liquidez e retorno.', numeric: true },
+  { id: 'gestao-financeira', name: 'Gestão Financeira Empresarial', prompt: 'Informe receitas, despesas, custos e período para organizar fluxo de caixa, margem e resultado.', numeric: true },
+  { id: 'estrutura-negocio', name: 'Estruturação de Negócios', prompt: 'Conte sobre o negócio para organizar modelo, processos, setores, custos e próximos passos.', numeric: false },
+  { id: 'precificacao', name: 'Precificação Estratégica', prompt: 'Informe custo, taxas, impostos, margem e demais despesas para calcular preço mínimo, ideal e promocional.', numeric: true },
+  { id: 'rescisao', name: 'Cálculo de Rescisão Trabalhista', prompt: 'Informe salário, datas, tipo de desligamento, férias e demais dados para estimar as verbas rescisórias.', numeric: true },
 ];
 
-const categoryMap = {
-  proposta: 'decisao-geral',
-};
-
-function AnalysisResult({ analysis, onReset }) {
-  const framework = analysis?.decisionFramework;
-
-  return (
-    <section className="analysis-result" aria-live="polite">
-      <div className="analysis-result-heading">
-        <div>
-          <span className="dashboard-kicker">Análise concluída</span>
-          <h2>{analysis.category?.name || 'Resultado da análise'}</h2>
-        </div>
-        <button type="button" className="dashboard-ghost-button" onClick={onReset}>Nova análise</button>
-      </div>
-
-      <p className="analysis-summary">{analysis.summary}</p>
-
-      <div className="analysis-columns">
-        <article>
-          <h3>Riscos</h3>
-          <ul>{framework?.risks?.map((item) => <li key={item}>{item}</li>)}</ul>
-        </article>
-        <article>
-          <h3>Vantagens</h3>
-          <ul>{framework?.advantages?.map((item) => <li key={item}>{item}</li>)}</ul>
-        </article>
-        <article>
-          <h3>Pontos de atenção</h3>
-          <ul>{framework?.attentionPoints?.map((item) => <li key={item}>{item}</li>)}</ul>
-        </article>
-      </div>
-
-      <article className="analysis-recommendation">
-        <span>Recomendação inicial</span>
-        <p>{analysis.recommendation}</p>
-      </article>
-
-      <p className="analysis-disclaimer">{analysis.disclaimer}</p>
-    </section>
-  );
-}
+const initialMessages = [
+  {
+    id: 1,
+    role: 'assistant',
+    text: 'Olá. Escolha uma operação no menu ou escreva diretamente o que você precisa analisar.',
+  },
+];
 
 export default function Dashboard() {
-  const { getToken } = useAuth();
-  const [selectedTool, setSelectedTool] = useState(null);
-  const [question, setQuestion] = useState('');
-  const [context, setContext] = useState('');
-  const [analysis, setAnalysis] = useState(null);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState('');
+  const [section, setSection] = useState('chat');
+  const [activeOperation, setActiveOperation] = useState(null);
+  const [messages, setMessages] = useState(initialMessages);
+  const [draft, setDraft] = useState('');
+  const [search, setSearch] = useState('');
+  const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [trash, setTrash] = useState([]);
 
-  const activeTool = useMemo(
-    () => tools.find((tool) => tool.id === selectedTool) || null,
-    [selectedTool],
+  const operation = useMemo(
+    () => operations.find((item) => item.id === activeOperation) || null,
+    [activeOperation],
   );
 
-  function openTool(tool) {
-    setSelectedTool(tool.id);
-    setQuestion(tool.title === 'Outra decisão' ? '' : tool.description);
-    setContext('');
-    setAnalysis(null);
-    setError('');
-    window.requestAnimationFrame(() => {
-      document.getElementById('analysis-workspace')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-    });
+  const visibleMessages = useMemo(() => {
+    const term = search.trim().toLowerCase();
+    if (!term) return messages;
+    return messages.filter((message) => message.text.toLowerCase().includes(term));
+  }, [messages, search]);
+
+  function selectOperation(item) {
+    setActiveOperation(item.id);
+    setSection('chat');
+    setSidebarOpen(false);
+    setMessages((current) => [
+      ...current,
+      {
+        id: Date.now(),
+        role: 'assistant',
+        text: `${item.name}: ${item.prompt}`,
+      },
+    ]);
   }
 
-  function resetWorkspace() {
-    setSelectedTool(null);
-    setQuestion('');
-    setContext('');
-    setAnalysis(null);
-    setError('');
-  }
-
-  async function handleSubmit(event) {
+  function sendMessage(event) {
     event.preventDefault();
-    setError('');
+    const text = draft.trim();
+    if (!text) return;
 
-    if (!selectedTool || question.trim().length < 5 || context.trim().length < 20) {
-      setError('Explique a decisão e informe um pouco mais de contexto para continuar.');
-      return;
-    }
+    setMessages((current) => [
+      ...current,
+      { id: Date.now(), role: 'user', text },
+      {
+        id: Date.now() + 1,
+        role: 'assistant',
+        text: operation
+          ? `Recebi os dados para ${operation.name}. A próxima etapa será conectar esta conversa à análise real da operação.`
+          : 'Recebi sua mensagem. Selecione uma operação no menu para aplicar a análise especializada.',
+      },
+    ]);
+    setDraft('');
+  }
 
-    setLoading(true);
-    try {
-      const token = await getToken();
-      const response = await fetch('/api/decisions/analyze', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({
-          category: categoryMap[selectedTool] || selectedTool,
-          question: question.trim(),
-          context: context.trim(),
-        }),
-      });
+  function deleteConversation() {
+    if (messages.length === 0) return;
+    setTrash((current) => [
+      { id: Date.now(), title: operation?.name || 'Conversa geral', messages, deletedAt: new Date().toLocaleString('pt-BR') },
+      ...current,
+    ]);
+    setMessages(initialMessages);
+    setActiveOperation(null);
+    setSearch('');
+  }
 
-      const payload = await response.json().catch(() => ({}));
-      if (!response.ok) {
-        throw new Error(payload?.detail || 'Não foi possível concluir a análise.');
-      }
+  function restoreConversation(item) {
+    setMessages(item.messages);
+    setTrash((current) => current.filter((entry) => entry.id !== item.id));
+    setSection('chat');
+  }
 
-      setAnalysis(payload.analysis);
-    } catch (requestError) {
-      setError(requestError.message || 'Não foi possível concluir a análise.');
-    } finally {
-      setLoading(false);
-    }
+  function emptyTrash() {
+    setTrash([]);
   }
 
   return (
-    <main className="dashboard-page dashboard-shell">
-      <header className="dashboard-header dashboard-topbar">
-        <img className="dashboard-logo" src={DOMNAI_LOGO} alt="DomnAI" />
-        <div className="dashboard-account">
-          <span>Sua conta</span>
-          <UserButton afterSignOutUrl="/" />
-        </div>
-      </header>
+    <main className="domnai-app-shell">
+      <button
+        type="button"
+        className="mobile-menu-button"
+        aria-label="Abrir menu"
+        onClick={() => setSidebarOpen(true)}
+      >
+        ☰
+      </button>
 
-      <section className="dashboard-hero">
-        <div>
-          <span className="dashboard-kicker">Apoio inteligente para suas escolhas</span>
-          <h1>O que você precisa decidir hoje?</h1>
-          <p>Escolha uma análise e receba uma visão clara dos riscos, vantagens e próximos passos.</p>
-        </div>
-        <button type="button" className="dashboard-history-button" disabled>
-          Histórico <span>Em breve</span>
-        </button>
-      </section>
+      {sidebarOpen ? <button className="sidebar-backdrop" type="button" aria-label="Fechar menu" onClick={() => setSidebarOpen(false)} /> : null}
 
-      <section className="dashboard-tools" aria-label="Funcionalidades do DomnAI">
-        {tools.map((tool) => (
-          <button
-            type="button"
-            className={`dashboard-tool-card${selectedTool === tool.id ? ' is-active' : ''}`}
-            key={tool.id}
-            onClick={() => openTool(tool)}
-          >
-            <span className="dashboard-tool-icon" aria-hidden="true">{tool.icon}</span>
-            <span className="dashboard-tool-copy">
-              <strong>{tool.title}</strong>
-              <small>{tool.description}</small>
-            </span>
-            <span className="dashboard-tool-arrow" aria-hidden="true">→</span>
+      <aside className={`domnai-sidebar${sidebarOpen ? ' is-open' : ''}`}>
+        <div className="sidebar-brand">
+          <img src={DOMNAI_LOGO} alt="DomnAI" />
+          <button type="button" className="sidebar-close" onClick={() => setSidebarOpen(false)} aria-label="Fechar menu">×</button>
+        </div>
+
+        <nav className="sidebar-navigation" aria-label="Navegação principal">
+          <button className={section === 'chat' ? 'is-active' : ''} type="button" onClick={() => { setSection('chat'); setSidebarOpen(false); }}>
+            <span>▣</span> Dashboard
           </button>
-        ))}
-      </section>
 
-      {activeTool ? (
-        <section id="analysis-workspace" className="analysis-workspace">
-          {analysis ? (
-            <AnalysisResult analysis={analysis} onReset={resetWorkspace} />
-          ) : (
-            <>
-              <div className="analysis-workspace-heading">
-                <div>
-                  <span className="dashboard-kicker">{activeTool.title}</span>
-                  <h2>Conte o que você precisa analisar</h2>
-                </div>
-                <button type="button" className="dashboard-close-workspace" onClick={resetWorkspace} aria-label="Fechar análise">×</button>
+          <div className="sidebar-group">
+            <p>Operações</p>
+            {operations.map((item) => (
+              <button
+                className={activeOperation === item.id && section === 'chat' ? 'is-active' : ''}
+                type="button"
+                key={item.id}
+                onClick={() => selectOperation(item)}
+              >
+                <span>›</span> {item.name}
+              </button>
+            ))}
+          </div>
+
+          <div className="sidebar-group sidebar-system-group">
+            <p>Sistema</p>
+            <button className={section === 'trash' ? 'is-active' : ''} type="button" onClick={() => { setSection('trash'); setSidebarOpen(false); }}>
+              <span>⌫</span> Lixeira
+            </button>
+            <button className={section === 'billing' ? 'is-active' : ''} type="button" onClick={() => { setSection('billing'); setSidebarOpen(false); }}>
+              <span>◈</span> Faturamento
+            </button>
+            <button className={section === 'settings' ? 'is-active' : ''} type="button" onClick={() => { setSection('settings'); setSidebarOpen(false); }}>
+              <span>⚙</span> Configurações
+            </button>
+          </div>
+        </nav>
+
+        <div className="sidebar-profile">
+          <UserButton afterSignOutUrl="/" />
+          <div>
+            <strong>Minha conta</strong>
+            <small>Perfil e acesso</small>
+          </div>
+        </div>
+      </aside>
+
+      <section className="domnai-main-area">
+        {section === 'chat' ? (
+          <>
+            <header className="chat-header">
+              <div>
+                <span className="chat-kicker">{operation ? 'Operação ativa' : 'DomnAI'}</span>
+                <h1>{operation?.name || 'Dashboard'}</h1>
+                <p>{operation?.prompt || 'Continue de onde parou ou escolha uma operação no menu lateral.'}</p>
               </div>
 
-              <form className="analysis-form" onSubmit={handleSubmit}>
-                <label>
-                  <span>Qual é a sua dúvida principal?</span>
+              <div className="chat-header-actions">
+                <label className="chat-search">
+                  <span aria-hidden="true">⌕</span>
                   <input
-                    value={question}
-                    onChange={(event) => setQuestion(event.target.value)}
-                    placeholder="Exemplo: esta proposta realmente vale a pena?"
+                    value={search}
+                    onChange={(event) => setSearch(event.target.value)}
+                    placeholder="Pesquisar na conversa"
+                    aria-label="Pesquisar por palavra-chave"
                   />
                 </label>
+                <button type="button" className="delete-chat-button" onClick={deleteConversation}>Excluir conversa</button>
+              </div>
+            </header>
 
-                <label>
-                  <span>Explique o contexto</span>
+            <div className={`chat-workspace${operation?.numeric ? ' has-dynamic-panel' : ''}`}>
+              <section className="chat-column">
+                <div className="chat-messages">
+                  {visibleMessages.length ? visibleMessages.map((message) => (
+                    <article className={`chat-message ${message.role}`} key={message.id}>
+                      <span>{message.role === 'assistant' ? 'DomnAI' : 'Você'}</span>
+                      <p>{message.text}</p>
+                      {message.role === 'assistant' ? (
+                        <button type="button" onClick={() => navigator.clipboard?.writeText(message.text)}>Copiar</button>
+                      ) : null}
+                    </article>
+                  )) : (
+                    <div className="chat-empty-search">Nenhuma mensagem encontrada com essa palavra.</div>
+                  )}
+                </div>
+
+                <form className="chat-composer" onSubmit={sendMessage}>
+                  <div className="composer-tools">
+                    <button type="button" title="Anexar imagem">▧</button>
+                    <button type="button" title="Anexar arquivo">⌑</button>
+                    <button type="button" title="Inserir link">↗</button>
+                  </div>
                   <textarea
-                    value={context}
-                    onChange={(event) => setContext(event.target.value)}
-                    placeholder="Informe valores, condições, prazos, alternativas e tudo o que pode ajudar na análise."
-                    rows="7"
+                    value={draft}
+                    onChange={(event) => setDraft(event.target.value)}
+                    placeholder={operation ? `Digite os dados para ${operation.name}...` : 'Digite sua mensagem...'}
+                    rows="3"
                   />
-                </label>
+                  <button type="submit" className="send-message-button" aria-label="Enviar mensagem">➤</button>
+                </form>
+              </section>
 
-                {error ? <p className="analysis-error" role="alert">{error}</p> : null}
+              {operation?.numeric ? (
+                <aside className="dynamic-panel">
+                  <span>Painel Dinâmico</span>
+                  <h2>Números em tempo real</h2>
+                  <p>Os indicadores e gráficos desta operação aparecerão aqui conforme os dados forem informados no chat.</p>
+                  <div className="dynamic-placeholder">
+                    <div><strong>—</strong><small>Resultado principal</small></div>
+                    <div><strong>—</strong><small>Comparação</small></div>
+                    <div><strong>—</strong><small>Projeção</small></div>
+                  </div>
+                </aside>
+              ) : null}
+            </div>
+          </>
+        ) : null}
 
-                <button type="submit" className="analysis-submit" disabled={loading}>
-                  {loading ? 'Analisando...' : 'Analisar agora'}
-                </button>
-              </form>
-            </>
-          )}
-        </section>
-      ) : null}
+        {section === 'trash' ? (
+          <section className="internal-section">
+            <header>
+              <div>
+                <span>Lixeira</span>
+                <h1>Conversas excluídas</h1>
+                <p>Restaure uma conversa ou exclua os itens definitivamente.</p>
+              </div>
+              {trash.length ? <button type="button" onClick={emptyTrash}>Esvaziar lixeira</button> : null}
+            </header>
+            {trash.length ? (
+              <div className="trash-list">
+                {trash.map((item) => (
+                  <article key={item.id}>
+                    <div><strong>{item.title}</strong><small>Excluída em {item.deletedAt}</small></div>
+                    <div>
+                      <button type="button" onClick={() => restoreConversation(item)}>Restaurar</button>
+                      <button type="button" onClick={() => setTrash((current) => current.filter((entry) => entry.id !== item.id))}>Excluir definitivamente</button>
+                    </div>
+                  </article>
+                ))}
+              </div>
+            ) : <div className="internal-empty-state">A lixeira está vazia.</div>}
+          </section>
+        ) : null}
+
+        {section === 'billing' ? (
+          <section className="internal-section">
+            <header>
+              <div>
+                <span>Faturamento</span>
+                <h1>Créditos avulsos</h1>
+                <p>Área exclusiva para consultar saldo e comprar pacotes avulsos de créditos.</p>
+              </div>
+            </header>
+            <div className="billing-card">
+              <strong>Pacotes de créditos</strong>
+              <p>Os valores e quantidades serão conectados aqui após a definição comercial.</p>
+              <button type="button" disabled>Comprar créditos</button>
+            </div>
+          </section>
+        ) : null}
+
+        {section === 'settings' ? (
+          <section className="internal-section">
+            <header>
+              <div>
+                <span>Configurações</span>
+                <h1>Preferências da plataforma</h1>
+                <p>Configurações gerais do DomnAI serão organizadas nesta área.</p>
+              </div>
+            </header>
+            <div className="internal-empty-state">Nenhuma configuração disponível nesta etapa.</div>
+          </section>
+        ) : null}
+      </section>
     </main>
   );
 }
