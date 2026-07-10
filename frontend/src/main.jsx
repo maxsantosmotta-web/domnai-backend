@@ -47,10 +47,23 @@ async function startApplication() {
     throw new Error('Não foi possível carregar a configuração do DomnAI.');
   }
 
-  const { clerkPublishableKey } = await response.json();
+  const runtimeConfig = await response.json();
+  const { clerkPublishableKey } = runtimeConfig;
+
+  console.info('[DomnAI][RuntimeConfig]', {
+    clerkKeyEnvironment: runtimeConfig.clerkKeyEnvironment,
+    clerkKeySource: runtimeConfig.clerkKeySource,
+    clerkFrontendApi: runtimeConfig.clerkFrontendApi,
+    applicationOrigin: runtimeConfig.applicationOrigin,
+    browserOrigin: window.location.origin,
+  });
 
   if (!clerkPublishableKey) {
     throw new Error('Chave pública do Clerk não configurada.');
+  }
+
+  if (!clerkPublishableKey.startsWith('pk_live_')) {
+    console.error('[DomnAI][Clerk] A chave carregada não é uma publishable key Production.');
   }
 
   ReactDOM.createRoot(rootElement).render(
