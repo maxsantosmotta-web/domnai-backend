@@ -6,6 +6,7 @@ import App from './App';
 import ErrorBoundary from './ErrorBoundary';
 import './styles.css';
 import './scale.css';
+import './final-refinement.css';
 
 const rootElement = document.getElementById('root');
 
