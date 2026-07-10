@@ -148,14 +148,6 @@ a {
   outline-offset: 3px;
 }
 
-.signed-area {
-  margin-top: 18px;
-  display: flex;
-  align-items: center;
-  gap: 14px;
-  color: #d4d4d4;
-}
-
 .landing-footer {
   margin-top: 42px;
   display: flex;
@@ -172,6 +164,53 @@ a {
 
 .landing-footer a:hover {
   color: #d7b453;
+}
+
+.dashboard-page {
+  min-height: 100vh;
+  padding: 24px;
+}
+
+.dashboard-header {
+  width: min(100%, 1120px);
+  margin: 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+}
+
+.dashboard-logo {
+  width: min(220px, 55vw);
+  height: auto;
+  display: block;
+}
+
+.dashboard-content {
+  width: min(100%, 1120px);
+  margin: 80px auto 0;
+  padding: 36px;
+  border: 1px solid rgba(228, 189, 79, 0.22);
+  border-radius: 20px;
+  background: rgba(10, 10, 10, 0.78);
+}
+
+.dashboard-content h1 {
+  margin: 8px 0 12px;
+  font-size: clamp(2rem, 5vw, 3.5rem);
+}
+
+.dashboard-content p {
+  color: #b8b8b8;
+}
+
+.dashboard-eyebrow {
+  margin: 0;
+  color: #d7b453 !important;
+  font-size: 0.8rem;
+  font-weight: 700;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
 }
 
 @media (max-width: 600px) {
@@ -191,5 +230,14 @@ a {
   .landing-footer {
     margin-top: 34px;
     padding-bottom: 8px;
+  }
+
+  .dashboard-page {
+    padding: 18px;
+  }
+
+  .dashboard-content {
+    margin-top: 48px;
+    padding: 24px;
   }
 }
