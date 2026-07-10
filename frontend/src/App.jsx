@@ -60,17 +60,15 @@ function AuthPage({ mode }) {
       <section className="auth-content" aria-label={isSignUp ? 'Criar conta' : 'Fazer login'}>
         {isSignUp ? (
           <SignUp
-            routing="hash"
-            path="/cadastro"
-            signInUrl="/login"
-            forceRedirectUrl="/"
+            routing="virtual"
+            signInUrl="/#/login"
+            forceRedirectUrl="/#/"
           />
         ) : (
           <SignIn
-            routing="hash"
-            path="/login"
-            signUpUrl="/cadastro"
-            forceRedirectUrl="/"
+            routing="virtual"
+            signUpUrl="/#/cadastro"
+            forceRedirectUrl="/#/"
           />
         )}
       </section>
