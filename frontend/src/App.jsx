@@ -9,8 +9,6 @@ import {
 } from '@clerk/clerk-react';
 import { DOMNAI_LOGO } from './logoData';
 
-const API_URL = import.meta.env.VITE_API_URL || 'https://domnai.iattomassist.com.br';
-
 function AuthBridge() {
   const { getToken, isSignedIn } = useAuth();
 
@@ -19,7 +17,7 @@ function AuthBridge() {
 
     const validateSession = async () => {
       const token = await getToken();
-      const response = await fetch(`${API_URL}/api/auth/status`, {
+      const response = await fetch('/api/auth/status', {
         headers: { Authorization: `Bearer ${token}` },
       });
 
