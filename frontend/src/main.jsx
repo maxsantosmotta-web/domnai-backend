@@ -8,6 +8,7 @@ import './styles.css';
 import './scale.css';
 import './final-refinement.css';
 import './no-glow.css';
+import './auth-modal.css';
 
 const rootElement = document.getElementById('root');
 
@@ -188,7 +189,6 @@ async function startApplication() {
     <ErrorBoundary>
       <ClerkProvider
         publishableKey={clerkPublishableKey}
-        clerkJSUrl="https://cdn.jsdelivr.net/npm/@clerk/clerk-js@5/dist/clerk.browser.js"
         localization={localization}
         appearance={appearance}
         afterSignOutUrl="/#/"
