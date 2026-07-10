@@ -6,7 +6,7 @@ import {
   useAuth,
 } from '@clerk/clerk-react';
 import { Link, Navigate, Route, Routes } from 'react-router-dom';
-import { DOMNAI_LOGO } from './logoData';
+import DOMNAI_LOGO from './assets/file_00000000b294720eb4facc4b48f63c90.png';
 
 function FooterNavigation() {
   return (
