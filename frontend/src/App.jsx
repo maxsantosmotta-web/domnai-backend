@@ -7,6 +7,7 @@ import {
   UserButton,
   useAuth,
 } from '@clerk/clerk-react';
+import { DOMNAI_LOGO } from './logoData';
 
 const API_URL = import.meta.env.VITE_API_URL || 'https://domnai.iattomassist.com.br';
 
@@ -41,7 +42,7 @@ export default function App() {
       <section className="landing-card" aria-label="Acesso ao DomnAI">
         <img
           className="official-logo"
-          src="/domnai-logo.png"
+          src={DOMNAI_LOGO}
           alt="DomnAI — Transforme escolhas em resultados com inteligência."
         />
 
