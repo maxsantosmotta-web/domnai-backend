@@ -1,8 +1,9 @@
-import React, { useState } from 'react';
+import React from 'react';
 import {
+  SignInButton,
+  SignUpButton,
   UserButton,
   useAuth,
-  useClerk,
 } from '@clerk/clerk-react';
 import { Link, Navigate, Route, Routes } from 'react-router-dom';
 import DOMNAI_LOGO from './assets/domnai-logo-oficial-transparente.png';
@@ -19,39 +20,6 @@ function FooterNavigation() {
 }
 
 function Landing() {
-  const clerk = useClerk();
-  const [authError, setAuthError] = useState('');
-  const [activeAction, setActiveAction] = useState(null);
-
-  async function handleAuth(action) {
-    setAuthError('');
-    setActiveAction(action);
-
-    try {
-      if (action === 'sign-up') {
-        await clerk.openSignUp({
-          afterSignInUrl: '/#/',
-          afterSignUpUrl: '/#/',
-        });
-      } else {
-        await clerk.openSignIn({
-          afterSignInUrl: '/#/',
-          afterSignUpUrl: '/#/',
-        });
-      }
-    } catch (error) {
-      console.error(`[DomnAI] Falha ao abrir ${action}:`, error);
-      setAuthError(
-        error?.errors?.[0]?.longMessage
-          || error?.errors?.[0]?.message
-          || error?.message
-          || 'Não foi possível abrir o acesso. Tente novamente.',
-      );
-    } finally {
-      setActiveAction(null);
-    }
-  }
-
   return (
     <main className="landing-page">
       <section className="landing-card" aria-label="Acesso ao DomnAI">
@@ -62,38 +30,18 @@ function Landing() {
         />
 
         <div className="access-actions">
-          <button
-            className="primary-button"
-            type="button"
-            onClick={() => handleAuth('sign-up')}
-          >
-            {activeAction === 'sign-up' ? 'Abrindo...' : 'Criar conta'}
-          </button>
+          <SignUpButton mode="modal">
+            <button className="primary-button" type="button">
+              Criar conta
+            </button>
+          </SignUpButton>
 
-          <button
-            className="secondary-button"
-            type="button"
-            onClick={() => handleAuth('sign-in')}
-          >
-            {activeAction === 'sign-in' ? 'Abrindo...' : 'Fazer login'}
-          </button>
+          <SignInButton mode="modal">
+            <button className="secondary-button" type="button">
+              Fazer login
+            </button>
+          </SignInButton>
         </div>
-
-        {authError ? (
-          <p
-            role="alert"
-            style={{
-              width: 'min(100%, 440px)',
-              margin: '12px 0 0',
-              color: '#e9c66e',
-              fontSize: '0.82rem',
-              lineHeight: 1.5,
-              textAlign: 'center',
-            }}
-          >
-            {authError}
-          </p>
-        ) : null}
       </section>
 
       <FooterNavigation />
