@@ -13,7 +13,7 @@ const rootElement = document.getElementById('root');
 const localization = {
   signIn: {
     start: {
-      title: 'Entrar no DomnAI',
+      title: 'Entrar',
       subtitle: 'Acesse sua conta para continuar.',
       actionText: 'Ainda não tem uma conta?',
       actionLink: 'Criar conta',
@@ -21,7 +21,7 @@ const localization = {
   },
   signUp: {
     start: {
-      title: 'Criar sua conta',
+      title: 'Criar conta',
       subtitle: 'Preencha seus dados para começar.',
       actionText: 'Já possui uma conta?',
       actionLink: 'Fazer login',
@@ -55,16 +55,16 @@ const appearance = {
   },
   elements: {
     modalBackdrop: {
-      background: 'rgba(0, 0, 0, 0.84)',
-      backdropFilter: 'blur(6px)',
+      background: '#050505',
+      backdropFilter: 'none',
     },
     modalContent: {
-      background: 'transparent',
+      background: '#050505',
       boxShadow: 'none',
     },
     cardBox: {
       width: 'min(92vw, 420px)',
-      boxShadow: '0 24px 70px rgba(0, 0, 0, 0.72)',
+      boxShadow: 'none',
     },
     card: {
       background: 'linear-gradient(180deg, #101010 0%, #070707 100%)',
