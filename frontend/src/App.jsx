@@ -2,12 +2,21 @@ import React, { useEffect } from 'react';
 import {
   SignInButton,
   SignUpButton,
-  SignedIn,
-  SignedOut,
   UserButton,
   useAuth,
 } from '@clerk/clerk-react';
 import { DOMNAI_LOGO } from './logoData';
+
+function Splash() {
+  return (
+    <main className="startup-page" aria-live="polite" aria-busy="true">
+      <div>
+        <h1>DomnAI</h1>
+        <p>Verificando acesso...</p>
+      </div>
+    </main>
+  );
+}
 
 function AuthBridge() {
   const { getToken, isSignedIn } = useAuth();
@@ -22,21 +31,21 @@ function AuthBridge() {
       });
 
       if (!response.ok) {
-        console.error('Falha ao validar a sessão do DomnAI.');
+        console.error('[DomnAI] Falha ao validar a sessão no backend.');
       }
     };
 
-    validateSession().catch(console.error);
+    validateSession().catch((error) => {
+      console.error('[DomnAI] Erro ao validar a sessão:', error);
+    });
   }, [getToken, isSignedIn]);
 
   return null;
 }
 
-export default function App() {
+function Landing() {
   return (
     <main className="landing-page">
-      <AuthBridge />
-
       <section className="landing-card" aria-label="Acesso ao DomnAI">
         <img
           className="official-logo"
@@ -44,24 +53,15 @@ export default function App() {
           alt="DomnAI — Transforme escolhas em resultados com inteligência."
         />
 
-        <SignedOut>
-          <div className="access-actions">
-            <SignUpButton mode="modal" forceRedirectUrl="/">
-              <button className="primary-button" type="button">Criar conta</button>
-            </SignUpButton>
+        <div className="access-actions">
+          <SignUpButton mode="modal" forceRedirectUrl="/">
+            <button className="primary-button" type="button">Criar conta</button>
+          </SignUpButton>
 
-            <SignInButton mode="modal" forceRedirectUrl="/">
-              <button className="secondary-button" type="button">Fazer login</button>
-            </SignInButton>
-          </div>
-        </SignedOut>
-
-        <SignedIn>
-          <div className="signed-area">
-            <span>Acesso confirmado</span>
-            <UserButton />
-          </div>
-        </SignedIn>
+          <SignInButton mode="modal" forceRedirectUrl="/">
+            <button className="secondary-button" type="button">Fazer login</button>
+          </SignInButton>
+        </div>
       </section>
 
       <footer className="landing-footer">
@@ -72,4 +72,40 @@ export default function App() {
       </footer>
     </main>
   );
+}
+
+function Dashboard() {
+  return (
+    <main className="dashboard-page">
+      <AuthBridge />
+      <header className="dashboard-header">
+        <img
+          className="dashboard-logo"
+          src={DOMNAI_LOGO}
+          alt="DomnAI"
+        />
+        <UserButton afterSignOutUrl="/" />
+      </header>
+
+      <section className="dashboard-content">
+        <p className="dashboard-eyebrow">Acesso confirmado</p>
+        <h1>Bem-vindo ao DomnAI</h1>
+        <p>Transforme escolhas em resultados com inteligência.</p>
+      </section>
+    </main>
+  );
+}
+
+export default function App() {
+  const { isLoaded, isSignedIn } = useAuth();
+
+  if (!isLoaded) {
+    return <Splash />;
+  }
+
+  if (!isSignedIn) {
+    return <Landing />;
+  }
+
+  return <Dashboard />;
 }
