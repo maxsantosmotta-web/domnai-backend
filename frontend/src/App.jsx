@@ -20,48 +20,32 @@ function FooterNavigation() {
 
 function Landing() {
   const clerk = useClerk();
-  const { isLoaded } = useAuth();
   const [authError, setAuthError] = useState('');
   const [activeAction, setActiveAction] = useState(null);
-
-  async function ensureClerkReady() {
-    if (isLoaded || clerk.loaded) {
-      return;
-    }
-
-    if (typeof clerk.load !== 'function') {
-      throw new Error('O serviço de acesso não foi carregado.');
-    }
-
-    await Promise.race([
-      clerk.load(),
-      new Promise((_, reject) => {
-        window.setTimeout(() => reject(new Error('Tempo excedido ao carregar o acesso.')), 8000);
-      }),
-    ]);
-  }
 
   async function handleAuth(action) {
     setAuthError('');
     setActiveAction(action);
 
     try {
-      await ensureClerkReady();
-
-      const openAuth = action === 'sign-up' ? clerk.openSignUp : clerk.openSignIn;
-
-      if (typeof openAuth !== 'function') {
-        throw new Error('A tela de acesso não está disponível.');
+      if (action === 'sign-up') {
+        await clerk.openSignUp({
+          afterSignInUrl: '/#/',
+          afterSignUpUrl: '/#/',
+        });
+      } else {
+        await clerk.openSignIn({
+          afterSignInUrl: '/#/',
+          afterSignUpUrl: '/#/',
+        });
       }
-
-      await openAuth.call(clerk, {
-        afterSignInUrl: '/#/',
-        afterSignUpUrl: '/#/',
-      });
     } catch (error) {
       console.error(`[DomnAI] Falha ao abrir ${action}:`, error);
       setAuthError(
-        error?.message || 'Não foi possível abrir o acesso. Recarregue a página e tente novamente.',
+        error?.errors?.[0]?.longMessage
+          || error?.errors?.[0]?.message
+          || error?.message
+          || 'Não foi possível abrir o acesso. Tente novamente.',
       );
     } finally {
       setActiveAction(null);
