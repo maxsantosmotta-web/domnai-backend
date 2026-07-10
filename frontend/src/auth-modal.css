@@ -1,0 +1,46 @@
+.cl-modalBackdrop {
+  position: fixed !important;
+  inset: 0 !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  padding: 16px !important;
+  overflow-y: auto !important;
+  background: rgba(5, 5, 5, 0.92) !important;
+}
+
+.cl-modalContent {
+  width: 100% !important;
+  min-height: 100% !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  padding: 0 !important;
+  background: transparent !important;
+}
+
+.cl-cardBox,
+.cl-card {
+  width: min(92vw, 420px) !important;
+  height: auto !important;
+  min-height: 0 !important;
+  margin: auto !important;
+}
+
+.cl-main {
+  flex: initial !important;
+}
+
+.cl-footer {
+  margin-top: 0 !important;
+}
+
+@media (max-height: 680px) {
+  .cl-modalBackdrop {
+    align-items: flex-start !important;
+  }
+
+  .cl-cardBox {
+    margin: 12px auto !important;
+  }
+}
