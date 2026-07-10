@@ -33,6 +33,11 @@
   margin-top: 62px;
 }
 
+.content-card h1 {
+  margin: 10px 0 15px;
+  font-size: clamp(1.7rem, 4.25vw, 3.145rem);
+}
+
 @media (max-width: 720px) {
   .landing-page {
     top: -50px;
