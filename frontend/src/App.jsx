@@ -6,7 +6,7 @@ import {
   useAuth,
 } from '@clerk/clerk-react';
 import { Link, Navigate, Route, Routes } from 'react-router-dom';
-import DOMNAI_LOGO from './assets/file_00000000b294720eb4facc4b48f63c90.png';
+import DOMNAI_LOGO from './assets/domnai-logo-oficial-transparente.png';
 
 function FooterNavigation() {
   return (
@@ -28,8 +28,6 @@ function Landing() {
           src={DOMNAI_LOGO}
           alt="DomnAI — Transforme escolhas em resultados com inteligência."
         />
-
-        <p className="landing-copy">Transforme escolhas em resultados com inteligência.</p>
 
         <div className="access-actions">
           <SignUpButton mode="modal" forceRedirectUrl="/">
