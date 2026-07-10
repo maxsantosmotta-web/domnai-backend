@@ -1,6 +1,7 @@
 import React from 'react';
 import ReactDOM from 'react-dom/client';
 import { ClerkProvider } from '@clerk/clerk-react';
+import { BrowserRouter } from 'react-router-dom';
 import App from './App';
 import ErrorBoundary from './ErrorBoundary';
 import './styles.css';
@@ -50,29 +51,16 @@ async function startApplication() {
   const runtimeConfig = await response.json();
   const { clerkPublishableKey } = runtimeConfig;
 
-  console.info('[DomnAI][RuntimeConfig]', {
-    clerkKeyEnvironment: runtimeConfig.clerkKeyEnvironment,
-    clerkKeySource: runtimeConfig.clerkKeySource,
-    clerkFrontendApi: runtimeConfig.clerkFrontendApi,
-    applicationOrigin: runtimeConfig.applicationOrigin,
-    browserOrigin: window.location.origin,
-  });
-
   if (!clerkPublishableKey) {
     throw new Error('Chave pública do Clerk não configurada.');
   }
 
-  if (!clerkPublishableKey.startsWith('pk_live_')) {
-    console.error('[DomnAI][Clerk] A chave carregada não é uma publishable key Production.');
-  }
-
   ReactDOM.createRoot(rootElement).render(
     <ErrorBoundary>
-      <ClerkProvider
-        publishableKey={clerkPublishableKey}
-        afterSignOutUrl="/"
-      >
-        <App />
+      <ClerkProvider publishableKey={clerkPublishableKey} afterSignOutUrl="/">
+        <BrowserRouter>
+          <App />
+        </BrowserRouter>
       </ClerkProvider>
     </ErrorBoundary>,
   );
