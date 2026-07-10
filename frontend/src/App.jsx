@@ -4,70 +4,32 @@ import {
   SignUpButton,
   UserButton,
   useAuth,
-  useClerk,
-  useSession,
-  useUser,
 } from '@clerk/clerk-react';
+import { Link, Navigate, Route, Routes } from 'react-router-dom';
 import { DOMNAI_LOGO } from './logoData';
 
-const SPLASH_LIMIT_MS = 1200;
+const SPLASH_LIMIT_MS = 900;
 
 function Splash() {
   return (
     <main className="startup-page" aria-live="polite" aria-busy="true">
-      <div>
-        <h1>DomnAI</h1>
+      <div className="startup-content">
+        <span className="startup-mark">D</span>
         <p>Verificando acesso...</p>
       </div>
     </main>
   );
 }
 
-function AuthDiagnostics() {
-  const auth = useAuth();
-  const { user, isLoaded: isUserLoaded } = useUser();
-  const { session, isLoaded: isSessionLoaded } = useSession();
-  const clerk = useClerk();
-
-  useEffect(() => {
-    console.info('[DomnAI][Clerk]', {
-      isLoaded: auth.isLoaded,
-      isSignedIn: auth.isSignedIn,
-      userLoaded: isUserLoaded,
-      user: user?.id ?? null,
-      sessionLoaded: isSessionLoaded,
-      session: session?.id ?? null,
-      clerkLoaded: Boolean(clerk?.loaded),
-      origin: window.location.origin,
-    });
-  }, [auth.isLoaded, auth.isSignedIn, clerk, isSessionLoaded, isUserLoaded, session?.id, user?.id]);
-
-  return null;
-}
-
-function AuthBridge() {
-  const { getToken, isSignedIn } = useAuth();
-
-  useEffect(() => {
-    if (!isSignedIn) return;
-
-    const validateSession = async () => {
-      const token = await getToken();
-      const response = await fetch('/api/auth/status', {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-
-      if (!response.ok) {
-        console.error('[DomnAI] Falha ao validar a sessão no backend.');
-      }
-    };
-
-    validateSession().catch((error) => {
-      console.error('[DomnAI] Erro ao validar a sessão:', error);
-    });
-  }, [getToken, isSignedIn]);
-
-  return null;
+function FooterNavigation() {
+  return (
+    <footer className="landing-footer" aria-label="Links institucionais">
+      <Link to="/sobre">Sobre</Link>
+      <Link to="/privacidade">Privacidade</Link>
+      <Link to="/termos">Termos</Link>
+      <Link to="/ajuda">Ajuda</Link>
+    </footer>
+  );
 }
 
 function Landing({ authReady }) {
@@ -79,6 +41,10 @@ function Landing({ authReady }) {
           src={DOMNAI_LOGO}
           alt="DomnAI — Transforme escolhas em resultados com inteligência."
         />
+
+        <p className="landing-copy">
+          Inteligência para pesquisar, comparar e tomar decisões melhores antes de agir.
+        </p>
 
         <div className="access-actions">
           {authReady ? (
@@ -100,12 +66,7 @@ function Landing({ authReady }) {
         </div>
       </section>
 
-      <footer className="landing-footer">
-        <a href="/sobre">Sobre</a>
-        <a href="/privacidade">Privacidade</a>
-        <a href="/termos">Termos</a>
-        <a href="/contato">Contato</a>
-      </footer>
+      <FooterNavigation />
     </main>
   );
 }
@@ -113,7 +74,6 @@ function Landing({ authReady }) {
 function Dashboard() {
   return (
     <main className="dashboard-page">
-      <AuthBridge />
       <header className="dashboard-header">
         <img className="dashboard-logo" src={DOMNAI_LOGO} alt="DomnAI" />
         <UserButton afterSignOutUrl="/" />
@@ -128,7 +88,7 @@ function Dashboard() {
   );
 }
 
-export default function App() {
+function Home() {
   const { isLoaded, isSignedIn } = useAuth();
   const [splashExpired, setSplashExpired] = useState(false);
 
@@ -138,21 +98,144 @@ export default function App() {
       return undefined;
     }
 
-    const timer = window.setTimeout(() => {
-      console.error('[DomnAI][Clerk] Inicialização excedeu 1200 ms. Exibindo a Landing sem bloquear a interface.');
-      setSplashExpired(true);
-    }, SPLASH_LIMIT_MS);
-
+    const timer = window.setTimeout(() => setSplashExpired(true), SPLASH_LIMIT_MS);
     return () => window.clearTimeout(timer);
   }, [isLoaded]);
 
+  if (!isLoaded && !splashExpired) return <Splash />;
+  if (!isLoaded) return <Landing authReady={false} />;
+  if (!isSignedIn) return <Landing authReady />;
+  return <Dashboard />;
+}
+
+const institutionalContent = {
+  sobre: {
+    title: 'Sobre o DomnAI',
+    intro: 'O DomnAI é uma plataforma de apoio à decisão criada para transformar escolhas em resultados com inteligência.',
+    sections: [
+      ['Nossa proposta', 'Ajudar pessoas a pesquisar, analisar e comparar informações importantes antes de tomar uma decisão.'],
+      ['Como ajudamos', 'Organizamos riscos, vantagens, alternativas e pontos de atenção para tornar cada escolha mais clara e segura.'],
+      ['Nossa visão', 'Tornar análises inteligentes acessíveis para decisões do dia a dia, negócios, contratos, produtos e serviços.'],
+    ],
+  },
+  privacidade: {
+    title: 'Privacidade',
+    intro: 'Tratamos dados pessoais e informações enviadas à plataforma com responsabilidade, segurança e transparência.',
+    sections: [
+      ['Dados de acesso', 'Podemos utilizar informações essenciais de cadastro e autenticação para permitir o uso seguro da plataforma.'],
+      ['Conteúdo analisado', 'As informações fornecidas pelo usuário são utilizadas para gerar as análises solicitadas e melhorar a experiência do serviço.'],
+      ['Segurança', 'Aplicamos práticas técnicas e operacionais para proteger dados contra acesso indevido, perda ou uso não autorizado.'],
+    ],
+  },
+  termos: {
+    title: 'Termos de Uso',
+    intro: 'Ao utilizar o DomnAI, o usuário concorda em usar a plataforma de forma responsável e de acordo com estes princípios.',
+    sections: [
+      ['Uso da plataforma', 'O DomnAI oferece apoio informativo à tomada de decisão e não substitui orientação jurídica, contábil, médica ou financeira profissional.'],
+      ['Responsabilidade do usuário', 'O usuário é responsável pelas informações fornecidas e pelas decisões tomadas a partir das análises apresentadas.'],
+      ['Evolução do serviço', 'Recursos, planos e funcionalidades poderão evoluir conforme o desenvolvimento da plataforma.'],
+    ],
+  },
+};
+
+function InstitutionalPage({ page }) {
+  const content = institutionalContent[page];
+
   return (
-    <>
-      <AuthDiagnostics />
-      {!isLoaded && !splashExpired ? <Splash /> : null}
-      {!isLoaded && splashExpired ? <Landing authReady={false} /> : null}
-      {isLoaded && !isSignedIn ? <Landing authReady /> : null}
-      {isLoaded && isSignedIn ? <Dashboard /> : null}
-    </>
+    <main className="content-page">
+      <header className="content-header">
+        <Link className="brand-link" to="/" aria-label="Voltar para o DomnAI">
+          <img src={DOMNAI_LOGO} alt="DomnAI" />
+        </Link>
+        <Link className="back-link" to="/">Voltar</Link>
+      </header>
+
+      <article className="content-card">
+        <span className="content-kicker">DomnAI</span>
+        <h1>{content.title}</h1>
+        <p className="content-intro">{content.intro}</p>
+
+        <div className="content-sections">
+          {content.sections.map(([title, text]) => (
+            <section key={title}>
+              <h2>{title}</h2>
+              <p>{text}</p>
+            </section>
+          ))}
+        </div>
+      </article>
+
+      <FooterNavigation />
+    </main>
+  );
+}
+
+function HelpPage() {
+  const helpSections = [
+    ['O que é o DomnAI', 'Uma plataforma de apoio à decisão que ajuda você a pesquisar, comparar, analisar riscos e escolher com mais clareza.'],
+    ['Como criar conta', 'Na página inicial, selecione “Criar conta”, informe os dados solicitados e conclua a verificação de acesso.'],
+    ['Como fazer login', 'Selecione “Fazer login” e utilize o mesmo método de acesso usado no cadastro.'],
+    ['Recuperação de senha', 'Na tela de login, escolha a opção de recuperação e siga as instruções enviadas para seu canal de acesso.'],
+    ['Planos', 'A estrutura de planos será apresentada dentro da plataforma conforme os recursos comerciais forem liberados.'],
+  ];
+
+  const faq = [
+    ['O DomnAI toma decisões por mim?', 'Não. Ele organiza informações, riscos e alternativas para apoiar uma decisão mais consciente.'],
+    ['Preciso instalar algum aplicativo?', 'Não. O DomnAI funciona diretamente pelo navegador.'],
+    ['Posso usar no celular?', 'Sim. A interface foi preparada para celulares, tablets e computadores.'],
+    ['Minhas análises ficam salvas?', 'Os recursos de histórico e salvamento serão exibidos conforme sua conta e plano disponível.'],
+  ];
+
+  return (
+    <main className="content-page">
+      <header className="content-header">
+        <Link className="brand-link" to="/" aria-label="Voltar para o DomnAI">
+          <img src={DOMNAI_LOGO} alt="DomnAI" />
+        </Link>
+        <Link className="back-link" to="/">Voltar</Link>
+      </header>
+
+      <article className="content-card help-card">
+        <span className="content-kicker">Central de ajuda</span>
+        <h1>Como podemos ajudar?</h1>
+        <p className="content-intro">Encontre orientações rápidas para começar a utilizar o DomnAI.</p>
+
+        <div className="help-grid">
+          {helpSections.map(([title, text]) => (
+            <section className="help-item" key={title}>
+              <h2>{title}</h2>
+              <p>{text}</p>
+            </section>
+          ))}
+        </div>
+
+        <section className="faq-section">
+          <span className="content-kicker">Perguntas frequentes</span>
+          <div className="faq-list">
+            {faq.map(([question, answer]) => (
+              <details key={question}>
+                <summary>{question}</summary>
+                <p>{answer}</p>
+              </details>
+            ))}
+          </div>
+        </section>
+      </article>
+
+      <FooterNavigation />
+    </main>
+  );
+}
+
+export default function App() {
+  return (
+    <Routes>
+      <Route path="/" element={<Home />} />
+      <Route path="/sobre" element={<InstitutionalPage page="sobre" />} />
+      <Route path="/privacidade" element={<InstitutionalPage page="privacidade" />} />
+      <Route path="/termos" element={<InstitutionalPage page="termos" />} />
+      <Route path="/ajuda" element={<HelpPage />} />
+      <Route path="*" element={<Navigate to="/" replace />} />
+    </Routes>
   );
 }
