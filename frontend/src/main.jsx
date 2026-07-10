@@ -40,15 +40,6 @@ window.onunhandledrejection = (event) => {
   console.error('[DomnAI] Promise rejeitada sem tratamento:', event.reason);
 };
 
-rootElement.innerHTML = `
-  <main class="startup-page" aria-live="polite">
-    <div>
-      <h1>DomnAI</h1>
-      <p>Carregando acesso seguro...</p>
-    </div>
-  </main>
-`;
-
 async function startApplication() {
   const response = await fetch('/api/config/public', { cache: 'no-store' });
 
@@ -63,16 +54,14 @@ async function startApplication() {
   }
 
   ReactDOM.createRoot(rootElement).render(
-    <React.StrictMode>
-      <ErrorBoundary>
-        <ClerkProvider
-          publishableKey={clerkPublishableKey}
-          afterSignOutUrl="/"
-        >
-          <App />
-        </ClerkProvider>
-      </ErrorBoundary>
-    </React.StrictMode>,
+    <ErrorBoundary>
+      <ClerkProvider
+        publishableKey={clerkPublishableKey}
+        afterSignOutUrl="/"
+      >
+        <App />
+      </ClerkProvider>
+    </ErrorBoundary>,
   );
 }
 
