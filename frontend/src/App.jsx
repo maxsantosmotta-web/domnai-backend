@@ -1,11 +1,16 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   SignInButton,
   SignUpButton,
   UserButton,
   useAuth,
+  useClerk,
+  useSession,
+  useUser,
 } from '@clerk/clerk-react';
 import { DOMNAI_LOGO } from './logoData';
+
+const SPLASH_LIMIT_MS = 1200;
 
 function Splash() {
   return (
@@ -16,6 +21,28 @@ function Splash() {
       </div>
     </main>
   );
+}
+
+function AuthDiagnostics() {
+  const auth = useAuth();
+  const { user, isLoaded: isUserLoaded } = useUser();
+  const { session, isLoaded: isSessionLoaded } = useSession();
+  const clerk = useClerk();
+
+  useEffect(() => {
+    console.info('[DomnAI][Clerk]', {
+      isLoaded: auth.isLoaded,
+      isSignedIn: auth.isSignedIn,
+      userLoaded: isUserLoaded,
+      user: user?.id ?? null,
+      sessionLoaded: isSessionLoaded,
+      session: session?.id ?? null,
+      clerkLoaded: Boolean(clerk?.loaded),
+      origin: window.location.origin,
+    });
+  }, [auth.isLoaded, auth.isSignedIn, clerk, isSessionLoaded, isUserLoaded, session?.id, user?.id]);
+
+  return null;
 }
 
 function AuthBridge() {
@@ -43,7 +70,7 @@ function AuthBridge() {
   return null;
 }
 
-function Landing() {
+function Landing({ authReady }) {
   return (
     <main className="landing-page">
       <section className="landing-card" aria-label="Acesso ao DomnAI">
@@ -54,13 +81,22 @@ function Landing() {
         />
 
         <div className="access-actions">
-          <SignUpButton mode="modal" forceRedirectUrl="/">
-            <button className="primary-button" type="button">Criar conta</button>
-          </SignUpButton>
+          {authReady ? (
+            <>
+              <SignUpButton mode="modal" forceRedirectUrl="/">
+                <button className="primary-button" type="button">Criar conta</button>
+              </SignUpButton>
 
-          <SignInButton mode="modal" forceRedirectUrl="/">
-            <button className="secondary-button" type="button">Fazer login</button>
-          </SignInButton>
+              <SignInButton mode="modal" forceRedirectUrl="/">
+                <button className="secondary-button" type="button">Fazer login</button>
+              </SignInButton>
+            </>
+          ) : (
+            <>
+              <button className="primary-button" type="button" disabled>Carregando acesso</button>
+              <button className="secondary-button" type="button" disabled>Fazer login</button>
+            </>
+          )}
         </div>
       </section>
 
@@ -79,11 +115,7 @@ function Dashboard() {
     <main className="dashboard-page">
       <AuthBridge />
       <header className="dashboard-header">
-        <img
-          className="dashboard-logo"
-          src={DOMNAI_LOGO}
-          alt="DomnAI"
-        />
+        <img className="dashboard-logo" src={DOMNAI_LOGO} alt="DomnAI" />
         <UserButton afterSignOutUrl="/" />
       </header>
 
@@ -98,14 +130,29 @@ function Dashboard() {
 
 export default function App() {
   const { isLoaded, isSignedIn } = useAuth();
+  const [splashExpired, setSplashExpired] = useState(false);
 
-  if (!isLoaded) {
-    return <Splash />;
-  }
+  useEffect(() => {
+    if (isLoaded) {
+      setSplashExpired(true);
+      return undefined;
+    }
 
-  if (!isSignedIn) {
-    return <Landing />;
-  }
+    const timer = window.setTimeout(() => {
+      console.error('[DomnAI][Clerk] Inicialização excedeu 1200 ms. Exibindo a Landing sem bloquear a interface.');
+      setSplashExpired(true);
+    }, SPLASH_LIMIT_MS);
 
-  return <Dashboard />;
+    return () => window.clearTimeout(timer);
+  }, [isLoaded]);
+
+  return (
+    <>
+      <AuthDiagnostics />
+      {!isLoaded && !splashExpired ? <Splash /> : null}
+      {!isLoaded && splashExpired ? <Landing authReady={false} /> : null}
+      {isLoaded && !isSignedIn ? <Landing authReady /> : null}
+      {isLoaded && isSignedIn ? <Dashboard /> : null}
+    </>
+  );
 }
