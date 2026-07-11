@@ -10,11 +10,7 @@ function moneyDate(value) {
 }
 
 function transactionLabel(item) {
-  const labels = {
-    plan_credit: 'Créditos do PREMIUM',
-    extra_credit: 'Pacote avulso',
-    consumption: 'Consumo',
-  };
+  const labels = { plan_credit: 'Créditos do PREMIUM', extra_credit: 'Pacote avulso', consumption: 'Consumo' };
   return labels[item.kind] || item.description || 'Movimentação';
 }
 
@@ -37,24 +33,15 @@ async function billingFetch(url, options = {}) {
       Authorization: `Bearer ${token}`,
     },
   });
-
   if (!response.ok) {
     const payload = await response.json().catch(() => ({}));
-    throw new Error(payload.detail || 'Não foi possível concluir a operação financeira.');
+    throw new Error(payload.detail || 'Não foi possível concluir a operação.');
   }
-
   return response.status === 204 ? null : response.json();
 }
 
 function statusBadge(status) {
-  const labels = {
-    active: 'Ativo',
-    trialing: 'Ativo',
-    past_due: 'Pagamento pendente',
-    canceled: 'Cancelado',
-    unpaid: 'Inadimplente',
-    inactive: 'Inativo',
-  };
+  const labels = { active: 'Ativo', trialing: 'Ativo', past_due: 'Pagamento pendente', canceled: 'Cancelado', unpaid: 'Inadimplente', inactive: 'Inativo' };
   return labels[status] || 'Inativo';
 }
 
@@ -71,6 +58,138 @@ function premiumBenefits() {
   `;
 }
 
+function digits(value) {
+  return String(value || '').replace(/\D/g, '');
+}
+
+function formatCpf(value) {
+  const raw = digits(value).slice(0, 11);
+  return raw.replace(/(\d{3})(\d)/, '$1.$2').replace(/(\d{3})(\d)/, '$1.$2').replace(/(\d{3})(\d{1,2})$/, '$1-$2');
+}
+
+function formatPhone(value) {
+  const raw = digits(value).slice(0, 11);
+  if (raw.length <= 10) return raw.replace(/(\d{2})(\d)/, '($1) $2').replace(/(\d{4})(\d)/, '$1-$2');
+  return raw.replace(/(\d{2})(\d)/, '($1) $2').replace(/(\d{5})(\d)/, '$1-$2');
+}
+
+function formatCep(value) {
+  return digits(value).slice(0, 8).replace(/(\d{5})(\d)/, '$1-$2');
+}
+
+function profileFormHtml(profile = {}, actionLabel = 'Continuar') {
+  return `
+    <div class="profile-checklist-overlay" role="dialog" aria-modal="true" aria-label="Complete seu cadastro">
+      <section class="profile-checklist-card">
+        <header>
+          <span>Cadastro obrigatório</span>
+          <h2>Complete seu perfil</h2>
+          <p>Preencha seus dados uma única vez. Depois, você poderá atualizá-los em Minha conta.</p>
+        </header>
+        <form class="profile-checklist-form">
+          <div class="profile-checklist-step"><span>1</span><div><strong>Dados pessoais</strong><small>Identificação do titular da conta</small></div></div>
+          <div class="profile-form-grid">
+            <label class="profile-field-wide">Nome completo<input name="fullName" required maxlength="180" value="${profile.fullName || ''}"></label>
+            <label>Telefone<input name="phone" required inputmode="tel" value="${profile.phone || ''}"></label>
+            <label>CPF<input name="cpf" required inputmode="numeric" value="${profile.cpf || ''}"></label>
+            <label>Data de nascimento<input name="birthDate" required type="date" value="${profile.birthDate || ''}"></label>
+          </div>
+
+          <div class="profile-checklist-step"><span>2</span><div><strong>Endereço completo</strong><small>Informações para identificação e cobrança</small></div></div>
+          <div class="profile-form-grid">
+            <label>CEP<input name="zipCode" required inputmode="numeric" value="${profile.zipCode || ''}"></label>
+            <label class="profile-field-wide">Rua<input name="street" required maxlength="180" value="${profile.street || ''}"></label>
+            <label>Número<input name="number" required maxlength="30" value="${profile.number || ''}"></label>
+            <label>Complemento <small>opcional</small><input name="complement" maxlength="120" value="${profile.complement || ''}"></label>
+            <label>Lote <small>opcional</small><input name="lot" maxlength="30" value="${profile.lot || ''}"></label>
+            <label>Quadra <small>opcional</small><input name="block" maxlength="30" value="${profile.block || ''}"></label>
+            <label>Bloco <small>opcional</small><input name="building" maxlength="30" value="${profile.building || ''}"></label>
+            <label>Apartamento <small>opcional</small><input name="apartment" maxlength="30" value="${profile.apartment || ''}"></label>
+            <label>Bairro<input name="neighborhood" required maxlength="120" value="${profile.neighborhood || ''}"></label>
+            <label>Cidade<input name="city" required maxlength="120" value="${profile.city || ''}"></label>
+            <label>Estado<input name="state" required maxlength="2" value="${profile.state || ''}"></label>
+          </div>
+          <p class="profile-checklist-error" hidden></p>
+          <div class="profile-checklist-actions">
+            <button type="button" class="profile-checklist-cancel">Voltar</button>
+            <button type="submit" class="profile-checklist-submit">${actionLabel}</button>
+          </div>
+        </form>
+      </section>
+    </div>
+  `;
+}
+
+async function openProfileChecklist(onComplete, actionLabel) {
+  let profile = {};
+  try {
+    const payload = await billingFetch('/api/profile');
+    profile = payload.profile || {};
+  } catch {
+    profile = {};
+  }
+
+  document.querySelector('.profile-checklist-overlay')?.remove();
+  document.body.insertAdjacentHTML('beforeend', profileFormHtml(profile, actionLabel));
+  const overlay = document.querySelector('.profile-checklist-overlay');
+  const form = overlay.querySelector('form');
+  const errorBox = overlay.querySelector('.profile-checklist-error');
+  const submit = overlay.querySelector('.profile-checklist-submit');
+
+  const cpf = form.elements.cpf;
+  const phone = form.elements.phone;
+  const cep = form.elements.zipCode;
+  cpf.value = formatCpf(cpf.value);
+  phone.value = formatPhone(phone.value);
+  cep.value = formatCep(cep.value);
+  cpf.addEventListener('input', () => { cpf.value = formatCpf(cpf.value); });
+  phone.addEventListener('input', () => { phone.value = formatPhone(phone.value); });
+  cep.addEventListener('input', () => { cep.value = formatCep(cep.value); });
+  form.elements.state.addEventListener('input', (event) => { event.target.value = event.target.value.toUpperCase().replace(/[^A-Z]/g, '').slice(0, 2); });
+
+  overlay.querySelector('.profile-checklist-cancel').addEventListener('click', () => overlay.remove());
+  form.addEventListener('submit', async (event) => {
+    event.preventDefault();
+    errorBox.hidden = true;
+    submit.disabled = true;
+    submit.textContent = 'Salvando cadastro...';
+    const data = new FormData(form);
+    const body = {
+      full_name: data.get('fullName').trim(),
+      phone: digits(data.get('phone')),
+      cpf: digits(data.get('cpf')),
+      birth_date: data.get('birthDate'),
+      zip_code: digits(data.get('zipCode')),
+      street: data.get('street').trim(),
+      number: data.get('number').trim(),
+      complement: data.get('complement').trim(),
+      lot: data.get('lot').trim(),
+      block: data.get('block').trim(),
+      building: data.get('building').trim(),
+      apartment: data.get('apartment').trim(),
+      neighborhood: data.get('neighborhood').trim(),
+      city: data.get('city').trim(),
+      state: data.get('state').trim().toUpperCase(),
+    };
+
+    try {
+      await billingFetch('/api/profile', { method: 'PUT', body: JSON.stringify(body) });
+      overlay.remove();
+      await onComplete();
+    } catch (error) {
+      errorBox.textContent = error.message;
+      errorBox.hidden = false;
+      submit.disabled = false;
+      submit.textContent = actionLabel;
+    }
+  });
+}
+
+async function ensureProfileThen(status, action, actionLabel) {
+  if (status.profileCompleted) return action();
+  return openProfileChecklist(action, actionLabel);
+}
+
 function renderBilling(section, status, transactions, selectedPeriod = 'monthly') {
   const premium = Boolean(status.premiumActive);
   const freeSelected = status.plan === 'free';
@@ -82,47 +201,30 @@ function renderBilling(section, status, transactions, selectedPeriod = 'monthly'
   const currentPlanName = premium ? 'PREMIUM' : freeSelected ? 'FREE' : 'Nenhum plano selecionado';
   const currentPlanDescription = premium
     ? `Status: ${statusBadge(status.subscriptionStatus)}${status.currentPeriodEnd ? ` · válido até ${moneyDate(status.currentPeriodEnd)}` : ''}`
-    : freeSelected
-      ? 'Navegação e visualização da plataforma.'
-      : 'Escolha uma opção abaixo para continuar.';
+    : freeSelected ? 'Navegação e visualização da plataforma.' : 'Escolha uma opção abaixo para continuar.';
 
   section.innerHTML = `
-    <header class="billing-page-header">
-      <div>
-        <span>Faturamento</span>
-        <h1>Plano e créditos</h1>
-        <p>Acompanhe seu saldo, assinatura e pacotes adicionais.</p>
-      </div>
-    </header>
-
+    <header class="billing-page-header"><div><span>Faturamento</span><h1>Plano e créditos</h1><p>Acompanhe seu saldo, assinatura e pacotes adicionais.</p></div></header>
     <div class="billing-balance-grid">
       <article class="billing-balance-card billing-balance-primary"><small>Saldo disponível</small><strong>${total}</strong><span>créditos</span></article>
       <article class="billing-balance-card"><small>Créditos do plano</small><strong>${planCredits}</strong><span>renovados por ciclo</span></article>
       <article class="billing-balance-card"><small>Créditos avulsos</small><strong>${extraCredits}</strong><span>não expiram</span></article>
     </div>
-
-    <section class="billing-current-plan${noPlan ? ' billing-current-plan-empty' : ''}">
-      <div><small>Plano atual</small><h2>${currentPlanName}</h2><p>${currentPlanDescription}</p></div>
-      ${premium ? '<button type="button" data-billing-action="portal">Gerenciar assinatura</button>' : ''}
-    </section>
+    <section class="billing-current-plan${noPlan ? ' billing-current-plan-empty' : ''}"><div><small>Plano atual</small><h2>${currentPlanName}</h2><p>${currentPlanDescription}</p></div>${premium ? '<button type="button" data-billing-action="portal">Gerenciar assinatura</button>' : ''}</section>
 
     <section class="billing-plans-section">
       <div class="billing-section-title"><small>Planos</small><h2>Escolha seu acesso</h2></div>
       <div class="billing-plan-grid billing-plan-grid-two">
         <article class="billing-plan-card billing-free-card${freeSelected ? ' billing-plan-selected' : ''}">
-          <span class="billing-plan-tag">Grátis</span>
-          <h3>FREE</h3>
-          <strong>R$ 0</strong>
-          <p>Navegação e visualização da plataforma.</p>
+          <span class="billing-plan-tag">Grátis</span><h3>FREE</h3><strong>R$ 0</strong><p>Navegação e visualização da plataforma.</p>
           <button type="button" class="billing-free-button" data-billing-action="free" ${freeSelected ? 'disabled' : ''}>${freeSelected ? 'Plano atual' : 'Escolher FREE'}</button>
         </article>
-
         <article class="billing-plan-card billing-plan-featured billing-premium-card">
           <div class="billing-premium-heading">
             <div><span class="billing-plan-tag">PREMIUM</span><h3>PREMIUM</h3></div>
             <div class="billing-period-switch" role="group" aria-label="Período da assinatura">
               <button type="button" data-billing-period="monthly" class="${annual ? '' : 'is-active'}">Mensal</button>
-              <button type="button" data-billing-period="yearly" class="${annual ? 'is-active' : ''}">Anual</button>
+              <button type="button" data-billing-period="yearly" class="${annual ? 'is-active' : ''}">Anual${annual ? '<span>Economize 17%</span>' : ''}</button>
             </div>
           </div>
           <strong>${annual ? 'R$ 599,00 <small>/ano</small>' : 'R$ 59,90 <small>/mês</small>'}</strong>
@@ -133,65 +235,40 @@ function renderBilling(section, status, transactions, selectedPeriod = 'monthly'
       </div>
     </section>
 
-    <section class="billing-extra-section">
-      <div><small>Pacote avulso</small><h2 class="billing-extra-price">R$ 25,00</h2><strong class="billing-extra-credits">250 créditos</strong><p>Compre quantas vezes quiser · os créditos não expiram.</p></div>
-      <button type="button" data-billing-product="${BILLING_PRODUCTS.credits}">COMPRAR 🛒</button>
-    </section>
-
-    <section class="billing-rules-section">
-      <div class="billing-section-title"><small>Consumo</small><h2>Créditos por utilização</h2></div>
-      <div class="billing-rules-grid">
-        <span><strong>1 crédito</strong> Pergunta com resposta</span>
-        <span><strong>2 créditos</strong> Análise completa</span>
-        <span><strong>5 a 10 créditos</strong> PDF, link, print, imagem ou documento</span>
-      </div>
-    </section>
-
-    <section class="billing-history-section">
-      <div class="billing-section-title"><small>Histórico</small><h2>Movimentações</h2></div>
-      <div class="billing-history-list">
-        ${transactions.length ? transactions.map((item) => `
-          <article><div><strong>${transactionLabel(item)}</strong><small>${new Date(item.createdAt).toLocaleString('pt-BR')}</small></div><span class="${item.amount >= 0 ? 'credit-positive' : 'credit-negative'}">${item.amount >= 0 ? '+' : ''}${item.amount}</span></article>
-        `).join('') : '<p class="billing-empty-history">Nenhuma movimentação registrada ainda.</p>'}
-      </div>
-    </section>
+    <section class="billing-extra-section"><div><small>Pacote avulso</small><h2 class="billing-extra-price">R$ 25,00</h2><strong class="billing-extra-credits">250 créditos</strong><p>Compre quantas vezes quiser · os créditos não expiram.</p></div><button type="button" data-billing-product="${BILLING_PRODUCTS.credits}">COMPRAR 🛒</button></section>
+    <section class="billing-rules-section"><div class="billing-section-title"><small>Consumo</small><h2>Créditos por utilização</h2></div><div class="billing-rules-grid"><span><strong>1 crédito</strong> Pergunta com resposta</span><span><strong>2 créditos</strong> Análise completa</span><span><strong>5 a 10 créditos</strong> PDF, link, print, imagem ou documento</span></div></section>
+    <section class="billing-history-section"><div class="billing-section-title"><small>Histórico</small><h2>Movimentações</h2></div><div class="billing-history-list">${transactions.length ? transactions.map((item) => `<article><div><strong>${transactionLabel(item)}</strong><small>${new Date(item.createdAt).toLocaleString('pt-BR')}</small></div><span class="${item.amount >= 0 ? 'credit-positive' : 'credit-negative'}">${item.amount >= 0 ? '+' : ''}${item.amount}</span></article>`).join('') : '<p class="billing-empty-history">Nenhuma movimentação registrada ainda.</p>'}</div></section>
   `;
 
-  section.querySelectorAll('[data-billing-period]').forEach((button) => {
-    button.addEventListener('click', () => renderBilling(section, status, transactions, button.dataset.billingPeriod));
-  });
+  section.querySelectorAll('[data-billing-period]').forEach((button) => button.addEventListener('click', () => renderBilling(section, status, transactions, button.dataset.billingPeriod)));
 
   section.querySelectorAll('[data-billing-product]').forEach((button) => {
     button.addEventListener('click', async () => {
-      const original = button.textContent;
-      button.disabled = true;
-      button.textContent = 'Abrindo checkout...';
-      try {
-        const result = await billingFetch('/api/billing/checkout', {
-          method: 'POST',
-          body: JSON.stringify({ product: button.dataset.billingProduct }),
-        });
-        window.location.assign(result.url);
-      } catch (error) {
-        window.alert(error.message);
-        button.disabled = false;
-        button.textContent = original;
-      }
+      const product = button.dataset.billingProduct;
+      const checkoutAction = async () => {
+        const original = button.textContent;
+        button.disabled = true;
+        button.textContent = 'Abrindo checkout...';
+        try {
+          const result = await billingFetch('/api/billing/checkout', { method: 'POST', body: JSON.stringify({ product }) });
+          window.location.assign(result.url);
+        } catch (error) {
+          window.alert(error.message);
+          button.disabled = false;
+          button.textContent = original;
+        }
+      };
+      if (product === BILLING_PRODUCTS.credits) return checkoutAction();
+      return ensureProfileThen(status, checkoutAction, 'Continuar para o pagamento');
     });
   });
 
-  section.querySelector('[data-billing-action="free"]:not([disabled])')?.addEventListener('click', async (event) => {
-    const button = event.currentTarget;
-    button.disabled = true;
-    button.textContent = 'Ativando FREE...';
-    try {
+  section.querySelector('[data-billing-action="free"]:not([disabled])')?.addEventListener('click', () => {
+    const activateFree = async () => {
       const updatedStatus = await billingFetch('/api/billing/select-free', { method: 'POST', body: '{}' });
       renderBilling(section, updatedStatus, transactions, selectedPeriod);
-    } catch (error) {
-      window.alert(error.message);
-      button.disabled = false;
-      button.textContent = 'Escolher FREE';
-    }
+    };
+    ensureProfileThen(status, activateFree, 'Ativar plano FREE').catch((error) => window.alert(error.message));
   });
 
   section.querySelector('[data-billing-action="portal"]')?.addEventListener('click', async (event) => {
@@ -214,15 +291,10 @@ async function enhanceBillingScreen() {
   const sections = [...document.querySelectorAll('.internal-section')];
   const section = sections.find((item) => item.querySelector('header span')?.textContent.trim() === 'Faturamento');
   if (!section || section.dataset.billingConnected === 'true') return;
-
   section.dataset.billingConnected = 'true';
   section.innerHTML = '<div class="billing-loading-state">Carregando informações financeiras...</div>';
-
   try {
-    const [status, transactionPayload] = await Promise.all([
-      billingFetch('/api/billing/status'),
-      billingFetch('/api/billing/transactions'),
-    ]);
+    const [status, transactionPayload] = await Promise.all([billingFetch('/api/billing/status'), billingFetch('/api/billing/transactions')]);
     renderBilling(section, status, transactionPayload.items || []);
   } catch (error) {
     section.dataset.billingConnected = 'false';
@@ -231,10 +303,7 @@ async function enhanceBillingScreen() {
   }
 }
 
-const billingObserver = new MutationObserver(() => {
-  window.requestAnimationFrame(enhanceBillingScreen);
-});
-
+const billingObserver = new MutationObserver(() => window.requestAnimationFrame(enhanceBillingScreen));
 billingObserver.observe(document.documentElement, { childList: true, subtree: true });
 window.addEventListener('hashchange', () => window.setTimeout(enhanceBillingScreen, 50));
 enhanceBillingScreen();
