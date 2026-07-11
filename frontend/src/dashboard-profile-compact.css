@@ -1,0 +1,147 @@
+.domnai-profile-card {
+  padding: 22px;
+}
+
+.domnai-profile-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.domnai-profile-grid .profile-field-wide {
+  grid-column: 1 / -1;
+}
+
+.domnai-compact-field {
+  position: relative;
+  display: block !important;
+  min-height: 62px;
+  padding: 10px 12px 8px;
+  border: 1px solid rgba(216,170,52,.2);
+  border-radius: 13px;
+  background: #101010;
+  overflow: hidden;
+}
+
+.domnai-compact-label {
+  display: block;
+  margin-bottom: 4px;
+  color: #b99a4a;
+  font-size: .72rem;
+  font-weight: 800;
+  line-height: 1.1;
+  letter-spacing: .03em;
+}
+
+.domnai-compact-field input {
+  min-height: 26px !important;
+  padding: 0 !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+  color: #fff;
+  font-size: .95rem;
+  box-shadow: none !important;
+}
+
+.domnai-compact-field:focus-within {
+  border-color: rgba(216,170,52,.68);
+  box-shadow: inset 0 0 0 1px rgba(216,170,52,.12);
+}
+
+.domnai-compact-birth {
+  grid-column: 1 / -1;
+  gap: 8px;
+}
+
+.domnai-compact-birth > span {
+  color: #efefef;
+  font-weight: 800;
+}
+
+.domnai-compact-birth > div {
+  display: grid;
+  grid-template-columns: .75fr .85fr 1.4fr;
+  gap: 10px;
+}
+
+.domnai-address-details {
+  margin-top: 14px;
+  border-top: 1px solid rgba(255,255,255,.07);
+  padding-top: 12px;
+}
+
+.domnai-address-details summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-height: 44px;
+  padding: 0 4px;
+  color: #e7c35e;
+  font-weight: 800;
+  cursor: pointer;
+  list-style: none;
+}
+
+.domnai-address-details summary::-webkit-details-marker {
+  display: none;
+}
+
+.domnai-address-details summary::after {
+  content: '+';
+  font-size: 1.25rem;
+  line-height: 1;
+}
+
+.domnai-address-details[open] summary::after {
+  content: '−';
+}
+
+.domnai-address-details summary span {
+  margin-left: auto;
+  color: #777;
+  font-size: .75rem;
+  font-weight: 600;
+}
+
+.domnai-address-details-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+  padding-top: 12px;
+}
+
+@media (max-width: 820px) {
+  .domnai-profile-card {
+    padding: 18px;
+  }
+
+  .domnai-profile-grid {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .domnai-profile-grid .profile-field-wide,
+  .domnai-compact-birth {
+    grid-column: 1 / -1;
+  }
+
+  .domnai-address-details-grid {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
+@media (max-width: 520px) {
+  .domnai-profile-grid,
+  .domnai-address-details-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .domnai-profile-grid .profile-field-wide,
+  .domnai-compact-birth {
+    grid-column: span 1;
+  }
+
+  .domnai-compact-birth > div {
+    grid-template-columns: .8fr .9fr 1.3fr;
+  }
+}
