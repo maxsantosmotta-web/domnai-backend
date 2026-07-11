@@ -167,8 +167,8 @@ def create_checkout(payload: CheckoutRequest, session: dict = Depends(require_au
     }
     if customer_id:
         params["customer"] = customer_id
-    else:
-        params["customer_creation"] = "always" if mode == "payment" else "if_required"
+    elif mode == "payment":
+        params["customer_creation"] = "always"
 
     if mode == "subscription":
         params["subscription_data"] = {
@@ -227,6 +227,7 @@ async def stripe_webhook(request: Request):
     secret = os.getenv("STRIPE_WEBHOOK_SECRET", "").strip()
     if not secret:
         raise HTTPException(status_code=503, detail="Webhook Stripe não configurado.")
+    _stripe_secret()
 
     payload = await request.body()
     signature = request.headers.get("stripe-signature", "")
