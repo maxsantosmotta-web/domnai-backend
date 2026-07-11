@@ -65,6 +65,36 @@ async def move_file_to_trash(
     return result
 
 
+@router.get("/{asset_id}/content")
+def get_deleted_asset_content(
+    asset_id: str,
+    session: dict = Depends(require_authenticated_user),
+):
+    user_id = session.get("sub")
+    with session_scope() as db:
+        asset = db.scalar(
+            select(DeletedAsset).where(
+                DeletedAsset.id == asset_id,
+                DeletedAsset.user_id == user_id,
+            )
+        )
+        if asset is None:
+            raise HTTPException(status_code=404, detail="Arquivo não encontrado na lixeira.")
+
+        disposition = "inline" if (
+            asset.mime_type.startswith("image/") or asset.mime_type == "application/pdf"
+        ) else "attachment"
+
+        return Response(
+            content=asset.content,
+            media_type=asset.mime_type,
+            headers={
+                "Content-Disposition": f'{disposition}; filename="{asset.name}"',
+                "X-File-Name": asset.name,
+            },
+        )
+
+
 @router.post("/{asset_id}/restore")
 def restore_asset_to_library(
     asset_id: str,
