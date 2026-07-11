@@ -1,3 +1,6 @@
+import './dashboard-billing-enhancements.css';
+import './dashboard-billing-enhancements.js';
+
 const extraMobileIcons = [
   {
     className: 'icon-6',
