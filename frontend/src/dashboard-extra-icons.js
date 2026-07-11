@@ -2,7 +2,7 @@ const extraMobileIcons = [
   {
     className: 'icon-6',
     label: 'Finanças',
-    svg: '<svg viewBox="0 0 64 64" aria-hidden="true"><circle cx="32" cy="32" r="22"/><path d="M38 22h-9a6 6 0 0 0 0 12h6a6 6 0 0 1 0 12H25M32 16v32"/></svg>',
+    svg: '<svg viewBox="0 0 64 64" aria-hidden="true"><ellipse cx="32" cy="19" rx="15" ry="7"/><path d="M17 19v10c0 4 7 7 15 7s15-3 15-7V19M17 29v10c0 4 7 7 15 7s15-3 15-7V29M17 39v6c0 4 7 7 15 7s15-3 15-7v-6"/></svg>',
   },
   {
     className: 'icon-7',
