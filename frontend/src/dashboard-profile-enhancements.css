@@ -1,0 +1,266 @@
+.sidebar-profile {
+  padding: 0 !important;
+}
+
+.domnai-profile-trigger {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 14px;
+  border: 0;
+  background: transparent;
+  color: #fff;
+  text-align: left;
+  cursor: pointer;
+}
+
+.domnai-profile-trigger-avatar {
+  width: 34px;
+  height: 34px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #f1cf69, #b77b12);
+  color: #080808;
+  font-weight: 900;
+}
+
+.domnai-profile-trigger span:last-child {
+  display: grid;
+}
+
+.domnai-profile-trigger small {
+  color: #8f8f8f;
+}
+
+.domnai-main-area.profile-page-open > :not([data-domnai-profile-page]) {
+  display: none !important;
+}
+
+.domnai-profile-page {
+  width: min(100%, 980px);
+  margin: 0 auto;
+}
+
+.domnai-profile-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 20px;
+  padding-bottom: 22px;
+  border-bottom: 1px solid rgba(255,255,255,.08);
+}
+
+.domnai-profile-header button,
+.domnai-profile-actions button {
+  min-height: 44px;
+  padding: 0 18px;
+  border-radius: 12px;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.domnai-profile-header button,
+.domnai-profile-actions .secondary {
+  border: 1px solid rgba(216,170,52,.3);
+  background: #121212;
+  color: #e7c35e;
+}
+
+.domnai-profile-actions .primary {
+  border: 1px solid rgba(216,170,52,.5);
+  background: linear-gradient(135deg, #f1cf69 0%, #d9aa31 55%, #b77b12 100%);
+  color: #080808;
+}
+
+.domnai-profile-summary,
+.domnai-profile-card {
+  margin-top: 22px;
+  border: 1px solid rgba(216,170,52,.18);
+  border-radius: 20px;
+  background: linear-gradient(180deg, rgba(17,17,17,.97), rgba(8,8,8,.97));
+}
+
+.domnai-profile-summary {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 20px;
+}
+
+.domnai-profile-avatar {
+  width: 54px;
+  height: 54px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #f1cf69, #b77b12);
+  color: #080808;
+  font-size: 1.35rem;
+  font-weight: 900;
+}
+
+.domnai-profile-summary > div:nth-child(2) {
+  display: grid;
+  gap: 4px;
+}
+
+.domnai-profile-summary strong {
+  color: #fff;
+}
+
+.domnai-profile-summary span {
+  color: #9f9f9f;
+}
+
+.domnai-profile-status {
+  margin-left: auto;
+  padding: 7px 10px;
+  border-radius: 999px;
+  background: rgba(216,170,52,.12);
+  color: #e7c35e !important;
+  font-size: .8rem;
+  font-weight: 800;
+}
+
+.domnai-profile-card {
+  padding: 24px;
+}
+
+.domnai-profile-card-title {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  margin-bottom: 20px;
+}
+
+.domnai-profile-card-title > span {
+  width: 34px;
+  height: 34px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  background: rgba(216,170,52,.14);
+  color: #e7c35e;
+  font-weight: 900;
+}
+
+.domnai-profile-card-title h2,
+.domnai-profile-card-title p {
+  margin: 0;
+}
+
+.domnai-profile-card-title h2 {
+  color: #fff;
+  font-size: 1.05rem;
+}
+
+.domnai-profile-card-title p {
+  color: #8f8f8f;
+  font-size: .88rem;
+}
+
+.domnai-profile-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 16px;
+}
+
+.domnai-profile-grid label,
+.domnai-birth-field {
+  display: grid;
+  gap: 8px;
+  color: #efefef;
+  font-weight: 700;
+}
+
+.domnai-profile-grid label small {
+  color: #777;
+  font-weight: 500;
+}
+
+.domnai-profile-grid input {
+  min-height: 46px;
+  width: 100%;
+  border: 1px solid rgba(216,170,52,.2);
+  border-radius: 12px;
+  background: #101010;
+  color: #fff;
+  padding: 0 14px;
+  outline: none;
+}
+
+.domnai-profile-grid input:focus {
+  border-color: rgba(216,170,52,.65);
+}
+
+.profile-field-wide {
+  grid-column: span 2;
+}
+
+.domnai-birth-field > div {
+  display: grid;
+  grid-template-columns: .75fr .9fr 1.35fr;
+  gap: 10px;
+}
+
+.domnai-profile-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 12px;
+  margin-top: 20px;
+}
+
+.domnai-profile-message {
+  margin: 18px 0 0;
+  padding: 13px 15px;
+  border-radius: 12px;
+}
+
+.domnai-profile-message.success {
+  background: rgba(67,170,99,.12);
+  color: #7bd99a;
+}
+
+.domnai-profile-message.error {
+  background: rgba(210,72,72,.12);
+  color: #ff9a9a;
+}
+
+.domnai-profile-loading {
+  min-height: 300px;
+  display: grid;
+  place-items: center;
+  color: #aaa;
+}
+
+@media (max-width: 820px) {
+  .domnai-profile-header,
+  .domnai-profile-summary {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .domnai-profile-status {
+    margin-left: 0;
+    width: fit-content;
+  }
+
+  .domnai-profile-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .profile-field-wide {
+    grid-column: span 1;
+  }
+
+  .domnai-profile-actions {
+    flex-direction: column-reverse;
+  }
+
+  .domnai-profile-actions button,
+  .domnai-profile-header button {
+    width: 100%;
+  }
+}
