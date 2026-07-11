@@ -1,0 +1,114 @@
+body.domnai-profile-exclusive,
+body.domnai-checklist-exclusive {
+  overflow: hidden !important;
+}
+
+body.domnai-profile-exclusive .domnai-sidebar,
+body.domnai-profile-exclusive .sidebar-backdrop,
+body.domnai-checklist-exclusive .domnai-sidebar,
+body.domnai-checklist-exclusive .sidebar-backdrop {
+  display: none !important;
+  pointer-events: none !important;
+}
+
+body.domnai-profile-exclusive .domnai-main-area,
+body.domnai-checklist-exclusive .domnai-main-area {
+  position: relative;
+  z-index: 1;
+}
+
+body.domnai-profile-exclusive [data-domnai-profile-page] {
+  position: fixed !important;
+  inset: 0 !important;
+  z-index: 4000 !important;
+  overflow-y: auto !important;
+  background: #050505 !important;
+  padding: 24px 18px 80px !important;
+}
+
+body.domnai-checklist-exclusive .profile-checklist-overlay {
+  position: fixed !important;
+  inset: 0 !important;
+  z-index: 5000 !important;
+  overflow-y: auto !important;
+  background: rgba(3, 3, 3, .96) !important;
+  backdrop-filter: none !important;
+}
+
+body.domnai-checklist-exclusive .domnai-main-area,
+body.domnai-checklist-exclusive .mobile-menu-button,
+body.domnai-checklist-exclusive .options-menu-button,
+body.domnai-checklist-exclusive .global-exit-button {
+  visibility: hidden !important;
+  pointer-events: none !important;
+}
+
+.domnai-context-logout {
+  position: fixed;
+  top: max(14px, env(safe-area-inset-top));
+  right: 14px;
+  z-index: 4500;
+  min-height: 42px;
+  padding: 0 14px;
+  border: 1px solid rgba(205, 76, 76, .34);
+  border-radius: 12px;
+  background: rgba(120, 28, 28, .14);
+  color: #ffaaaa;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.domnai-context-logout:disabled {
+  opacity: .65;
+  cursor: wait;
+}
+
+.domnai-premium-gate-soft {
+  width: min(92vw, 420px) !important;
+  max-width: 420px !important;
+  padding: 22px !important;
+  border-radius: 20px !important;
+  box-shadow: 0 24px 60px rgba(0,0,0,.42) !important;
+}
+
+.domnai-premium-gate-soft h1,
+.domnai-premium-gate-soft h2,
+.domnai-premium-gate-soft h3 {
+  font-size: clamp(1.35rem, 5vw, 1.8rem) !important;
+  line-height: 1.15 !important;
+  margin-bottom: 10px !important;
+}
+
+.domnai-premium-gate-soft p {
+  font-size: .98rem !important;
+  line-height: 1.5 !important;
+  color: #b9b9b9 !important;
+  margin-bottom: 18px !important;
+}
+
+.domnai-premium-gate-soft button {
+  min-height: 44px !important;
+  padding: 0 16px !important;
+  border-radius: 12px !important;
+  font-size: .95rem !important;
+}
+
+@media (max-width: 720px) {
+  body.domnai-profile-exclusive [data-domnai-profile-page] {
+    padding: 74px 14px 90px !important;
+  }
+
+  .domnai-profile-header {
+    padding-top: 0 !important;
+  }
+
+  .domnai-context-logout {
+    top: max(12px, env(safe-area-inset-top));
+    right: 12px;
+  }
+
+  .domnai-premium-gate-soft {
+    width: calc(100vw - 28px) !important;
+    padding: 20px !important;
+  }
+}
