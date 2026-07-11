@@ -46,6 +46,17 @@
   padding-top: 12px;
 }
 
+.chat-workspace,
+.chat-workspace.has-dynamic-panel {
+  grid-template-columns: minmax(0, 1fr) !important;
+}
+
+.dynamic-panel,
+.compact-dynamic-panel,
+.live-chart-placeholder {
+  display: none !important;
+}
+
 @media (max-width: 620px) {
   .simplified-composer {
     grid-template-columns: minmax(0, 1fr) 48px;
