@@ -46,6 +46,50 @@
   line-height: 1;
 }
 
+.message-attachments {
+  display: grid;
+  gap: 8px;
+}
+
+.message-attachment {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  padding: 10px 12px;
+  border: 1px solid rgba(225, 181, 77, 0.14);
+  border-radius: 11px;
+  background: rgba(225, 181, 77, 0.04);
+}
+
+.message-attachment > div {
+  min-width: 0;
+  display: grid;
+  gap: 3px;
+}
+
+.message-attachment strong {
+  overflow-wrap: anywhere;
+  color: #e4e4e4;
+  font-size: 0.78rem;
+}
+
+.message-attachment small {
+  color: #777;
+  font-size: 0.68rem;
+}
+
+.message-attachment button {
+  flex: 0 0 auto;
+  padding: 6px 9px;
+  border: 1px solid rgba(255, 91, 103, 0.2);
+  border-radius: 8px;
+  background: transparent;
+  color: #ff6c77;
+  cursor: pointer;
+  font-size: 0.7rem;
+}
+
 .conversation-options-menu {
   padding-top: 12px;
 }
@@ -64,5 +108,9 @@
 @media (max-width: 620px) {
   .simplified-composer {
     grid-template-columns: minmax(0, 1fr) 48px;
+  }
+
+  .message-attachment {
+    align-items: flex-start;
   }
 }
