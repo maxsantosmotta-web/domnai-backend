@@ -89,21 +89,57 @@
   padding: 20px;
 }
 
+.domnai-profile-photo-wrap {
+  display: grid;
+  justify-items: center;
+  gap: 7px;
+}
+
 .domnai-profile-avatar {
-  width: 54px;
-  height: 54px;
+  width: 76px;
+  height: 76px;
   display: grid;
   place-items: center;
+  overflow: hidden;
+  border: 2px solid rgba(216,170,52,.5);
   border-radius: 50%;
   background: linear-gradient(135deg, #f1cf69, #b77b12);
   color: #080808;
-  font-size: 1.35rem;
+  font-size: 1.55rem;
   font-weight: 900;
+}
+
+.domnai-profile-avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.domnai-profile-photo-button,
+.domnai-profile-photo-remove {
+  border: 0;
+  background: transparent;
+  color: #e7c35e;
+  font-size: .78rem;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.domnai-profile-photo-button input {
+  display: none;
+}
+
+.domnai-profile-photo-remove {
+  color: #a7a7a7;
 }
 
 .domnai-profile-summary > div:nth-child(2) {
   display: grid;
   gap: 4px;
+}
+
+.domnai-profile-summary > div:nth-child(2) small {
+  color: #777;
 }
 
 .domnai-profile-summary strong {
@@ -240,6 +276,10 @@
   .domnai-profile-summary {
     align-items: stretch;
     flex-direction: column;
+  }
+
+  .domnai-profile-photo-wrap {
+    justify-items: start;
   }
 
   .domnai-profile-status {
