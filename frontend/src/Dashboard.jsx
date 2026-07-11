@@ -68,6 +68,8 @@ export default function Dashboard() {
     return messages.filter((message) => message.text.toLowerCase().includes(term));
   }, [messages, search]);
 
+  const showExitButton = Boolean(activeOperation) || section !== 'chat';
+
   async function authorizedFetch(url, options = {}) {
     const token = await getToken();
     return fetch(url, {
@@ -122,6 +124,8 @@ export default function Dashboard() {
     setActiveOperation(null);
     setDraft('');
     setSidebarOpen(false);
+    setOptionsOpen(false);
+    setPlusOpen(false);
   }
 
   async function openSection(nextSection) {
@@ -336,6 +340,7 @@ export default function Dashboard() {
 
       <button type="button" className="mobile-menu-button" aria-label="Abrir dashboard" onClick={() => setSidebarOpen(true)}>☰</button>
       <button type="button" className="options-menu-button" aria-label="Abrir opções da conversa" onClick={() => setOptionsOpen((current) => !current)}>⋮</button>
+      {showExitButton ? <button type="button" className="global-exit-button" onClick={openDashboard}>← Sair</button> : null}
 
       {sidebarOpen ? <button className="sidebar-backdrop" type="button" aria-label="Fechar menu" onClick={() => setSidebarOpen(false)} /> : null}
       {optionsOpen ? <button className="options-backdrop" type="button" aria-label="Fechar opções" onClick={() => setOptionsOpen(false)} /> : null}
@@ -374,7 +379,6 @@ export default function Dashboard() {
         <aside className="conversation-options-menu" aria-label="Opções da conversa">
           <button type="button" onClick={refreshConversation}><span>↻</span> Atualizar conversa</button>
           <button type="button" onClick={() => { setSearchOpen(true); setOptionsOpen(false); }}><span>⌕</span> Buscar na conversa</button>
-          {activeOperation ? <button type="button" onClick={openDashboard}><span>←</span> Sair da operação</button> : null}
           <button type="button" className="danger-option" onClick={deleteConversation}><span>♲</span> Excluir conversa</button>
         </aside>
       ) : null}
