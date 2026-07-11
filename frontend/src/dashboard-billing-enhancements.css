@@ -14,8 +14,8 @@
 
 .billing-error-state button,
 .billing-current-plan button,
-.billing-plan-card button,
-.billing-extra-section button {
+.billing-plan-card > button,
+.billing-extra-section > button {
   min-height: 46px;
   padding: 0 20px;
   border: 1px solid rgba(216, 170, 52, 0.45);
@@ -33,8 +33,8 @@
 
 .billing-error-state button:disabled,
 .billing-current-plan button:disabled,
-.billing-plan-card button:disabled,
-.billing-extra-section button:disabled {
+.billing-plan-card > button:disabled,
+.billing-extra-section > button:disabled {
   opacity: 0.55;
   cursor: wait;
 }
@@ -144,12 +144,8 @@
   margin-bottom: 16px;
 }
 
-.billing-plan-grid {
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-}
-
-.billing-plan-grid-three {
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+.billing-plan-grid-two {
+  grid-template-columns: minmax(240px, 0.72fr) minmax(0, 1.28fr);
   align-items: stretch;
 }
 
@@ -177,7 +173,7 @@
   font-size: 0.9rem;
 }
 
-.billing-plan-card button {
+.billing-plan-card > button {
   width: 100%;
   margin-top: auto;
 }
@@ -205,6 +201,42 @@
   font-weight: 800;
   letter-spacing: 0.08em;
   text-transform: uppercase;
+}
+
+.billing-premium-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 18px;
+}
+
+.billing-period-switch {
+  display: inline-flex;
+  padding: 4px;
+  border: 1px solid rgba(216, 170, 52, 0.28);
+  border-radius: 999px;
+  background: #0d0d0d;
+}
+
+.billing-period-switch button {
+  min-width: 76px;
+  min-height: 34px;
+  padding: 0 14px;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: #9d9d9d;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.billing-period-switch button.is-active {
+  background: linear-gradient(135deg, #f1cf69 0%, #d9aa31 55%, #b77b12 100%);
+  color: #080808;
+}
+
+.billing-period-copy {
+  margin: 10px 0 0 !important;
 }
 
 .billing-benefits-list {
@@ -285,7 +317,7 @@
 }
 
 @media (max-width: 1050px) {
-  .billing-plan-grid-three {
+  .billing-plan-grid-two {
     grid-template-columns: 1fr;
   }
 }
@@ -303,8 +335,17 @@
   }
 
   .billing-current-plan button,
-  .billing-extra-section button {
+  .billing-extra-section > button {
     width: 100%;
+  }
+
+  .billing-premium-heading {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .billing-period-switch {
+    align-self: flex-start;
   }
 
   .billing-rules-grid span {
