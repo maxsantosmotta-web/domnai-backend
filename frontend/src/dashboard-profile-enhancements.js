@@ -30,7 +30,7 @@ async function profileFetch(url, options = {}) {
   const response = await fetch(url, {
     ...options,
     headers: {
-      'Content-Type': 'application/json',
+      ...(options.body instanceof FormData ? {} : { 'Content-Type': 'application/json' }),
       ...(options.headers || {}),
       Authorization: `Bearer ${token}`,
     },
@@ -39,7 +39,22 @@ async function profileFetch(url, options = {}) {
     const payload = await response.json().catch(() => ({}));
     throw new Error(payload.detail || 'Não foi possível concluir a operação.');
   }
+  if (response.status === 204) return null;
   return response.json();
+}
+
+async function profileAvatarUrl() {
+  try {
+    const token = await profileToken();
+    const response = await fetch('/api/profile/avatar', {
+      headers: { Authorization: `Bearer ${token}` },
+      cache: 'no-store',
+    });
+    if (!response.ok) return '';
+    return URL.createObjectURL(await response.blob());
+  } catch {
+    return '';
+  }
 }
 
 function birthParts(value) {
@@ -47,10 +62,13 @@ function birthParts(value) {
   return { day, month, year };
 }
 
-function profilePageHtml(profile = {}) {
+function profilePageHtml(profile = {}, avatarUrl = '') {
   const birth = birthParts(profile.birthDate);
   const email = window.Clerk?.user?.primaryEmailAddress?.emailAddress || '';
   const initial = (profile.fullName || email || 'U').trim().charAt(0).toUpperCase();
+  const avatarContent = avatarUrl
+    ? `<img src="${avatarUrl}" alt="Foto de perfil">`
+    : `<span>${initial}</span>`;
 
   return `
     <section class="internal-section domnai-profile-page" data-domnai-profile-page="true">
@@ -64,10 +82,18 @@ function profilePageHtml(profile = {}) {
       </header>
 
       <div class="domnai-profile-summary">
-        <div class="domnai-profile-avatar">${initial}</div>
+        <div class="domnai-profile-photo-wrap">
+          <div class="domnai-profile-avatar">${avatarContent}</div>
+          <label class="domnai-profile-photo-button">
+            Alterar foto
+            <input type="file" accept="image/jpeg,image/png,image/webp" class="domnai-profile-photo-input">
+          </label>
+          ${avatarUrl ? '<button type="button" class="domnai-profile-photo-remove">Remover</button>' : ''}
+        </div>
         <div>
           <strong>${profile.fullName || 'Perfil incompleto'}</strong>
           <span>${email || 'E-mail da conta'}</span>
+          <small>JPG, PNG ou WEBP · até 5 MB</small>
         </div>
         <span class="domnai-profile-status">${profile.fullName ? 'Cadastro completo' : 'Cadastro pendente'}</span>
       </div>
@@ -134,9 +160,12 @@ async function openDomnAIProfile() {
   mainArea.insertAdjacentHTML('beforeend', '<section class="internal-section domnai-profile-loading" data-domnai-profile-page="true">Carregando perfil...</section>');
 
   try {
-    const payload = await profileFetch('/api/profile');
+    const [payload, avatarUrl] = await Promise.all([
+      profileFetch('/api/profile'),
+      profileAvatarUrl(),
+    ]);
     mainArea.querySelector('[data-domnai-profile-page]')?.remove();
-    mainArea.insertAdjacentHTML('beforeend', profilePageHtml(payload.profile || {}));
+    mainArea.insertAdjacentHTML('beforeend', profilePageHtml(payload.profile || {}, avatarUrl));
     bindProfilePage();
   } catch (error) {
     const page = mainArea.querySelector('[data-domnai-profile-page]');
@@ -151,6 +180,32 @@ function bindProfilePage() {
 
   page.querySelector('.domnai-profile-close')?.addEventListener('click', restoreDashboardFromProfile);
   page.querySelector('.domnai-profile-cancel')?.addEventListener('click', restoreDashboardFromProfile);
+
+  page.querySelector('.domnai-profile-photo-input')?.addEventListener('change', async (event) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+    const label = page.querySelector('.domnai-profile-photo-button');
+    const original = label.childNodes[0].textContent;
+    label.childNodes[0].textContent = 'Enviando...';
+    try {
+      const formData = new FormData();
+      formData.append('file', file, file.name);
+      await profileFetch('/api/profile/avatar', { method: 'POST', body: formData });
+      await openDomnAIProfile();
+    } catch (error) {
+      window.alert(error.message);
+      label.childNodes[0].textContent = original;
+    }
+  });
+
+  page.querySelector('.domnai-profile-photo-remove')?.addEventListener('click', async () => {
+    try {
+      await profileFetch('/api/profile/avatar', { method: 'DELETE' });
+      await openDomnAIProfile();
+    } catch (error) {
+      window.alert(error.message);
+    }
+  });
 
   const phone = form.elements.phone;
   const cpf = form.elements.cpf;
