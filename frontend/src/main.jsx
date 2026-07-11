@@ -18,12 +18,14 @@ import './dashboard-billing-enhancements.css';
 import './profile-checklist.css';
 import './dashboard-onboarding-enhancements.css';
 import './dashboard-profile-enhancements.css';
+import './dashboard-profile-avatar-sync.css';
 import './dashboard-link-enhancements.js';
 import './dashboard-operation-groups.js';
 import './dashboard-extra-icons.js';
 import './dashboard-billing-enhancements.js';
 import './dashboard-onboarding-enhancements.js';
 import './dashboard-profile-enhancements.js';
+import './dashboard-profile-avatar-sync.js';
 import './auth-enhancements.js';
 
 const rootElement = document.getElementById('root');
