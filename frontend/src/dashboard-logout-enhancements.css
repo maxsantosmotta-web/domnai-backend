@@ -1,0 +1,54 @@
+.domnai-profile-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.domnai-logout-button,
+.domnai-plan-logout {
+  min-height: 44px;
+  padding: 0 18px;
+  border: 1px solid rgba(205, 76, 76, .34);
+  border-radius: 12px;
+  background: rgba(120, 28, 28, .12);
+  color: #ff9d9d;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.domnai-logout-button:hover,
+.domnai-plan-logout:hover {
+  border-color: rgba(225, 92, 92, .58);
+  background: rgba(120, 28, 28, .2);
+}
+
+.domnai-logout-button:disabled,
+.domnai-plan-logout:disabled {
+  opacity: .65;
+  cursor: wait;
+}
+
+.domnai-plan-logout {
+  position: fixed;
+  top: 18px;
+  right: 18px;
+  z-index: 1200;
+}
+
+@media (max-width: 820px) {
+  .domnai-profile-header-actions {
+    width: 100%;
+    flex-direction: column;
+  }
+
+  .domnai-profile-header-actions button {
+    width: 100%;
+  }
+
+  .domnai-plan-logout {
+    top: 12px;
+    right: 12px;
+    min-height: 40px;
+    padding: 0 14px;
+  }
+}
