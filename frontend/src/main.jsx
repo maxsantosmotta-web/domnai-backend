@@ -15,6 +15,7 @@ import './dashboard-final-fixes.css';
 import './dashboard-operation-groups.css';
 import './dashboard-extra-icons.css';
 import './dashboard-billing-enhancements.css';
+import './profile-checklist.css';
 import './dashboard-link-enhancements.js';
 import './dashboard-operation-groups.js';
 import './dashboard-extra-icons.js';
