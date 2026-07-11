@@ -37,7 +37,11 @@ async function profileFetch(url, options = {}) {
   });
   if (!response.ok) {
     const payload = await response.json().catch(() => ({}));
-    throw new Error(payload.detail || 'Não foi possível concluir a operação.');
+    const detail = payload.detail;
+    const message = Array.isArray(detail)
+      ? detail.map((item) => item?.msg || 'Dado inválido').join(' · ')
+      : typeof detail === 'string' ? detail : 'Não foi possível concluir a operação.';
+    throw new Error(message);
   }
   if (response.status === 204) return null;
   return response.json();
@@ -66,38 +70,23 @@ function profilePageHtml(profile = {}, avatarUrl = '') {
   const birth = birthParts(profile.birthDate);
   const email = window.Clerk?.user?.primaryEmailAddress?.emailAddress || '';
   const initial = (profile.fullName || email || 'U').trim().charAt(0).toUpperCase();
-  const avatarContent = avatarUrl
-    ? `<img src="${avatarUrl}" alt="Foto de perfil">`
-    : `<span>${initial}</span>`;
+  const avatar = avatarUrl ? `<img src="${avatarUrl}" alt="Foto de perfil">` : `<span>${initial}</span>`;
 
   return `
     <section class="internal-section domnai-profile-page" data-domnai-profile-page="true">
       <header class="domnai-profile-header">
-        <div>
-          <span>Minha conta</span>
-          <h1>Perfil do usuário</h1>
-          <p>Consulte e atualize os dados cadastrados na sua conta DomnAI.</p>
-        </div>
+        <div><span>Minha conta</span><h1>Perfil do usuário</h1><p>Consulte e atualize os dados cadastrados na sua conta DomnAI.</p></div>
         <button type="button" class="domnai-profile-close">Voltar ao Dashboard</button>
       </header>
-
       <div class="domnai-profile-summary">
         <div class="domnai-profile-photo-wrap">
-          <div class="domnai-profile-avatar">${avatarContent}</div>
-          <label class="domnai-profile-photo-button">
-            Alterar foto
-            <input type="file" accept="image/jpeg,image/png,image/webp" class="domnai-profile-photo-input">
-          </label>
+          <div class="domnai-profile-avatar">${avatar}</div>
+          <label class="domnai-profile-photo-button">Alterar foto<input type="file" accept="image/jpeg,image/png,image/webp" class="domnai-profile-photo-input"></label>
           ${avatarUrl ? '<button type="button" class="domnai-profile-photo-remove">Remover</button>' : ''}
         </div>
-        <div>
-          <strong>${profile.fullName || 'Perfil incompleto'}</strong>
-          <span>${email || 'E-mail da conta'}</span>
-          <small>JPG, PNG ou WEBP · até 5 MB</small>
-        </div>
+        <div><strong>${profile.fullName || 'Perfil incompleto'}</strong><span>${email || 'E-mail da conta'}</span><small>JPG, PNG ou WEBP · até 5 MB</small></div>
         <span class="domnai-profile-status">${profile.fullName ? 'Cadastro completo' : 'Cadastro pendente'}</span>
       </div>
-
       <form class="domnai-profile-form">
         <section class="domnai-profile-card">
           <div class="domnai-profile-card-title"><span>1</span><div><h2>Dados pessoais</h2><p>Informações do titular da conta.</p></div></div>
@@ -105,17 +94,13 @@ function profilePageHtml(profile = {}, avatarUrl = '') {
             <label class="profile-field-wide">Nome completo<input name="fullName" required maxlength="180" value="${profile.fullName || ''}"></label>
             <label>Telefone<input name="phone" required inputmode="tel" value="${profileFormatPhone(profile.phone || '')}"></label>
             <label>CPF<input name="cpf" required inputmode="numeric" value="${profileFormatCpf(profile.cpf || '')}"></label>
-            <div class="domnai-birth-field profile-field-wide">
-              <span>Data de nascimento</span>
-              <div>
-                <label>Dia<input name="birthDay" required inputmode="numeric" maxlength="2" placeholder="DD" value="${birth.day}"></label>
-                <label>Mês<input name="birthMonth" required inputmode="numeric" maxlength="2" placeholder="MM" value="${birth.month}"></label>
-                <label>Ano<input name="birthYear" required inputmode="numeric" maxlength="4" placeholder="AAAA" value="${birth.year}"></label>
-              </div>
-            </div>
+            <div class="domnai-birth-field profile-field-wide"><span>Data de nascimento</span><div>
+              <label>Dia<input name="birthDay" required inputmode="numeric" maxlength="2" value="${birth.day}"></label>
+              <label>Mês<input name="birthMonth" required inputmode="numeric" maxlength="2" value="${birth.month}"></label>
+              <label>Ano<input name="birthYear" required inputmode="numeric" maxlength="4" value="${birth.year}"></label>
+            </div></div>
           </div>
         </section>
-
         <section class="domnai-profile-card">
           <div class="domnai-profile-card-title"><span>2</span><div><h2>Endereço completo</h2><p>Informações vinculadas ao seu cadastro.</p></div></div>
           <div class="domnai-profile-grid">
@@ -132,38 +117,26 @@ function profilePageHtml(profile = {}, avatarUrl = '') {
             <label>Estado<input name="state" required maxlength="2" value="${profile.state || ''}"></label>
           </div>
         </section>
-
         <p class="domnai-profile-message" hidden></p>
-        <div class="domnai-profile-actions">
-          <button type="button" class="secondary domnai-profile-cancel">Cancelar</button>
-          <button type="submit" class="primary domnai-profile-save">Salvar alterações</button>
-        </div>
+        <div class="domnai-profile-actions"><button type="button" class="secondary domnai-profile-cancel">Cancelar</button><button type="submit" class="primary domnai-profile-save">Salvar alterações</button></div>
       </form>
-    </section>
-  `;
+    </section>`;
 }
 
 function restoreDashboardFromProfile() {
   document.querySelector('[data-domnai-profile-page]')?.remove();
   document.querySelector('.domnai-main-area')?.classList.remove('profile-page-open');
-  const dashboardButton = [...document.querySelectorAll('.sidebar-navigation button')]
-    .find((button) => button.textContent.trim().includes('Dashboard'));
-  dashboardButton?.click();
+  [...document.querySelectorAll('.sidebar-navigation button')].find((button) => button.textContent.trim().includes('Dashboard'))?.click();
 }
 
 async function openDomnAIProfile() {
   const mainArea = document.querySelector('.domnai-main-area');
   if (!mainArea) return;
-
   document.querySelector('[data-domnai-profile-page]')?.remove();
   mainArea.classList.add('profile-page-open');
   mainArea.insertAdjacentHTML('beforeend', '<section class="internal-section domnai-profile-loading" data-domnai-profile-page="true">Carregando perfil...</section>');
-
   try {
-    const [payload, avatarUrl] = await Promise.all([
-      profileFetch('/api/profile'),
-      profileAvatarUrl(),
-    ]);
+    const [payload, avatarUrl] = await Promise.all([profileFetch('/api/profile'), profileAvatarUrl()]);
     mainArea.querySelector('[data-domnai-profile-page]')?.remove();
     mainArea.insertAdjacentHTML('beforeend', profilePageHtml(payload.profile || {}, avatarUrl));
     bindProfilePage();
@@ -177,110 +150,63 @@ function bindProfilePage() {
   const page = document.querySelector('[data-domnai-profile-page]');
   const form = page?.querySelector('.domnai-profile-form');
   if (!page || !form) return;
-
   page.querySelector('.domnai-profile-close')?.addEventListener('click', restoreDashboardFromProfile);
   page.querySelector('.domnai-profile-cancel')?.addEventListener('click', restoreDashboardFromProfile);
-
   page.querySelector('.domnai-profile-photo-input')?.addEventListener('change', async (event) => {
     const file = event.target.files?.[0];
     if (!file) return;
-    const label = page.querySelector('.domnai-profile-photo-button');
-    const original = label.childNodes[0].textContent;
-    label.childNodes[0].textContent = 'Enviando...';
-    try {
-      const formData = new FormData();
-      formData.append('file', file, file.name);
-      await profileFetch('/api/profile/avatar', { method: 'POST', body: formData });
-      await openDomnAIProfile();
-    } catch (error) {
-      window.alert(error.message);
-      label.childNodes[0].textContent = original;
-    }
+    const data = new FormData(); data.append('file', file, file.name);
+    try { await profileFetch('/api/profile/avatar', { method: 'POST', body: data }); await openDomnAIProfile(); }
+    catch (error) { window.alert(error.message); }
   });
-
   page.querySelector('.domnai-profile-photo-remove')?.addEventListener('click', async () => {
-    try {
-      await profileFetch('/api/profile/avatar', { method: 'DELETE' });
-      await openDomnAIProfile();
-    } catch (error) {
-      window.alert(error.message);
-    }
+    try { await profileFetch('/api/profile/avatar', { method: 'DELETE' }); await openDomnAIProfile(); }
+    catch (error) { window.alert(error.message); }
   });
-
-  const phone = form.elements.phone;
-  const cpf = form.elements.cpf;
-  const cep = form.elements.zipCode;
-  phone.addEventListener('input', () => { phone.value = profileFormatPhone(phone.value); });
-  cpf.addEventListener('input', () => { cpf.value = profileFormatCpf(cpf.value); });
-  cep.addEventListener('input', () => { cep.value = profileFormatCep(cep.value); });
+  form.elements.phone.addEventListener('input', () => { form.elements.phone.value = profileFormatPhone(form.elements.phone.value); });
+  form.elements.cpf.addEventListener('input', () => { form.elements.cpf.value = profileFormatCpf(form.elements.cpf.value); });
+  form.elements.zipCode.addEventListener('input', () => { form.elements.zipCode.value = profileFormatCep(form.elements.zipCode.value); });
   form.elements.state.addEventListener('input', (event) => { event.target.value = event.target.value.toUpperCase().replace(/[^A-Z]/g, '').slice(0, 2); });
-  ['birthDay', 'birthMonth', 'birthYear'].forEach((name) => {
-    form.elements[name].addEventListener('input', (event) => {
-      event.target.value = event.target.value.replace(/\D/g, '').slice(0, Number(event.target.maxLength));
-    });
-  });
-
+  ['birthDay','birthMonth','birthYear'].forEach((name) => form.elements[name].addEventListener('input', (event) => { event.target.value = event.target.value.replace(/\D/g, '').slice(0, Number(event.target.maxLength)); }));
   form.addEventListener('submit', async (event) => {
     event.preventDefault();
-    const saveButton = form.querySelector('.domnai-profile-save');
+    const button = form.querySelector('.domnai-profile-save');
     const message = form.querySelector('.domnai-profile-message');
     const data = new FormData(form);
-    const day = String(data.get('birthDay')).padStart(2, '0');
-    const month = String(data.get('birthMonth')).padStart(2, '0');
-    const year = String(data.get('birthYear'));
-
-    saveButton.disabled = true;
-    saveButton.textContent = 'Salvando...';
-    message.hidden = true;
-
+    button.disabled = true; button.textContent = 'Salvando...'; message.hidden = true;
     try {
-      await profileFetch('/api/profile', {
-        method: 'PUT',
-        body: JSON.stringify({
-          full_name: String(data.get('fullName')).trim(),
-          phone: profileDigits(data.get('phone')),
-          cpf: profileDigits(data.get('cpf')),
-          birth_date: `${year}-${month}-${day}`,
-          zip_code: profileDigits(data.get('zipCode')),
-          street: String(data.get('street')).trim(),
-          number: String(data.get('number')).trim(),
-          complement: String(data.get('complement')).trim(),
-          lot: String(data.get('lot')).trim(),
-          block: String(data.get('block')).trim(),
-          building: String(data.get('building')).trim(),
-          apartment: String(data.get('apartment')).trim(),
-          neighborhood: String(data.get('neighborhood')).trim(),
-          city: String(data.get('city')).trim(),
-          state: String(data.get('state')).trim().toUpperCase(),
-        }),
-      });
-      message.textContent = 'Dados atualizados com sucesso.';
-      message.className = 'domnai-profile-message success';
-      message.hidden = false;
-      saveButton.textContent = 'Alterações salvas';
-      window.setTimeout(openDomnAIProfile, 700);
+      await profileFetch('/api/profile', { method: 'PUT', body: JSON.stringify({
+        full_name: String(data.get('fullName')).trim(), phone: profileDigits(data.get('phone')), cpf: profileDigits(data.get('cpf')),
+        birth_date: `${String(data.get('birthYear'))}-${String(data.get('birthMonth')).padStart(2,'0')}-${String(data.get('birthDay')).padStart(2,'0')}`,
+        zip_code: profileDigits(data.get('zipCode')), street: String(data.get('street')).trim(), number: String(data.get('number')).trim(),
+        complement: String(data.get('complement')).trim(), lot: String(data.get('lot')).trim(), block: String(data.get('block')).trim(), building: String(data.get('building')).trim(), apartment: String(data.get('apartment')).trim(),
+        neighborhood: String(data.get('neighborhood')).trim(), city: String(data.get('city')).trim(), state: String(data.get('state')).trim().toUpperCase()
+      }) });
+      message.textContent = 'Dados atualizados com sucesso.'; message.className = 'domnai-profile-message success'; message.hidden = false;
+      window.setTimeout(openDomnAIProfile, 500);
     } catch (error) {
-      message.textContent = error.message;
-      message.className = 'domnai-profile-message error';
-      message.hidden = false;
-      saveButton.disabled = false;
-      saveButton.textContent = 'Salvar alterações';
+      message.textContent = error.message; message.className = 'domnai-profile-message error'; message.hidden = false; button.disabled = false; button.textContent = 'Salvar alterações';
     }
   });
 }
 
 function installNativeProfileTrigger() {
   const container = document.querySelector('.sidebar-profile');
-  if (!container || container.dataset.domnaiProfileReady === 'true') return;
+  if (!container) return;
+  if (!container.querySelector('.domnai-profile-trigger')) {
+    container.innerHTML = `<button type="button" class="domnai-profile-trigger" aria-label="Abrir Minha conta"><span class="domnai-profile-trigger-avatar">${(window.Clerk?.user?.firstName || window.Clerk?.user?.primaryEmailAddress?.emailAddress || 'U').charAt(0).toUpperCase()}</span><span><strong>Minha conta</strong><small>Perfil e acesso</small></span></button>`;
+  }
   container.dataset.domnaiProfileReady = 'true';
-  container.innerHTML = `
-    <button type="button" class="domnai-profile-trigger" aria-label="Abrir Minha conta">
-      <span class="domnai-profile-trigger-avatar">${(window.Clerk?.user?.firstName || window.Clerk?.user?.primaryEmailAddress?.emailAddress || 'U').charAt(0).toUpperCase()}</span>
-      <span><strong>Minha conta</strong><small>Perfil e acesso</small></span>
-    </button>
-  `;
-  container.querySelector('button')?.addEventListener('click', openDomnAIProfile);
 }
+
+window.openDomnAIProfile = openDomnAIProfile;
+window.addEventListener('click', (event) => {
+  const trigger = event.target.closest('.domnai-profile-trigger, .sidebar-profile');
+  if (!trigger) return;
+  event.preventDefault();
+  event.stopImmediatePropagation();
+  openDomnAIProfile();
+}, true);
 
 const profileObserver = new MutationObserver(installNativeProfileTrigger);
 profileObserver.observe(document.documentElement, { childList: true, subtree: true });
