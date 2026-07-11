@@ -8,7 +8,7 @@ from sqlalchemy import select
 
 from app.auth import require_authenticated_user
 from app.database import session_scope
-from app.models import BillingAccount, CreditTransaction, ProcessedStripeEvent
+from app.models import BillingAccount, CreditTransaction, ProcessedStripeEvent, UserProfile
 
 router = APIRouter(prefix="/api/billing", tags=["billing"])
 
@@ -59,6 +59,13 @@ def _get_or_create_account(db, user_id: str) -> BillingAccount:
         db.add(account)
         db.flush()
     return account
+
+
+def _require_completed_profile(db, user_id: str) -> UserProfile:
+    profile = db.get(UserProfile, user_id)
+    if profile is None or not profile.completed:
+        raise HTTPException(status_code=428, detail="Complete seu cadastro antes de escolher um plano.")
+    return profile
 
 
 def _is_premium(account: BillingAccount) -> bool:
@@ -121,13 +128,17 @@ def billing_status(session: dict = Depends(require_authenticated_user)):
         if account.plan == "free_demo":
             account.plan = "unselected"
             db.flush()
-        return _serialize_account(account)
+        profile = db.get(UserProfile, user_id)
+        payload = _serialize_account(account)
+        payload["profileCompleted"] = bool(profile and profile.completed)
+        return payload
 
 
 @router.post("/select-free")
 def select_free_plan(session: dict = Depends(require_authenticated_user)):
     user_id = session.get("sub")
     with session_scope() as db:
+        _require_completed_profile(db, user_id)
         account = _get_or_create_account(db, user_id)
         if _is_premium(account):
             raise HTTPException(status_code=409, detail="Gerencie ou cancele sua assinatura PREMIUM antes de mudar para o FREE.")
@@ -136,7 +147,9 @@ def select_free_plan(session: dict = Depends(require_authenticated_user)):
         account.plan_credits = 0
         account.current_period_end = None
         db.flush()
-        return _serialize_account(account)
+        payload = _serialize_account(account)
+        payload["profileCompleted"] = True
+        return payload
 
 
 @router.get("/transactions")
@@ -169,6 +182,8 @@ def create_checkout(payload: CheckoutRequest, session: dict = Depends(require_au
     cancel_url = f"{_frontend_url()}/#/dashboard?checkout=cancelled"
 
     with session_scope() as db:
+        if payload.product in {"premium_monthly", "premium_yearly"}:
+            _require_completed_profile(db, user_id)
         account = _get_or_create_account(db, user_id)
         customer_id = account.stripe_customer_id
 
