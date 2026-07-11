@@ -14,6 +14,40 @@ function transactionLabel(item) {
   return labels[item.kind] || item.description || 'Movimentação';
 }
 
+function normalizeApiError(detail) {
+  if (!detail) return 'Não foi possível concluir a operação.';
+  if (typeof detail === 'string') return detail;
+
+  const fieldNames = {
+    full_name: 'Nome completo',
+    phone: 'Telefone',
+    cpf: 'CPF',
+    birth_date: 'Data de nascimento',
+    zip_code: 'CEP',
+    street: 'Rua',
+    number: 'Número',
+    neighborhood: 'Bairro',
+    city: 'Cidade',
+    state: 'Estado',
+  };
+
+  if (Array.isArray(detail)) {
+    return detail.map((item) => {
+      if (typeof item === 'string') return item;
+      const location = Array.isArray(item?.loc) ? item.loc[item.loc.length - 1] : '';
+      const field = fieldNames[location] || location || 'Campo';
+      const message = item?.msg || 'valor inválido';
+      return `${field}: ${message}`;
+    }).join(' · ');
+  }
+
+  if (typeof detail === 'object') {
+    return detail.message || detail.msg || JSON.stringify(detail);
+  }
+
+  return String(detail);
+}
+
 async function getAuthToken() {
   for (let attempt = 0; attempt < 40; attempt += 1) {
     const clerk = window.Clerk;
@@ -35,7 +69,7 @@ async function billingFetch(url, options = {}) {
   });
   if (!response.ok) {
     const payload = await response.json().catch(() => ({}));
-    throw new Error(payload.detail || 'Não foi possível concluir a operação.');
+    throw new Error(normalizeApiError(payload.detail || payload.message));
   }
   return response.status === 204 ? null : response.json();
 }
@@ -60,6 +94,10 @@ function premiumBenefits() {
 
 function digits(value) {
   return String(value || '').replace(/\D/g, '');
+}
+
+function safeText(value) {
+  return String(value || '').trim();
 }
 
 function formatCpf(value) {
@@ -151,25 +189,52 @@ async function openProfileChecklist(onComplete, actionLabel) {
   form.addEventListener('submit', async (event) => {
     event.preventDefault();
     errorBox.hidden = true;
+
+    const data = new FormData(form);
+    const day = safeText(data.get('birthDay')).padStart(2, '0');
+    const month = safeText(data.get('birthMonth')).padStart(2, '0');
+    const year = safeText(data.get('birthYear'));
+    const birthDate = safeText(data.get('birthDate')) || (day && month && year.length === 4 ? `${year}-${month}-${day}` : '');
+
+    const requiredChecks = [
+      ['Nome completo', safeText(data.get('fullName'))],
+      ['Telefone', digits(data.get('phone'))],
+      ['CPF', digits(data.get('cpf'))],
+      ['Data de nascimento', birthDate],
+      ['CEP', digits(data.get('zipCode'))],
+      ['Rua', safeText(data.get('street'))],
+      ['Número', safeText(data.get('number'))],
+      ['Bairro', safeText(data.get('neighborhood'))],
+      ['Cidade', safeText(data.get('city'))],
+      ['Estado', safeText(data.get('state'))],
+    ];
+    const missing = requiredChecks.filter(([, value]) => !value).map(([label]) => label);
+
+    if (missing.length) {
+      errorBox.textContent = `Preencha os campos obrigatórios: ${missing.join(', ')}.`;
+      errorBox.hidden = false;
+      return;
+    }
+
     submit.disabled = true;
     submit.textContent = 'Salvando cadastro...';
-    const data = new FormData(form);
+
     const body = {
-      full_name: data.get('fullName').trim(),
+      full_name: safeText(data.get('fullName')),
       phone: digits(data.get('phone')),
       cpf: digits(data.get('cpf')),
-      birth_date: data.get('birthDate'),
+      birth_date: birthDate,
       zip_code: digits(data.get('zipCode')),
-      street: data.get('street').trim(),
-      number: data.get('number').trim(),
-      complement: data.get('complement').trim(),
-      lot: data.get('lot').trim(),
-      block: data.get('block').trim(),
-      building: data.get('building').trim(),
-      apartment: data.get('apartment').trim(),
-      neighborhood: data.get('neighborhood').trim(),
-      city: data.get('city').trim(),
-      state: data.get('state').trim().toUpperCase(),
+      street: safeText(data.get('street')),
+      number: safeText(data.get('number')),
+      complement: safeText(data.get('complement')),
+      lot: safeText(data.get('lot')),
+      block: safeText(data.get('block')),
+      building: safeText(data.get('building')),
+      apartment: safeText(data.get('apartment')),
+      neighborhood: safeText(data.get('neighborhood')),
+      city: safeText(data.get('city')),
+      state: safeText(data.get('state')).toUpperCase(),
     };
 
     try {
