@@ -1,0 +1,53 @@
+.hidden-file-input {
+  display: none;
+}
+
+.sidebar-system-group {
+  margin-top: 16px;
+  padding-top: 14px;
+  border-top: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.simplified-composer {
+  grid-template-columns: minmax(0, 1fr) 48px;
+}
+
+.attachment-preview {
+  grid-column: 1 / -1;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.attachment-preview > span {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  max-width: 100%;
+  padding: 7px 10px;
+  border: 1px solid rgba(225, 181, 77, 0.16);
+  border-radius: 10px;
+  background: rgba(225, 181, 77, 0.06);
+  color: #d7d7d7;
+  font-size: 0.75rem;
+  overflow-wrap: anywhere;
+}
+
+.attachment-preview button {
+  border: 0;
+  background: transparent;
+  color: #9a9a9a;
+  cursor: pointer;
+  font-size: 1rem;
+  line-height: 1;
+}
+
+.conversation-options-menu {
+  padding-top: 12px;
+}
+
+@media (max-width: 620px) {
+  .simplified-composer {
+    grid-template-columns: minmax(0, 1fr) 48px;
+  }
+}
