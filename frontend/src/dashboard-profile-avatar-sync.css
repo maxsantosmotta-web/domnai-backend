@@ -1,0 +1,32 @@
+.domnai-profile-avatar,
+.domnai-profile-trigger-avatar {
+  position: relative;
+  flex: 0 0 auto;
+  overflow: hidden !important;
+}
+
+.domnai-profile-avatar img,
+.domnai-profile-trigger-avatar img {
+  display: block !important;
+  width: 100% !important;
+  height: 100% !important;
+  max-width: 100% !important;
+  max-height: 100% !important;
+  object-fit: cover !important;
+  object-position: center !important;
+  border-radius: 50% !important;
+}
+
+.domnai-profile-trigger-avatar img {
+  width: 34px !important;
+  height: 34px !important;
+}
+
+.domnai-profile-summary {
+  overflow: hidden;
+}
+
+.domnai-profile-summary .domnai-profile-photo-wrap,
+.domnai-profile-summary .domnai-profile-avatar {
+  max-width: 76px;
+}
