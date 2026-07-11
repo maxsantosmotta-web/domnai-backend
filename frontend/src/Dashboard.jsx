@@ -5,25 +5,25 @@ import './dashboard.css';
 import './dashboard-adjustments.css';
 
 const operations = [
-  { id: 'validacao-ideia', name: 'Validação de Ideias e Oportunidades', prompt: 'Conte qual ideia, produto, serviço ou oportunidade você deseja validar. Vou analisar demanda, público, concorrência, custos, riscos e potencial de retorno.' },
-  { id: 'abrir-negocio', name: 'Abrir um Negócio do Zero', prompt: 'Conte qual negócio você pretende abrir, quanto pretende investir, onde deseja atuar e se será físico, digital ou híbrido.' },
-  { id: 'estrutura-negocio', name: 'Estruturação e Organização Empresarial', prompt: 'Explique como o negócio funciona hoje. Vou ajudar a organizar modelo, processos, setores, responsabilidades, custos e próximos passos.' },
-  { id: 'diagnostico-negocio', name: 'Diagnóstico do Negócio', prompt: 'Conte como sua empresa funciona atualmente e qual problema mais incomoda. Vou identificar gargalos em vendas, custos, operação, equipe, margem e organização.' },
-  { id: 'plano-acao', name: 'Plano de Ação Empresarial', prompt: 'Explique o problema ou objetivo. Vou transformar a situação em ações organizadas por prioridade, prazo e impacto.' },
-  { id: 'viabilidade', name: 'Análise de Viabilidade', prompt: 'Descreva a decisão que está avaliando e informe os valores disponíveis. Vou analisar custos, riscos, prazo, retorno e alternativas.' },
-  { id: 'mercado-concorrencia', name: 'Pesquisa de Mercado e Concorrência', prompt: 'Informe o mercado, produto, serviço e região que deseja pesquisar. Vou organizar concorrentes, preços, público, diferenciais e oportunidades.' },
-  { id: 'gestao-financeira', name: 'Gestão Financeira Empresarial', prompt: 'Informe receitas, despesas, custos e o período que deseja analisar. Vou organizar fluxo de caixa, margem e resultado do negócio.' },
-  { id: 'precificacao', name: 'Precificação Estratégica', prompt: 'Informe o produto ou serviço, custos, taxas, impostos e margem desejada para começarmos a calcular o preço ideal.' },
-  { id: 'metas', name: 'Planejamento de Metas', prompt: 'Informe sua meta de faturamento, lucro ou crescimento, o prazo e o resultado atual. Vou calcular as vendas necessárias e organizar as prioridades.' },
-  { id: 'compras', name: 'Cotações e Compras Empresariais', prompt: 'Envie os produtos, fornecedores ou orçamentos. Vou comparar preço, frete, prazo, desconto, condições e custo total.' },
-  { id: 'fornecedores', name: 'Escolha de Fornecedores', prompt: 'Envie as opções de fornecedores. Vou comparar preço, prazo, qualidade, reputação, frete e condições de pagamento.' },
-  { id: 'negociacao', name: 'Negociação Estratégica', prompt: 'Explique o que precisa negociar, os valores envolvidos, as condições atuais e o resultado que deseja alcançar.' },
-  { id: 'dividas', name: 'Análise de Dívidas e Renegociação', prompt: 'Informe saldo devedor, juros, parcelas e propostas recebidas. Vou comparar os cenários e identificar a opção menos pesada para o caixa.' },
-  { id: 'investimentos', name: 'Análise de Investimentos', prompt: 'Informe valor disponível, prazo, objetivo e as alternativas consideradas. Vou comparar risco, liquidez, custos e potencial de retorno.' },
-  { id: 'contrato', name: 'Análise Contratual', prompt: 'Envie o contrato em PDF, imagem ou texto. Vou identificar cláusulas importantes, riscos, multas, prazos e obrigações.' },
-  { id: 'rescisao', name: 'Cálculo de Rescisão Trabalhista', prompt: 'Informe salário, datas de admissão e desligamento, tipo de saída, férias e demais dados para estimarmos as verbas rescisórias.' },
-  { id: 'veiculos', name: 'Pesquisa e Comparação de Veículos', prompt: 'Informe a placa, modelo, ano ou veículo que deseja pesquisar. Também posso comparar dois ou mais veículos por FIPE, mercado, consumo, manutenção e custo-benefício.' },
-  { id: 'imoveis', name: 'Análise Imobiliária', prompt: 'Envie os dados do imóvel ou das opções que deseja comparar. Vou analisar valores, localização, custos, documentação, financiamento e potencial de investimento.' },
+  { id: 'validacao-ideia', name: 'Validação de Ideias e Oportunidades' },
+  { id: 'abrir-negocio', name: 'Abrir um Negócio do Zero' },
+  { id: 'estrutura-negocio', name: 'Estruturação e Organização Empresarial' },
+  { id: 'diagnostico-negocio', name: 'Diagnóstico do Negócio' },
+  { id: 'plano-acao', name: 'Plano de Ação Empresarial' },
+  { id: 'viabilidade', name: 'Análise de Viabilidade' },
+  { id: 'mercado-concorrencia', name: 'Pesquisa de Mercado e Concorrência' },
+  { id: 'gestao-financeira', name: 'Gestão Financeira Empresarial' },
+  { id: 'precificacao', name: 'Precificação Estratégica' },
+  { id: 'metas', name: 'Planejamento de Metas' },
+  { id: 'compras', name: 'Cotações e Compras Empresariais' },
+  { id: 'fornecedores', name: 'Escolha de Fornecedores' },
+  { id: 'negociacao', name: 'Negociação Estratégica' },
+  { id: 'dividas', name: 'Análise de Dívidas e Renegociação' },
+  { id: 'investimentos', name: 'Análise de Investimentos' },
+  { id: 'contrato', name: 'Análise Contratual' },
+  { id: 'rescisao', name: 'Cálculo de Rescisão Trabalhista' },
+  { id: 'veiculos', name: 'Pesquisa e Comparação de Veículos' },
+  { id: 'imoveis', name: 'Análise Imobiliária' },
 ];
 
 export default function Dashboard() {
@@ -57,7 +57,7 @@ export default function Dashboard() {
     setDraft('');
     setMessages((current) => [
       ...current,
-      { id: Date.now(), role: 'assistant', text: item.prompt },
+      { id: Date.now(), role: 'user', text: item.name },
     ]);
     setSidebarOpen(false);
   }
