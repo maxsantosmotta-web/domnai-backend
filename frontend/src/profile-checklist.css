@@ -1,0 +1,263 @@
+.billing-plan-grid-two {
+  grid-template-columns: minmax(250px, 0.72fr) minmax(360px, 1.28fr);
+  align-items: stretch;
+}
+
+.billing-premium-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 18px;
+}
+
+.billing-period-switch {
+  display: inline-flex;
+  gap: 4px;
+  padding: 4px;
+  border: 1px solid rgba(216, 170, 52, 0.24);
+  border-radius: 14px;
+  background: #0d0d0d;
+}
+
+.billing-period-switch button {
+  width: auto;
+  min-height: 38px;
+  margin: 0;
+  padding: 0 14px;
+  border: 0;
+  border-radius: 10px;
+  background: transparent;
+  color: #aaa;
+  box-shadow: none;
+}
+
+.billing-period-switch button.is-active {
+  background: linear-gradient(135deg, #f1cf69 0%, #d9aa31 55%, #b77b12 100%);
+  color: #080808;
+}
+
+.billing-period-switch button span {
+  display: block;
+  margin-top: 1px;
+  font-size: 0.64rem;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+.billing-period-copy {
+  margin: 10px 0 0;
+}
+
+.profile-checklist-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 99999;
+  display: grid;
+  place-items: center;
+  padding: 22px;
+  background: rgba(0, 0, 0, 0.82);
+  backdrop-filter: blur(12px);
+  overflow-y: auto;
+}
+
+.profile-checklist-card {
+  width: min(960px, 100%);
+  max-height: calc(100vh - 44px);
+  overflow-y: auto;
+  border: 1px solid rgba(216, 170, 52, 0.34);
+  border-radius: 26px;
+  background: linear-gradient(180deg, #111 0%, #070707 100%);
+  box-shadow: 0 28px 80px rgba(0, 0, 0, 0.55);
+}
+
+.profile-checklist-card > header {
+  padding: 30px 32px 24px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.profile-checklist-card > header span {
+  color: #d8aa34;
+  font-size: 0.78rem;
+  font-weight: 800;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.profile-checklist-card > header h2 {
+  margin: 8px 0 6px;
+  color: #fff;
+  font-size: clamp(1.6rem, 4vw, 2.2rem);
+}
+
+.profile-checklist-card > header p {
+  margin: 0;
+  color: #aaa;
+}
+
+.profile-checklist-form {
+  padding: 26px 32px 32px;
+}
+
+.profile-checklist-step {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 8px 0 18px;
+}
+
+.profile-checklist-step:not(:first-child) {
+  margin-top: 30px;
+}
+
+.profile-checklist-step > span {
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  background: rgba(216, 170, 52, 0.14);
+  color: #e8bd54;
+  font-weight: 900;
+}
+
+.profile-checklist-step strong,
+.profile-checklist-step small {
+  display: block;
+}
+
+.profile-checklist-step strong {
+  color: #fff;
+}
+
+.profile-checklist-step small {
+  margin-top: 2px;
+  color: #8e8e8e;
+}
+
+.profile-form-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 16px;
+}
+
+.profile-form-grid label {
+  display: grid;
+  gap: 8px;
+  color: #e7e7e7;
+  font-size: 0.9rem;
+  font-weight: 700;
+}
+
+.profile-form-grid label small {
+  color: #7f7f7f;
+  font-weight: 500;
+}
+
+.profile-field-wide {
+  grid-column: span 2;
+}
+
+.profile-form-grid input {
+  width: 100%;
+  min-height: 48px;
+  box-sizing: border-box;
+  padding: 0 14px;
+  border: 1px solid rgba(216, 170, 52, 0.2);
+  border-radius: 13px;
+  outline: none;
+  background: #111;
+  color: #fff;
+}
+
+.profile-form-grid input:focus {
+  border-color: rgba(216, 170, 52, 0.7);
+  box-shadow: 0 0 0 3px rgba(216, 170, 52, 0.09);
+}
+
+.profile-checklist-error {
+  margin: 20px 0 0;
+  padding: 12px 14px;
+  border: 1px solid rgba(255, 100, 100, 0.28);
+  border-radius: 12px;
+  background: rgba(255, 80, 80, 0.08);
+  color: #ff9a9a;
+}
+
+.profile-checklist-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 12px;
+  margin-top: 28px;
+}
+
+.profile-checklist-actions button {
+  min-height: 48px;
+  padding: 0 22px;
+  border-radius: 14px;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.profile-checklist-cancel {
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: #121212;
+  color: #ddd;
+}
+
+.profile-checklist-submit {
+  border: 1px solid rgba(216, 170, 52, 0.45);
+  background: linear-gradient(135deg, #f1cf69 0%, #d9aa31 55%, #b77b12 100%);
+  color: #080808;
+}
+
+.profile-checklist-submit:disabled {
+  opacity: 0.6;
+  cursor: wait;
+}
+
+@media (max-width: 820px) {
+  .billing-plan-grid-two,
+  .profile-form-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .billing-premium-heading {
+    flex-direction: column;
+  }
+
+  .billing-period-switch {
+    width: 100%;
+  }
+
+  .billing-period-switch button {
+    flex: 1;
+  }
+
+  .profile-checklist-overlay {
+    align-items: start;
+    padding: 12px;
+  }
+
+  .profile-checklist-card {
+    max-height: none;
+    border-radius: 20px;
+  }
+
+  .profile-checklist-card > header,
+  .profile-checklist-form {
+    padding-left: 18px;
+    padding-right: 18px;
+  }
+
+  .profile-field-wide {
+    grid-column: auto;
+  }
+
+  .profile-checklist-actions {
+    flex-direction: column-reverse;
+  }
+
+  .profile-checklist-actions button {
+    width: 100%;
+  }
+}
