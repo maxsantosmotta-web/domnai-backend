@@ -11,6 +11,7 @@ from app.api.decisions import router as decisions_router
 from app.api.health import router as health_router
 from app.api.trash import router as trash_router
 from app.config import settings
+from app.database import Base, get_engine, is_database_configured
 
 app = FastAPI(
     title=settings.app_name,
@@ -29,6 +30,19 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+
+@app.on_event("startup")
+def initialize_database_tables() -> None:
+    if not is_database_configured():
+        return
+
+    from app import models  # noqa: F401
+
+    engine = get_engine()
+    if engine is not None:
+        Base.metadata.create_all(bind=engine)
+
 
 app.include_router(health_router)
 app.include_router(config_router)
