@@ -54,3 +54,53 @@ class DeletedAsset(Base):
         nullable=False,
         index=True,
     )
+
+
+class BillingAccount(Base):
+    __tablename__ = "billing_accounts"
+
+    user_id: Mapped[str] = mapped_column(String(128), primary_key=True)
+    plan: Mapped[str] = mapped_column(String(32), nullable=False, default="free_demo")
+    subscription_status: Mapped[str] = mapped_column(String(32), nullable=False, default="inactive")
+    plan_credits: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    extra_credits: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    stripe_customer_id: Mapped[str | None] = mapped_column(String(128), nullable=True, unique=True)
+    stripe_subscription_id: Mapped[str | None] = mapped_column(String(128), nullable=True, unique=True)
+    current_period_end: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        default=lambda: datetime.now(timezone.utc),
+        onupdate=lambda: datetime.now(timezone.utc),
+        nullable=False,
+    )
+
+
+class CreditTransaction(Base):
+    __tablename__ = "credit_transactions"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid4()))
+    user_id: Mapped[str] = mapped_column(String(128), nullable=False, index=True)
+    kind: Mapped[str] = mapped_column(String(32), nullable=False)
+    amount: Mapped[int] = mapped_column(Integer, nullable=False)
+    plan_balance: Mapped[int] = mapped_column(Integer, nullable=False)
+    extra_balance: Mapped[int] = mapped_column(Integer, nullable=False)
+    description: Mapped[str] = mapped_column(String(255), nullable=False)
+    stripe_event_id: Mapped[str | None] = mapped_column(String(255), nullable=True, unique=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        default=lambda: datetime.now(timezone.utc),
+        nullable=False,
+        index=True,
+    )
+
+
+class ProcessedStripeEvent(Base):
+    __tablename__ = "processed_stripe_events"
+
+    event_id: Mapped[str] = mapped_column(String(255), primary_key=True)
+    event_type: Mapped[str] = mapped_column(String(120), nullable=False)
+    processed_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        default=lambda: datetime.now(timezone.utc),
+        nullable=False,
+    )
