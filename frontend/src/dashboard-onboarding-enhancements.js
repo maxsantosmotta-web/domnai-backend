@@ -32,24 +32,41 @@ function needsPlanSelection(status) {
   return status?.plan === 'unselected' || status?.plan === 'free_demo' || !status?.plan;
 }
 
+function lockPlatformForPlanSelection() {
+  const shell = document.querySelector('.domnai-app-shell');
+  if (!shell) return;
+
+  shell.classList.add('onboarding-plan-mode');
+  shell.setAttribute('data-plan-gate', 'required');
+  openBillingSection();
+  window.requestAnimationFrame(openBillingSection);
+  window.setTimeout(openBillingSection, 120);
+
+  document.querySelectorAll('.domnai-main-area > :not(.internal-section)').forEach((node) => {
+    node.setAttribute('aria-hidden', 'true');
+  });
+}
+
+function releasePlatformAfterPlanSelection() {
+  const shell = document.querySelector('.domnai-app-shell');
+  if (!shell) return;
+
+  shell.classList.remove('onboarding-plan-mode');
+  shell.setAttribute('data-plan-gate', 'released');
+  document.querySelectorAll('.domnai-main-area > [aria-hidden="true"]').forEach((node) => {
+    node.removeAttribute('aria-hidden');
+  });
+}
+
 function applyPlanGate(status) {
   lastOnboardingStatus = status;
   const needsPlan = needsPlanSelection(status);
-  const shell = document.querySelector('.domnai-app-shell');
 
   document.documentElement.classList.remove('domnai-gate-pending');
   document.documentElement.classList.toggle('domnai-plan-selection-required', needsPlan);
 
-  if (!shell) return;
-
-  shell.classList.toggle('onboarding-plan-mode', needsPlan);
-  shell.setAttribute('data-plan-gate', needsPlan ? 'required' : 'released');
-
-  if (needsPlan) {
-    openBillingSection();
-    window.requestAnimationFrame(openBillingSection);
-    window.setTimeout(openBillingSection, 150);
-  }
+  if (needsPlan) lockPlatformForPlanSelection();
+  else releasePlatformAfterPlanSelection();
 }
 
 function scheduleGateRetry(delay = 500) {
@@ -111,6 +128,20 @@ function enhanceBirthDate() {
   });
 }
 
+function blockUnauthorizedPlatformInteraction(event) {
+  if (!document.documentElement.classList.contains('domnai-plan-selection-required')) return;
+  const allowed = event.target.closest(
+    '.billing-plans-section, .profile-checklist-overlay, .billing-page-header, .billing-error-state, .billing-loading-state'
+  );
+  if (allowed) return;
+  event.preventDefault();
+  event.stopPropagation();
+  openBillingSection();
+}
+
+document.addEventListener('click', blockUnauthorizedPlatformInteraction, true);
+document.addEventListener('submit', blockUnauthorizedPlatformInteraction, true);
+
 const onboardingObserver = new MutationObserver(() => {
   enhanceBirthDate();
   if (lastOnboardingStatus) applyPlanGate(lastOnboardingStatus);
@@ -122,7 +153,7 @@ window.addEventListener('hashchange', () => scheduleGateRetry(80));
 window.addEventListener('focus', () => scheduleGateRetry(80));
 window.addEventListener('pageshow', () => scheduleGateRetry(80));
 
-window.setInterval(enforcePlanGate, 1500);
+window.setInterval(enforcePlanGate, 1200);
 
 enhanceBirthDate();
 enforcePlanGate();
