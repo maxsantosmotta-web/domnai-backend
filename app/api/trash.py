@@ -3,7 +3,7 @@ from sqlalchemy import delete, select
 
 from app.auth import require_authenticated_user
 from app.database import session_scope
-from app.models import DeletedAsset
+from app.models import DeletedAsset, LibraryAsset
 
 router = APIRouter(prefix="/api/trash", tags=["trash"])
 
@@ -65,8 +65,8 @@ async def move_file_to_trash(
     return result
 
 
-@router.get("/{asset_id}/content")
-def get_deleted_asset_content(
+@router.post("/{asset_id}/restore")
+def restore_asset_to_library(
     asset_id: str,
     session: dict = Depends(require_authenticated_user),
 ):
@@ -81,14 +81,24 @@ def get_deleted_asset_content(
         if asset is None:
             raise HTTPException(status_code=404, detail="Arquivo não encontrado na lixeira.")
 
-        return Response(
+        library_asset = LibraryAsset(
+            user_id=asset.user_id,
+            name=asset.name,
+            mime_type=asset.mime_type,
+            size_bytes=asset.size_bytes,
             content=asset.content,
-            media_type=asset.mime_type,
-            headers={
-                "Content-Disposition": f'attachment; filename="{asset.name}"',
-                "X-File-Name": asset.name,
-            },
         )
+        db.add(library_asset)
+        db.delete(asset)
+        db.flush()
+
+        return {
+            "id": library_asset.id,
+            "name": library_asset.name,
+            "mimeType": library_asset.mime_type,
+            "sizeBytes": library_asset.size_bytes,
+            "createdAt": library_asset.created_at.isoformat(),
+        }
 
 
 @router.delete("/{asset_id}", status_code=status.HTTP_204_NO_CONTENT)
