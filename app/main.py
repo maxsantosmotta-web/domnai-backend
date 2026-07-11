@@ -9,6 +9,7 @@ from app.api.config import router as config_router
 from app.api.database import router as database_router
 from app.api.decisions import router as decisions_router
 from app.api.health import router as health_router
+from app.api.trash import router as trash_router
 from app.config import settings
 
 app = FastAPI(
@@ -34,6 +35,7 @@ app.include_router(config_router)
 app.include_router(auth_router)
 app.include_router(decisions_router)
 app.include_router(database_router)
+app.include_router(trash_router)
 
 frontend_dist = Path(__file__).resolve().parent.parent / "frontend" / "dist"
 
