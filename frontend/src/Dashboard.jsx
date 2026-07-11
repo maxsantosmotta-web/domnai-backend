@@ -33,7 +33,13 @@ function formatFileSize(size = 0) {
 }
 
 function attachmentType(mimeType = '') {
-  return mimeType.startsWith('image/') ? 'image' : 'file';
+  if (mimeType.startsWith('image/')) return 'image';
+  if (mimeType === 'application/pdf') return 'pdf';
+  return 'file';
+}
+
+function keepMessage(message) {
+  return Boolean(message.text?.trim()) || Boolean(message.attachments?.length);
 }
 
 export default function Dashboard() {
@@ -57,10 +63,12 @@ export default function Dashboard() {
   const [library, setLibrary] = useState([]);
   const [libraryLoading, setLibraryLoading] = useState(false);
   const [libraryError, setLibraryError] = useState('');
+  const [libraryPreviews, setLibraryPreviews] = useState({});
 
   const [trash, setTrash] = useState([]);
   const [trashLoading, setTrashLoading] = useState(false);
   const [trashError, setTrashError] = useState('');
+  const [trashPreviews, setTrashPreviews] = useState({});
 
   const visibleMessages = useMemo(() => {
     const term = search.trim().toLowerCase();
@@ -81,6 +89,23 @@ export default function Dashboard() {
     });
   }
 
+  async function buildPreviewMap(items, basePath) {
+    const previews = {};
+    await Promise.all(items.map(async (item) => {
+      const type = attachmentType(item.mimeType);
+      if (type !== 'image' && type !== 'pdf') return;
+      try {
+        const response = await authorizedFetch(`${basePath}/${item.id}/content`);
+        if (!response.ok) return;
+        const blob = await response.blob();
+        previews[item.id] = URL.createObjectURL(blob);
+      } catch {
+        // A listagem continua disponível mesmo quando uma prévia falhar.
+      }
+    }));
+    return previews;
+  }
+
   async function loadLibrary() {
     setLibraryLoading(true);
     setLibraryError('');
@@ -88,7 +113,9 @@ export default function Dashboard() {
       const response = await authorizedFetch('/api/library');
       if (!response.ok) throw new Error('Não foi possível carregar a biblioteca.');
       const data = await response.json();
-      setLibrary(data.items || []);
+      const items = data.items || [];
+      setLibrary(items);
+      setLibraryPreviews(await buildPreviewMap(items, '/api/library'));
     } catch (error) {
       setLibraryError(error.message || 'Não foi possível carregar a biblioteca.');
     } finally {
@@ -103,7 +130,9 @@ export default function Dashboard() {
       const response = await authorizedFetch('/api/trash');
       if (!response.ok) throw new Error('Não foi possível carregar a lixeira.');
       const data = await response.json();
-      setTrash(data.items || []);
+      const items = data.items || [];
+      setTrash(items);
+      setTrashPreviews(await buildPreviewMap(items, '/api/trash'));
     } catch (error) {
       setTrashError(error.message || 'Não foi possível carregar a lixeira.');
     } finally {
@@ -158,6 +187,7 @@ export default function Dashboard() {
       for (const file of selected) {
         const saved = await saveFileToLibrary(file);
         const type = attachmentType(saved.mimeType);
+        const previewUrl = type === 'image' || type === 'pdf' ? URL.createObjectURL(file) : null;
         savedItems.push({
           id: `attachment-${saved.id}-${Date.now()}`,
           libraryId: saved.id,
@@ -165,7 +195,7 @@ export default function Dashboard() {
           type,
           mimeType: saved.mimeType,
           size: saved.sizeBytes,
-          previewUrl: type === 'image' ? URL.createObjectURL(file) : null,
+          previewUrl,
         });
       }
       setAttachments((current) => [...current, ...savedItems]);
@@ -192,11 +222,10 @@ export default function Dashboard() {
     const text = draft.trim();
     if ((!text && attachments.length === 0) || uploading) return;
 
-    const hasNonImageAttachment = attachments.some((item) => item.type !== 'image');
     setMessages((current) => [...current, {
       id: Date.now(),
       role: 'user',
-      text: text || (hasNonImageAttachment ? 'Arquivo enviado' : ''),
+      text,
       attachments: [...attachments],
     }]);
     setDraft('');
@@ -215,21 +244,30 @@ export default function Dashboard() {
 
   function removeLibraryReferences(libraryId) {
     setAttachments((current) => current.filter((item) => item.libraryId !== libraryId));
-    setMessages((current) => current.map((message) => ({
-      ...message,
-      attachments: (message.attachments || []).filter((item) => item.libraryId !== libraryId),
-    })));
+    setMessages((current) => current
+      .map((message) => ({
+        ...message,
+        attachments: (message.attachments || []).filter((item) => item.libraryId !== libraryId),
+      }))
+      .filter(keepMessage));
     setLibrary((current) => current.filter((item) => item.id !== libraryId));
+    setLibraryPreviews((current) => {
+      const next = { ...current };
+      delete next[libraryId];
+      return next;
+    });
   }
 
   async function deleteAttachment(item) {
     try {
       if (item.type === 'link') {
         setAttachments((current) => current.filter((entry) => entry.id !== item.id));
-        setMessages((current) => current.map((message) => ({
-          ...message,
-          attachments: (message.attachments || []).filter((entry) => entry.id !== item.id),
-        })));
+        setMessages((current) => current
+          .map((message) => ({
+            ...message,
+            attachments: (message.attachments || []).filter((entry) => entry.id !== item.id),
+          }))
+          .filter(keepMessage));
         return;
       }
       await moveLibraryAssetToTrash(item.libraryId);
@@ -273,8 +311,8 @@ export default function Dashboard() {
     try {
       const response = await authorizedFetch(`/api/library/${item.id}/content`);
       if (!response.ok) throw new Error('Não foi possível abrir o arquivo da biblioteca.');
+      const blob = await response.blob();
       const type = attachmentType(item.mimeType);
-      const blob = type === 'image' ? await response.blob() : null;
       setAttachments((current) => {
         if (current.some((entry) => entry.libraryId === item.id)) return current;
         return [...current, {
@@ -284,7 +322,7 @@ export default function Dashboard() {
           type,
           mimeType: item.mimeType,
           size: item.sizeBytes,
-          previewUrl: blob ? URL.createObjectURL(blob) : null,
+          previewUrl: type === 'image' || type === 'pdf' ? URL.createObjectURL(blob) : null,
         }];
       });
       setSection('chat');
@@ -292,6 +330,10 @@ export default function Dashboard() {
     } catch (error) {
       window.alert(error.message);
     }
+  }
+
+  function openPreview(url) {
+    if (url) window.open(url, '_blank', 'noopener,noreferrer');
   }
 
   async function deleteLibraryItem(item) {
@@ -312,7 +354,14 @@ export default function Dashboard() {
       }
       const restored = await response.json();
       setTrash((current) => current.filter((entry) => entry.id !== item.id));
+      setTrashPreviews((current) => {
+        const next = { ...current };
+        delete next[item.id];
+        return next;
+      });
       setLibrary((current) => [restored, ...current]);
+      const preview = await buildPreviewMap([restored], '/api/library');
+      setLibraryPreviews((current) => ({ ...current, ...preview }));
     } catch (error) {
       window.alert(error.message);
     }
@@ -323,6 +372,11 @@ export default function Dashboard() {
       const response = await authorizedFetch(`/api/trash/${itemId}`, { method: 'DELETE' });
       if (!response.ok && response.status !== 204) throw new Error('Não foi possível excluir o arquivo definitivamente.');
       setTrash((current) => current.filter((entry) => entry.id !== itemId));
+      setTrashPreviews((current) => {
+        const next = { ...current };
+        delete next[itemId];
+        return next;
+      });
     } catch (error) {
       window.alert(error.message);
     }
@@ -333,9 +387,20 @@ export default function Dashboard() {
       const response = await authorizedFetch('/api/trash', { method: 'DELETE' });
       if (!response.ok && response.status !== 204) throw new Error('Não foi possível esvaziar a lixeira.');
       setTrash([]);
+      setTrashPreviews({});
     } catch (error) {
       window.alert(error.message);
     }
+  }
+
+  function renderVisualAsset(item, previewUrl, compact = false) {
+    if (item.type === 'image' && previewUrl) {
+      return <img className={compact ? 'asset-preview-image compact' : 'asset-preview-image'} src={previewUrl} alt={item.name} />;
+    }
+    if (item.type === 'pdf' && previewUrl) {
+      return <iframe className={compact ? 'asset-preview-pdf compact' : 'asset-preview-pdf'} src={`${previewUrl}#toolbar=0&navpanes=0`} title={item.name} />;
+    }
+    return <div className="asset-file-placeholder">{item.type === 'pdf' ? 'PDF' : 'ARQUIVO'}</div>;
   }
 
   return (
@@ -359,16 +424,12 @@ export default function Dashboard() {
 
         <nav className="sidebar-navigation" aria-label="Dashboard do DomnAI">
           <button className={section === 'chat' && !activeOperation ? 'is-active' : ''} type="button" onClick={openDashboard}><span>▣</span> Dashboard</button>
-
           <div className="sidebar-group operations-only">
             <p>Operações</p>
             {operations.map((item) => (
-              <button className={activeOperation === item.id && section === 'chat' ? 'is-active' : ''} type="button" key={item.id} onClick={() => selectOperation(item)}>
-                <span>›</span> {item.name}
-              </button>
+              <button className={activeOperation === item.id && section === 'chat' ? 'is-active' : ''} type="button" key={item.id} onClick={() => selectOperation(item)}><span>›</span> {item.name}</button>
             ))}
           </div>
-
           <div className="sidebar-group sidebar-system-group">
             <p>Sistema</p>
             <button className={section === 'library' ? 'is-active' : ''} type="button" onClick={() => openSection('library')}><span>▤</span> Biblioteca</button>
@@ -393,31 +454,23 @@ export default function Dashboard() {
         {section === 'chat' ? (
           <div className="chat-workspace">
             <section className="chat-column">
-              {searchOpen ? (
-                <label className="inline-chat-search"><span>⌕</span><input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Pesquisar por palavra-chave" autoFocus /><button type="button" onClick={() => { setSearchOpen(false); setSearch(''); }}>×</button></label>
-              ) : null}
+              {searchOpen ? <label className="inline-chat-search"><span>⌕</span><input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Pesquisar por palavra-chave" autoFocus /><button type="button" onClick={() => { setSearchOpen(false); setSearch(''); }}>×</button></label> : null}
 
               <div className="chat-messages clean-chat-area">
                 {visibleMessages.map((message) => (
                   <article className={`chat-message ${message.role}`} key={message.id}>
-                    <span>{message.role === 'assistant' ? 'DomnAI' : 'Você'}</span>
+                    <span className="message-author">{message.role === 'assistant' ? 'DomnAI' : 'Você'}</span>
                     {message.text ? <p>{message.text}</p> : null}
                     {(message.attachments || []).length ? (
                       <div className="message-attachments">
                         {message.attachments.map((item) => (
-                          item.type === 'image' && item.previewUrl ? (
-                            <figure className="chat-image-attachment" key={item.id}>
-                              <img src={item.previewUrl} alt={item.name} />
-                              <figcaption>
-                                <span>{item.name}</span>
-                                <button type="button" onClick={() => deleteAttachment(item)}>Excluir</button>
-                              </figcaption>
+                          item.type === 'image' || item.type === 'pdf' ? (
+                            <figure className={`chat-visual-attachment ${item.type}`} key={item.id}>
+                              {renderVisualAsset(item, item.previewUrl)}
+                              <figcaption><span>{item.name}</span><div><button type="button" onClick={() => openPreview(item.previewUrl)}>Abrir</button><button type="button" className="danger" onClick={() => deleteAttachment(item)}>Excluir</button></div></figcaption>
                             </figure>
                           ) : (
-                            <div key={item.id} className="message-attachment">
-                              <div><strong>{item.name}</strong>{item.type !== 'link' ? <small>{formatFileSize(item.size)}</small> : null}</div>
-                              <button type="button" onClick={() => deleteAttachment(item)}>Excluir</button>
-                            </div>
+                            <div key={item.id} className="message-attachment"><div><strong>{item.name}</strong>{item.type !== 'link' ? <small>{formatFileSize(item.size)}</small> : null}</div><button type="button" onClick={() => deleteAttachment(item)}>Excluir</button></div>
                           )
                         ))}
                       </div>
@@ -427,27 +480,14 @@ export default function Dashboard() {
               </div>
 
               <form className="chat-composer simplified-composer composer-with-plus" onSubmit={sendMessage}>
-                {plusOpen ? (
-                  <div className="composer-plus-menu">
-                    <button type="button" onClick={() => cameraInputRef.current?.click()}><span>◉</span> Câmera</button>
-                    <button type="button" onClick={() => imageInputRef.current?.click()}><span>▧</span> Fotos</button>
-                    <button type="button" onClick={() => fileInputRef.current?.click()}><span>⌑</span> Arquivos e PDF</button>
-                    <button type="button" onClick={() => openSection('library')}><span>▤</span> Biblioteca</button>
-                    <button type="button" onClick={addLink}><span>↗</span> Inserir link</button>
-                  </div>
-                ) : null}
+                {plusOpen ? <div className="composer-plus-menu"><button type="button" onClick={() => cameraInputRef.current?.click()}><span>◉</span> Câmera</button><button type="button" onClick={() => imageInputRef.current?.click()}><span>▧</span> Fotos</button><button type="button" onClick={() => fileInputRef.current?.click()}><span>⌑</span> Arquivos e PDF</button><button type="button" onClick={() => openSection('library')}><span>▤</span> Biblioteca</button><button type="button" onClick={addLink}><span>↗</span> Inserir link</button></div> : null}
 
                 {attachments.length ? (
                   <div className="attachment-preview">
                     {attachments.map((item) => (
-                      item.type === 'image' && item.previewUrl ? (
-                        <div className="composer-image-preview" key={item.id}>
-                          <img src={item.previewUrl} alt={item.name} />
-                          <button type="button" onClick={() => deleteAttachment(item)}>×</button>
-                        </div>
-                      ) : (
-                        <span key={item.id}>{item.name}<button type="button" onClick={() => deleteAttachment(item)}>×</button></span>
-                      )
+                      item.type === 'image' || item.type === 'pdf' ? (
+                        <div className={`composer-visual-preview ${item.type}`} key={item.id}>{renderVisualAsset(item, item.previewUrl, true)}<button type="button" onClick={() => deleteAttachment(item)}>×</button></div>
+                      ) : <span key={item.id}>{item.name}<button type="button" onClick={() => deleteAttachment(item)}>×</button></span>
                     ))}
                   </div>
                 ) : null}
@@ -466,14 +506,12 @@ export default function Dashboard() {
             {libraryLoading ? <div className="internal-empty-state">Carregando...</div> : null}
             {libraryError ? <div className="internal-empty-state">{libraryError}</div> : null}
             {!libraryLoading && !libraryError && library.length ? (
-              <div className="asset-library-grid">
-                {library.map((item) => (
-                  <article className="asset-library-card" key={item.id}>
-                    <div className="asset-type-icon">{item.mimeType?.startsWith('image/') ? '▧' : '⌑'}</div>
-                    <div><strong>{item.name}</strong><small>{formatFileSize(item.sizeBytes)} · {new Date(item.createdAt).toLocaleString('pt-BR')}</small></div>
-                    <div className="asset-card-actions"><button type="button" onClick={() => attachLibraryItem(item)}>Anexar ao chat</button><button type="button" className="asset-delete-button" onClick={() => deleteLibraryItem(item)}>Excluir</button></div>
-                  </article>
-                ))}
+              <div className="visual-asset-grid">
+                {library.map((item) => {
+                  const type = attachmentType(item.mimeType);
+                  const visualItem = { ...item, type };
+                  return <article className="visual-asset-card" key={item.id}><div className="visual-asset-stage">{renderVisualAsset(visualItem, libraryPreviews[item.id])}</div><div className="visual-asset-info"><strong>{item.name}</strong><small>{formatFileSize(item.sizeBytes)} · {new Date(item.createdAt).toLocaleString('pt-BR')}</small></div><div className="visual-asset-actions">{libraryPreviews[item.id] ? <button type="button" onClick={() => openPreview(libraryPreviews[item.id])}>Abrir</button> : null}<button type="button" className="primary" onClick={() => attachLibraryItem(item)}>Anexar ao chat</button><button type="button" className="danger" onClick={() => deleteLibraryItem(item)}>Excluir</button></div></article>;
+                })}
               </div>
             ) : null}
             {!libraryLoading && !libraryError && !library.length ? <div className="internal-empty-state">A biblioteca está vazia.</div> : null}
@@ -482,30 +520,24 @@ export default function Dashboard() {
 
         {section === 'trash' ? (
           <section className="internal-section">
-            <header><div><span>Lixeira</span><h1>Arquivos excluídos</h1><p>Ao restaurar, o arquivo volta somente para a Biblioteca.</p></div>{trash.length ? <button type="button" onClick={emptyTrash}>Esvaziar lixeira</button> : null}</header>
+            <header><div><span>Lixeira</span><h1>Arquivos excluídos</h1><p>Ao restaurar, o arquivo volta somente para a Biblioteca.</p></div>{trash.length ? <button type="button" className="premium-empty-trash" onClick={emptyTrash}>Esvaziar lixeira</button> : null}</header>
             {trashLoading ? <div className="internal-empty-state">Carregando...</div> : null}
             {trashError ? <div className="internal-empty-state">{trashError}</div> : null}
             {!trashLoading && !trashError && trash.length ? (
-              <div className="trash-list">
-                {trash.map((item) => (
-                  <article key={item.id}>
-                    <div><strong>{item.name}</strong><small>{formatFileSize(item.sizeBytes)} · Excluído em {new Date(item.deletedAt).toLocaleString('pt-BR')}</small></div>
-                    <div><button type="button" onClick={() => restoreTrashItem(item)}>Restaurar para Biblioteca</button><button type="button" onClick={() => permanentlyDeleteTrashItem(item.id)}>Excluir definitivamente</button></div>
-                  </article>
-                ))}
+              <div className="visual-asset-grid trash-visual-grid">
+                {trash.map((item) => {
+                  const type = attachmentType(item.mimeType);
+                  const visualItem = { ...item, type };
+                  return <article className="visual-asset-card trash-card" key={item.id}><div className="visual-asset-stage">{renderVisualAsset(visualItem, trashPreviews[item.id])}</div><div className="visual-asset-info"><strong>{item.name}</strong><small>{formatFileSize(item.sizeBytes)} · Excluído em {new Date(item.deletedAt).toLocaleString('pt-BR')}</small></div><div className="visual-asset-actions">{trashPreviews[item.id] ? <button type="button" onClick={() => openPreview(trashPreviews[item.id])}>Abrir</button> : null}<button type="button" className="primary" onClick={() => restoreTrashItem(item)}>Restaurar</button><button type="button" className="danger" onClick={() => permanentlyDeleteTrashItem(item.id)}>Excluir definitivamente</button></div></article>;
+                })}
               </div>
             ) : null}
             {!trashLoading && !trashError && !trash.length ? <div className="internal-empty-state">A lixeira está vazia.</div> : null}
           </section>
         ) : null}
 
-        {section === 'billing' ? (
-          <section className="internal-section"><header><div><span>Faturamento</span><h1>Créditos avulsos</h1><p>Compra de pacotes avulsos de créditos.</p></div></header><div className="billing-card"><strong>Pacotes de créditos</strong><button type="button" disabled>Comprar créditos</button></div></section>
-        ) : null}
-
-        {section === 'settings' ? (
-          <section className="internal-section"><header><div><span>Configurações</span><h1>Preferências da plataforma</h1></div></header><div className="internal-empty-state">Nenhuma configuração disponível nesta etapa.</div></section>
-        ) : null}
+        {section === 'billing' ? <section className="internal-section"><header><div><span>Faturamento</span><h1>Créditos avulsos</h1><p>Compra de pacotes avulsos de créditos.</p></div></header><div className="billing-card"><strong>Pacotes de créditos</strong><button type="button" disabled>Comprar créditos</button></div></section> : null}
+        {section === 'settings' ? <section className="internal-section"><header><div><span>Configurações</span><h1>Preferências da plataforma</h1></div></header><div className="internal-empty-state">Nenhuma configuração disponível nesta etapa.</div></section> : null}
       </section>
     </main>
   );
