@@ -1,5 +1,5 @@
 import React, { useMemo, useRef, useState } from 'react';
-import { UserButton } from '@clerk/clerk-react';
+import { UserButton, useAuth } from '@clerk/clerk-react';
 import DOMNAI_LOGO from './assets/domnai-logo-oficial-transparente.png';
 import './dashboard.css';
 import './dashboard-adjustments.css';
@@ -26,7 +26,14 @@ const operations = [
   { id: 'imoveis', name: 'Análise Imobiliária' },
 ];
 
+function formatFileSize(size) {
+  if (size < 1024) return `${size} B`;
+  if (size < 1024 * 1024) return `${(size / 1024).toFixed(1)} KB`;
+  return `${(size / (1024 * 1024)).toFixed(1)} MB`;
+}
+
 export default function Dashboard() {
+  const { getToken } = useAuth();
   const imageInputRef = useRef(null);
   const fileInputRef = useRef(null);
   const [section, setSection] = useState('chat');
@@ -38,12 +45,9 @@ export default function Dashboard() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [optionsOpen, setOptionsOpen] = useState(false);
   const [trash, setTrash] = useState([]);
+  const [trashLoading, setTrashLoading] = useState(false);
+  const [trashError, setTrashError] = useState('');
   const [attachments, setAttachments] = useState([]);
-
-  const operation = useMemo(
-    () => operations.find((item) => item.id === activeOperation) || null,
-    [activeOperation],
-  );
 
   const visibleMessages = useMemo(() => {
     const term = search.trim().toLowerCase();
@@ -51,13 +55,39 @@ export default function Dashboard() {
     return messages.filter((message) => message.text.toLowerCase().includes(term));
   }, [messages, search]);
 
+  async function authorizedFetch(url, options = {}) {
+    const token = await getToken();
+    return fetch(url, {
+      ...options,
+      headers: {
+        ...(options.headers || {}),
+        Authorization: `Bearer ${token}`,
+      },
+    });
+  }
+
+  async function loadTrash() {
+    setTrashLoading(true);
+    setTrashError('');
+    try {
+      const response = await authorizedFetch('/api/trash');
+      if (!response.ok) throw new Error('Não foi possível carregar a lixeira.');
+      const data = await response.json();
+      setTrash(data.items || []);
+    } catch (error) {
+      setTrashError(error.message || 'Não foi possível carregar a lixeira.');
+    } finally {
+      setTrashLoading(false);
+    }
+  }
+
   function selectOperation(item) {
     setActiveOperation(item.id);
     setSection('chat');
     setDraft('');
     setMessages((current) => [
       ...current,
-      { id: Date.now(), role: 'user', text: item.name },
+      { id: Date.now(), role: 'user', text: item.name, attachments: [] },
     ]);
     setSidebarOpen(false);
   }
@@ -69,19 +99,25 @@ export default function Dashboard() {
     setSidebarOpen(false);
   }
 
-  function openSection(nextSection) {
+  async function openSection(nextSection) {
     setSection(nextSection);
     setSidebarOpen(false);
+    if (nextSection === 'trash') await loadTrash();
   }
 
   function handleFiles(files, type) {
     const selected = Array.from(files || []).map((file) => ({
-      id: `${file.name}-${file.size}-${file.lastModified}`,
+      id: `${file.name}-${file.size}-${file.lastModified}-${Date.now()}`,
       name: file.name,
       type,
+      mimeType: file.type || 'application/octet-stream',
+      size: file.size,
+      file,
     }));
     setAttachments((current) => [...current, ...selected]);
     setOptionsOpen(false);
+    if (imageInputRef.current) imageInputRef.current.value = '';
+    if (fileInputRef.current) fileInputRef.current.value = '';
   }
 
   function addLink() {
@@ -89,7 +125,7 @@ export default function Dashboard() {
     if (!url?.trim()) return;
     setAttachments((current) => [
       ...current,
-      { id: `link-${Date.now()}`, name: url.trim(), type: 'link' },
+      { id: `link-${Date.now()}`, name: url.trim(), type: 'link', size: 0 },
     ]);
     setOptionsOpen(false);
   }
@@ -99,25 +135,64 @@ export default function Dashboard() {
     const text = draft.trim();
     if (!text && attachments.length === 0) return;
 
-    const attachmentText = attachments.length
-      ? `\n\nAnexos: ${attachments.map((item) => item.name).join(', ')}`
-      : '';
-
     setMessages((current) => [
       ...current,
-      { id: Date.now(), role: 'user', text: `${text || 'Arquivo enviado'}${attachmentText}` },
+      {
+        id: Date.now(),
+        role: 'user',
+        text: text || 'Arquivo enviado',
+        attachments: [...attachments],
+      },
     ]);
     setDraft('');
     setAttachments([]);
   }
 
-  function deleteConversation() {
-    setMessages([]);
-    setActiveOperation(null);
-    setSearch('');
-    setSearchOpen(false);
-    setAttachments([]);
-    setOptionsOpen(false);
+  async function moveFileToTrash(item) {
+    if (!item?.file || item.type === 'link') return null;
+    const formData = new FormData();
+    formData.append('file', item.file, item.name);
+    const response = await authorizedFetch('/api/trash', {
+      method: 'POST',
+      body: formData,
+    });
+    if (!response.ok) {
+      const payload = await response.json().catch(() => ({}));
+      throw new Error(payload.detail || `Não foi possível mover ${item.name} para a lixeira.`);
+    }
+    return response.json();
+  }
+
+  async function deleteAttachmentFromMessage(messageId, item) {
+    try {
+      if (item.type !== 'link') await moveFileToTrash(item);
+      setMessages((current) => current.map((message) => (
+        message.id === messageId
+          ? { ...message, attachments: (message.attachments || []).filter((entry) => entry.id !== item.id) }
+          : message
+      )));
+    } catch (error) {
+      window.alert(error.message);
+    }
+  }
+
+  async function deleteConversation() {
+    const files = [
+      ...messages.flatMap((message) => message.attachments || []),
+      ...attachments,
+    ].filter((item) => item.type !== 'link' && item.file);
+
+    try {
+      for (const file of files) await moveFileToTrash(file);
+      setMessages([]);
+      setActiveOperation(null);
+      setSearch('');
+      setSearchOpen(false);
+      setAttachments([]);
+      setOptionsOpen(false);
+    } catch (error) {
+      window.alert(error.message);
+    }
   }
 
   function refreshConversation() {
@@ -126,6 +201,52 @@ export default function Dashboard() {
     setSearchOpen(false);
     setAttachments([]);
     setOptionsOpen(false);
+  }
+
+  async function restoreTrashItem(item) {
+    try {
+      const response = await authorizedFetch(`/api/trash/${item.id}/content`);
+      if (!response.ok) throw new Error('Não foi possível restaurar o arquivo.');
+      const blob = await response.blob();
+      const file = new File([blob], item.name, { type: item.mimeType });
+      setAttachments((current) => [
+        ...current,
+        {
+          id: `restored-${item.id}-${Date.now()}`,
+          name: item.name,
+          type: item.mimeType?.startsWith('image/') ? 'image' : 'file',
+          mimeType: item.mimeType,
+          size: item.sizeBytes,
+          file,
+        },
+      ]);
+      const deleteResponse = await authorizedFetch(`/api/trash/${item.id}`, { method: 'DELETE' });
+      if (!deleteResponse.ok && deleteResponse.status !== 204) throw new Error('O arquivo foi restaurado, mas não saiu da lixeira.');
+      setTrash((current) => current.filter((entry) => entry.id !== item.id));
+      setSection('chat');
+    } catch (error) {
+      window.alert(error.message);
+    }
+  }
+
+  async function permanentlyDeleteTrashItem(itemId) {
+    try {
+      const response = await authorizedFetch(`/api/trash/${itemId}`, { method: 'DELETE' });
+      if (!response.ok && response.status !== 204) throw new Error('Não foi possível excluir o arquivo definitivamente.');
+      setTrash((current) => current.filter((entry) => entry.id !== itemId));
+    } catch (error) {
+      window.alert(error.message);
+    }
+  }
+
+  async function emptyTrash() {
+    try {
+      const response = await authorizedFetch('/api/trash', { method: 'DELETE' });
+      if (!response.ok && response.status !== 204) throw new Error('Não foi possível esvaziar a lixeira.');
+      setTrash([]);
+    } catch (error) {
+      window.alert(error.message);
+    }
   }
 
   return (
@@ -180,10 +301,7 @@ export default function Dashboard() {
 
         <div className="sidebar-profile">
           <UserButton afterSignOutUrl="/" />
-          <div>
-            <strong>Minha conta</strong>
-            <small>Perfil e acesso</small>
-          </div>
+          <div><strong>Minha conta</strong><small>Perfil e acesso</small></div>
         </div>
       </aside>
 
@@ -216,6 +334,16 @@ export default function Dashboard() {
                   <article className={`chat-message ${message.role}`} key={message.id}>
                     <span>{message.role === 'assistant' ? 'DomnAI' : 'Você'}</span>
                     <p>{message.text}</p>
+                    {(message.attachments || []).length ? (
+                      <div className="message-attachments">
+                        {message.attachments.map((item) => (
+                          <div key={item.id} className="message-attachment">
+                            <div><strong>{item.name}</strong>{item.type !== 'link' ? <small>{formatFileSize(item.size)}</small> : null}</div>
+                            <button type="button" onClick={() => deleteAttachmentFromMessage(message.id, item)}>Excluir</button>
+                          </div>
+                        ))}
+                      </div>
+                    ) : null}
                     {message.role === 'assistant' ? <button type="button" onClick={() => navigator.clipboard?.writeText(message.text)}>Copiar</button> : null}
                   </article>
                 ))}
@@ -229,12 +357,7 @@ export default function Dashboard() {
                     ))}
                   </div>
                 ) : null}
-                <textarea
-                  value={draft}
-                  onChange={(event) => setDraft(event.target.value)}
-                  placeholder="Digite sua mensagem..."
-                  rows="3"
-                />
+                <textarea value={draft} onChange={(event) => setDraft(event.target.value)} placeholder="Digite sua mensagem..." rows="3" />
                 <button type="submit" className="send-message-button" aria-label="Enviar mensagem">➤</button>
               </form>
             </section>
@@ -243,8 +366,29 @@ export default function Dashboard() {
 
         {section === 'trash' ? (
           <section className="internal-section">
-            <header><div><span>Lixeira</span><h1>Arquivos excluídos</h1></div>{trash.length ? <button type="button" onClick={() => setTrash([])}>Esvaziar lixeira</button> : null}</header>
-            {trash.length ? <div className="trash-list" /> : <div className="internal-empty-state">A lixeira está vazia.</div>}
+            <header>
+              <div><span>Lixeira</span><h1>Arquivos excluídos</h1></div>
+              {trash.length ? <button type="button" onClick={emptyTrash}>Esvaziar lixeira</button> : null}
+            </header>
+            {trashLoading ? <div className="internal-empty-state">Carregando...</div> : null}
+            {trashError ? <div className="internal-empty-state">{trashError}</div> : null}
+            {!trashLoading && !trashError && trash.length ? (
+              <div className="trash-list">
+                {trash.map((item) => (
+                  <article key={item.id}>
+                    <div>
+                      <strong>{item.name}</strong>
+                      <small>{formatFileSize(item.sizeBytes)} · Excluído em {new Date(item.deletedAt).toLocaleString('pt-BR')}</small>
+                    </div>
+                    <div>
+                      <button type="button" onClick={() => restoreTrashItem(item)}>Restaurar</button>
+                      <button type="button" onClick={() => permanentlyDeleteTrashItem(item.id)}>Excluir definitivamente</button>
+                    </div>
+                  </article>
+                ))}
+              </div>
+            ) : null}
+            {!trashLoading && !trashError && !trash.length ? <div className="internal-empty-state">A lixeira está vazia.</div> : null}
           </section>
         ) : null}
 
