@@ -1,0 +1,88 @@
+html.domnai-gate-pending body {
+  background: #050505;
+}
+
+html.domnai-gate-pending .domnai-app-shell {
+  visibility: hidden;
+}
+
+.domnai-app-shell.onboarding-plan-mode .domnai-sidebar,
+.domnai-app-shell.onboarding-plan-mode .mobile-menu-button,
+.domnai-app-shell.onboarding-plan-mode .options-menu-button,
+.domnai-app-shell.onboarding-plan-mode .global-exit-button,
+.domnai-app-shell.onboarding-plan-mode .conversation-options-menu,
+.domnai-app-shell.onboarding-plan-mode .sidebar-backdrop,
+.domnai-app-shell.onboarding-plan-mode .options-backdrop {
+  display: none !important;
+}
+
+.domnai-app-shell.onboarding-plan-mode {
+  display: block !important;
+  min-height: 100vh;
+  background: #050505;
+}
+
+.domnai-app-shell.onboarding-plan-mode .domnai-main-area {
+  width: 100% !important;
+  max-width: none !important;
+  margin: 0 !important;
+  padding: 28px 18px 56px !important;
+}
+
+.domnai-app-shell.onboarding-plan-mode .internal-section {
+  width: min(100%, 980px);
+  margin: 0 auto;
+}
+
+.domnai-app-shell.onboarding-plan-mode .billing-page-header {
+  text-align: center;
+}
+
+.domnai-app-shell.onboarding-plan-mode .billing-balance-grid,
+.domnai-app-shell.onboarding-plan-mode .billing-current-plan,
+.domnai-app-shell.onboarding-plan-mode .billing-extra-section,
+.domnai-app-shell.onboarding-plan-mode .billing-rules-section,
+.domnai-app-shell.onboarding-plan-mode .billing-history-section {
+  display: none !important;
+}
+
+.domnai-app-shell.onboarding-plan-mode .billing-plans-section {
+  margin-top: 22px;
+}
+
+.domnai-app-shell.onboarding-plan-mode .billing-section-title {
+  text-align: center;
+}
+
+.birth-date-split {
+  grid-column: span 1;
+  display: grid;
+  grid-template-columns: 0.75fr 0.9fr 1.35fr;
+  gap: 10px;
+}
+
+.birth-date-split label {
+  display: grid;
+  gap: 7px;
+  color: #efefef;
+  font-weight: 700;
+}
+
+.birth-date-split input {
+  width: 100%;
+  min-width: 0;
+}
+
+@media (max-width: 720px) {
+  .domnai-app-shell.onboarding-plan-mode .domnai-main-area {
+    padding: 22px 12px 44px !important;
+  }
+
+  .domnai-app-shell.onboarding-plan-mode .billing-plan-grid-two {
+    grid-template-columns: 1fr !important;
+  }
+
+  .birth-date-split {
+    grid-column: 1 / -1;
+  }
+}
