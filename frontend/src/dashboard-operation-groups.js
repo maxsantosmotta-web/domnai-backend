@@ -53,11 +53,40 @@ const operationGroups = [
   },
 ];
 
+const mobileEmptyIcons = [
+  {
+    label: 'Decisões e contratos',
+    svg: '<svg viewBox="0 0 64 64" aria-hidden="true"><path d="M32 10v42M18 16h28M12 22l-7 13h14L12 22Zm40 0-7 13h14L52 22ZM19 52h26"/></svg>',
+  },
+  {
+    label: 'Mercado e crescimento',
+    svg: '<svg viewBox="0 0 64 64" aria-hidden="true"><path d="M10 50V14M10 50h44M17 42l10-11 9 7 15-19M43 19h8v8"/></svg>',
+  },
+  {
+    label: 'Planejamento e análise',
+    svg: '<svg viewBox="0 0 64 64" aria-hidden="true"><path d="M18 8h22l8 8v40H18V8Zm22 0v10h10M25 29h16M25 38h16M25 47h11"/></svg>',
+  },
+  {
+    label: 'Saúde e fitness',
+    svg: '<svg viewBox="0 0 64 64" aria-hidden="true"><path d="M8 26v12M14 22v20M20 28h24M44 22v20M50 26v12"/></svg>',
+  },
+  {
+    label: 'Carreira e escolhas',
+    svg: '<svg viewBox="0 0 64 64" aria-hidden="true"><circle cx="32" cy="32" r="23"/><path d="m39 22-5 13-13 6 6-14 12-5Z"/></svg>',
+  },
+];
+
 function normalizedText(element) {
   return String(element?.textContent || '')
     .replace(/^›\s*/, '')
     .replace(/\s+/g, ' ')
     .trim();
+}
+
+function closeAllOperationGroups() {
+  document.querySelectorAll('.operation-category[open]').forEach((group) => {
+    group.removeAttribute('open');
+  });
 }
 
 function setReactTextareaValue(textarea, value) {
@@ -84,6 +113,7 @@ function sendNewOperation(title) {
   setReactTextareaValue(textarea, title);
   window.setTimeout(() => form.requestSubmit(), 0);
 
+  closeAllOperationGroups();
   const sidebar = document.querySelector('.domnai-sidebar');
   sidebar?.classList.remove('is-open');
   document.querySelector('.sidebar-backdrop')?.click();
@@ -102,7 +132,6 @@ function createGroup(group, existingButtons) {
   const details = document.createElement('details');
   details.className = 'operation-category';
   details.dataset.operationGroup = group.id;
-  details.open = group.id === 'business';
 
   const summary = document.createElement('summary');
   summary.innerHTML = `<span>${group.title}</span><small>${group.operations.length}</small>`;
@@ -145,11 +174,73 @@ function organizeOperations() {
   container.dataset.grouped = 'true';
 }
 
-const observer = new MutationObserver(organizeOperations);
+function createMobileEmptyState() {
+  const workspace = document.querySelector('.chat-workspace');
+  if (!workspace || workspace.querySelector('.mobile-operation-icons')) return;
+
+  const layer = document.createElement('div');
+  layer.className = 'mobile-operation-icons';
+  layer.setAttribute('aria-hidden', 'true');
+
+  mobileEmptyIcons.forEach((icon, index) => {
+    const item = document.createElement('div');
+    item.className = `mobile-operation-icon icon-${index + 1}`;
+    item.title = icon.label;
+    item.innerHTML = icon.svg;
+    layer.appendChild(item);
+  });
+
+  workspace.appendChild(layer);
+}
+
+function updateMobileEmptyState() {
+  createMobileEmptyState();
+
+  const layer = document.querySelector('.mobile-operation-icons');
+  if (!layer) return;
+
+  const sidebarOpen = document.querySelector('.domnai-sidebar')?.classList.contains('is-open');
+  const hasMessages = Boolean(document.querySelector('.chat-messages .chat-message'));
+  const hasPendingAttachments = Boolean(document.querySelector('.attachment-preview')?.children.length);
+  const isChatVisible = Boolean(document.querySelector('.chat-workspace'));
+
+  layer.classList.toggle(
+    'is-visible',
+    Boolean(isChatVisible && !sidebarOpen && !hasMessages && !hasPendingAttachments),
+  );
+}
+
+function bindSidebarReset() {
+  if (document.documentElement.dataset.operationSidebarBound === 'true') return;
+  document.documentElement.dataset.operationSidebarBound = 'true';
+
+  document.addEventListener('click', (event) => {
+    const openButton = event.target.closest('.mobile-menu-button');
+    const closeButton = event.target.closest('.sidebar-close, .sidebar-backdrop');
+
+    if (openButton || closeButton) {
+      closeAllOperationGroups();
+      window.setTimeout(updateMobileEmptyState, 20);
+    }
+  }, true);
+}
+
+const observer = new MutationObserver(() => {
+  organizeOperations();
+  updateMobileEmptyState();
+});
 
 function start() {
   organizeOperations();
-  observer.observe(document.documentElement, { childList: true, subtree: true });
+  bindSidebarReset();
+  updateMobileEmptyState();
+  observer.observe(document.documentElement, {
+    childList: true,
+    subtree: true,
+    attributes: true,
+    attributeFilter: ['class'],
+  });
+  window.addEventListener('resize', updateMobileEmptyState);
 }
 
 if (document.readyState === 'loading') {
