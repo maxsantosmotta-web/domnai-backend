@@ -1,0 +1,16 @@
+@media (max-width: 620px) {
+  .mobile-operation-icons {
+    top: 24% !important;
+    bottom: 20% !important;
+    height: auto !important;
+    justify-content: space-between !important;
+    gap: 0 !important;
+  }
+}
+
+@media (max-width: 390px) {
+  .mobile-operation-icons {
+    top: 23% !important;
+    bottom: 19% !important;
+  }
+}
