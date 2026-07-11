@@ -157,13 +157,15 @@ export default function Dashboard() {
       const savedItems = [];
       for (const file of selected) {
         const saved = await saveFileToLibrary(file);
+        const type = attachmentType(saved.mimeType);
         savedItems.push({
           id: `attachment-${saved.id}-${Date.now()}`,
           libraryId: saved.id,
           name: saved.name,
-          type: attachmentType(saved.mimeType),
+          type,
           mimeType: saved.mimeType,
           size: saved.sizeBytes,
+          previewUrl: type === 'image' ? URL.createObjectURL(file) : null,
         });
       }
       setAttachments((current) => [...current, ...savedItems]);
@@ -190,10 +192,11 @@ export default function Dashboard() {
     const text = draft.trim();
     if ((!text && attachments.length === 0) || uploading) return;
 
+    const hasNonImageAttachment = attachments.some((item) => item.type !== 'image');
     setMessages((current) => [...current, {
       id: Date.now(),
       role: 'user',
-      text: text || 'Arquivo enviado',
+      text: text || (hasNonImageAttachment ? 'Arquivo enviado' : ''),
       attachments: [...attachments],
     }]);
     setDraft('');
@@ -270,15 +273,18 @@ export default function Dashboard() {
     try {
       const response = await authorizedFetch(`/api/library/${item.id}/content`);
       if (!response.ok) throw new Error('Não foi possível abrir o arquivo da biblioteca.');
+      const type = attachmentType(item.mimeType);
+      const blob = type === 'image' ? await response.blob() : null;
       setAttachments((current) => {
         if (current.some((entry) => entry.libraryId === item.id)) return current;
         return [...current, {
           id: `attachment-${item.id}-${Date.now()}`,
           libraryId: item.id,
           name: item.name,
-          type: attachmentType(item.mimeType),
+          type,
           mimeType: item.mimeType,
           size: item.sizeBytes,
+          previewUrl: blob ? URL.createObjectURL(blob) : null,
         }];
       });
       setSection('chat');
@@ -340,7 +346,7 @@ export default function Dashboard() {
 
       <button type="button" className="mobile-menu-button" aria-label="Abrir dashboard" onClick={() => setSidebarOpen(true)}>☰</button>
       <button type="button" className="options-menu-button" aria-label="Abrir opções da conversa" onClick={() => setOptionsOpen((current) => !current)}>⋮</button>
-      {showExitButton ? <button type="button" className="global-exit-button" onClick={openDashboard}>← Sair</button> : null}
+      {showExitButton ? <button type="button" className="global-exit-button" onClick={openDashboard}><span>←</span>Sair</button> : null}
 
       {sidebarOpen ? <button className="sidebar-backdrop" type="button" aria-label="Fechar menu" onClick={() => setSidebarOpen(false)} /> : null}
       {optionsOpen ? <button className="options-backdrop" type="button" aria-label="Fechar opções" onClick={() => setOptionsOpen(false)} /> : null}
@@ -395,14 +401,24 @@ export default function Dashboard() {
                 {visibleMessages.map((message) => (
                   <article className={`chat-message ${message.role}`} key={message.id}>
                     <span>{message.role === 'assistant' ? 'DomnAI' : 'Você'}</span>
-                    <p>{message.text}</p>
+                    {message.text ? <p>{message.text}</p> : null}
                     {(message.attachments || []).length ? (
                       <div className="message-attachments">
                         {message.attachments.map((item) => (
-                          <div key={item.id} className="message-attachment">
-                            <div><strong>{item.name}</strong>{item.type !== 'link' ? <small>{formatFileSize(item.size)}</small> : null}</div>
-                            <button type="button" onClick={() => deleteAttachment(item)}>Excluir</button>
-                          </div>
+                          item.type === 'image' && item.previewUrl ? (
+                            <figure className="chat-image-attachment" key={item.id}>
+                              <img src={item.previewUrl} alt={item.name} />
+                              <figcaption>
+                                <span>{item.name}</span>
+                                <button type="button" onClick={() => deleteAttachment(item)}>Excluir</button>
+                              </figcaption>
+                            </figure>
+                          ) : (
+                            <div key={item.id} className="message-attachment">
+                              <div><strong>{item.name}</strong>{item.type !== 'link' ? <small>{formatFileSize(item.size)}</small> : null}</div>
+                              <button type="button" onClick={() => deleteAttachment(item)}>Excluir</button>
+                            </div>
+                          )
                         ))}
                       </div>
                     ) : null}
@@ -424,7 +440,14 @@ export default function Dashboard() {
                 {attachments.length ? (
                   <div className="attachment-preview">
                     {attachments.map((item) => (
-                      <span key={item.id}>{item.name}<button type="button" onClick={() => deleteAttachment(item)}>×</button></span>
+                      item.type === 'image' && item.previewUrl ? (
+                        <div className="composer-image-preview" key={item.id}>
+                          <img src={item.previewUrl} alt={item.name} />
+                          <button type="button" onClick={() => deleteAttachment(item)}>×</button>
+                        </div>
+                      ) : (
+                        <span key={item.id}>{item.name}<button type="button" onClick={() => deleteAttachment(item)}>×</button></span>
+                      )
                     ))}
                   </div>
                 ) : null}
