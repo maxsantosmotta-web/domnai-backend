@@ -71,13 +71,14 @@ function premiumBenefits() {
   `;
 }
 
-function renderBilling(section, status, transactions) {
+function renderBilling(section, status, transactions, selectedPeriod = 'monthly') {
   const premium = Boolean(status.premiumActive);
   const freeSelected = status.plan === 'free';
   const noPlan = !premium && !freeSelected;
   const total = Number(status.totalCredits || 0);
   const planCredits = Number(status.planCredits || 0);
   const extraCredits = Number(status.extraCredits || 0);
+  const annual = selectedPeriod === 'yearly';
   const currentPlanName = premium ? 'PREMIUM' : freeSelected ? 'FREE' : 'Nenhum plano selecionado';
   const currentPlanDescription = premium
     ? `Status: ${statusBadge(status.subscriptionStatus)}${status.currentPeriodEnd ? ` · válido até ${moneyDate(status.currentPeriodEnd)}` : ''}`
@@ -95,38 +96,19 @@ function renderBilling(section, status, transactions) {
     </header>
 
     <div class="billing-balance-grid">
-      <article class="billing-balance-card billing-balance-primary">
-        <small>Saldo disponível</small>
-        <strong>${total}</strong>
-        <span>créditos</span>
-      </article>
-      <article class="billing-balance-card">
-        <small>Créditos do plano</small>
-        <strong>${planCredits}</strong>
-        <span>renovados por ciclo</span>
-      </article>
-      <article class="billing-balance-card">
-        <small>Créditos avulsos</small>
-        <strong>${extraCredits}</strong>
-        <span>não expiram</span>
-      </article>
+      <article class="billing-balance-card billing-balance-primary"><small>Saldo disponível</small><strong>${total}</strong><span>créditos</span></article>
+      <article class="billing-balance-card"><small>Créditos do plano</small><strong>${planCredits}</strong><span>renovados por ciclo</span></article>
+      <article class="billing-balance-card"><small>Créditos avulsos</small><strong>${extraCredits}</strong><span>não expiram</span></article>
     </div>
 
     <section class="billing-current-plan${noPlan ? ' billing-current-plan-empty' : ''}">
-      <div>
-        <small>Plano atual</small>
-        <h2>${currentPlanName}</h2>
-        <p>${currentPlanDescription}</p>
-      </div>
+      <div><small>Plano atual</small><h2>${currentPlanName}</h2><p>${currentPlanDescription}</p></div>
       ${premium ? '<button type="button" data-billing-action="portal">Gerenciar assinatura</button>' : ''}
     </section>
 
     <section class="billing-plans-section">
-      <div class="billing-section-title">
-        <small>Planos</small>
-        <h2>Escolha seu acesso</h2>
-      </div>
-      <div class="billing-plan-grid billing-plan-grid-three">
+      <div class="billing-section-title"><small>Planos</small><h2>Escolha seu acesso</h2></div>
+      <div class="billing-plan-grid billing-plan-grid-two">
         <article class="billing-plan-card billing-free-card${freeSelected ? ' billing-plan-selected' : ''}">
           <span class="billing-plan-tag">Grátis</span>
           <h3>FREE</h3>
@@ -135,39 +117,29 @@ function renderBilling(section, status, transactions) {
           <button type="button" class="billing-free-button" data-billing-action="free" ${freeSelected ? 'disabled' : ''}>${freeSelected ? 'Plano atual' : 'Escolher FREE'}</button>
         </article>
 
-        <article class="billing-plan-card">
-          <span class="billing-plan-tag">Mensal</span>
-          <h3>PREMIUM</h3>
-          <strong>R$ 59,90 <small>/mês</small></strong>
+        <article class="billing-plan-card billing-plan-featured billing-premium-card">
+          <div class="billing-premium-heading">
+            <div><span class="billing-plan-tag">PREMIUM</span><h3>PREMIUM</h3></div>
+            <div class="billing-period-switch" role="group" aria-label="Período da assinatura">
+              <button type="button" data-billing-period="monthly" class="${annual ? '' : 'is-active'}">Mensal</button>
+              <button type="button" data-billing-period="yearly" class="${annual ? 'is-active' : ''}">Anual</button>
+            </div>
+          </div>
+          <strong>${annual ? 'R$ 599,00 <small>/ano</small>' : 'R$ 59,90 <small>/mês</small>'}</strong>
+          <p class="billing-period-copy">${annual ? 'Cobrança anual com 500 créditos renovados mensalmente.' : 'Cobrança mensal com 500 créditos por ciclo.'}</p>
           ${premiumBenefits()}
-          <button type="button" data-billing-product="${BILLING_PRODUCTS.monthly}">Assinar PREMIUM</button>
-        </article>
-
-        <article class="billing-plan-card billing-plan-featured">
-          <span class="billing-plan-tag">Anual</span>
-          <h3>PREMIUM</h3>
-          <strong>R$ 599,00 <small>/ano</small></strong>
-          ${premiumBenefits()}
-          <button type="button" data-billing-product="${BILLING_PRODUCTS.yearly}">Assinar PREMIUM</button>
+          <button type="button" data-billing-product="${annual ? BILLING_PRODUCTS.yearly : BILLING_PRODUCTS.monthly}">Assinar PREMIUM</button>
         </article>
       </div>
     </section>
 
     <section class="billing-extra-section">
-      <div>
-        <small>Pacote avulso</small>
-        <h2 class="billing-extra-price">R$ 25,00</h2>
-        <strong class="billing-extra-credits">250 créditos</strong>
-        <p>Compre quantas vezes quiser · os créditos não expiram.</p>
-      </div>
+      <div><small>Pacote avulso</small><h2 class="billing-extra-price">R$ 25,00</h2><strong class="billing-extra-credits">250 créditos</strong><p>Compre quantas vezes quiser · os créditos não expiram.</p></div>
       <button type="button" data-billing-product="${BILLING_PRODUCTS.credits}">COMPRAR 🛒</button>
     </section>
 
     <section class="billing-rules-section">
-      <div class="billing-section-title">
-        <small>Consumo</small>
-        <h2>Créditos por utilização</h2>
-      </div>
+      <div class="billing-section-title"><small>Consumo</small><h2>Créditos por utilização</h2></div>
       <div class="billing-rules-grid">
         <span><strong>1 crédito</strong> Pergunta com resposta</span>
         <span><strong>2 créditos</strong> Análise completa</span>
@@ -176,23 +148,18 @@ function renderBilling(section, status, transactions) {
     </section>
 
     <section class="billing-history-section">
-      <div class="billing-section-title">
-        <small>Histórico</small>
-        <h2>Movimentações</h2>
-      </div>
+      <div class="billing-section-title"><small>Histórico</small><h2>Movimentações</h2></div>
       <div class="billing-history-list">
         ${transactions.length ? transactions.map((item) => `
-          <article>
-            <div>
-              <strong>${transactionLabel(item)}</strong>
-              <small>${new Date(item.createdAt).toLocaleString('pt-BR')}</small>
-            </div>
-            <span class="${item.amount >= 0 ? 'credit-positive' : 'credit-negative'}">${item.amount >= 0 ? '+' : ''}${item.amount}</span>
-          </article>
+          <article><div><strong>${transactionLabel(item)}</strong><small>${new Date(item.createdAt).toLocaleString('pt-BR')}</small></div><span class="${item.amount >= 0 ? 'credit-positive' : 'credit-negative'}">${item.amount >= 0 ? '+' : ''}${item.amount}</span></article>
         `).join('') : '<p class="billing-empty-history">Nenhuma movimentação registrada ainda.</p>'}
       </div>
     </section>
   `;
+
+  section.querySelectorAll('[data-billing-period]').forEach((button) => {
+    button.addEventListener('click', () => renderBilling(section, status, transactions, button.dataset.billingPeriod));
+  });
 
   section.querySelectorAll('[data-billing-product]').forEach((button) => {
     button.addEventListener('click', async () => {
@@ -219,7 +186,7 @@ function renderBilling(section, status, transactions) {
     button.textContent = 'Ativando FREE...';
     try {
       const updatedStatus = await billingFetch('/api/billing/select-free', { method: 'POST', body: '{}' });
-      renderBilling(section, updatedStatus, transactions);
+      renderBilling(section, updatedStatus, transactions, selectedPeriod);
     } catch (error) {
       window.alert(error.message);
       button.disabled = false;
