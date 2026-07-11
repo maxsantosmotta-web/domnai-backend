@@ -1,7 +1,8 @@
-import React, { useMemo, useState } from 'react';
+import React, { useMemo, useRef, useState } from 'react';
 import { UserButton } from '@clerk/clerk-react';
 import DOMNAI_LOGO from './assets/domnai-logo-oficial-transparente.png';
 import './dashboard.css';
+import './dashboard-adjustments.css';
 
 const operations = [
   { id: 'validacao-ideia', name: 'Validação de Ideias e Oportunidades', numeric: true },
@@ -26,6 +27,8 @@ const operations = [
 ];
 
 export default function Dashboard() {
+  const imageInputRef = useRef(null);
+  const fileInputRef = useRef(null);
   const [section, setSection] = useState('chat');
   const [activeOperation, setActiveOperation] = useState(null);
   const [messages, setMessages] = useState([]);
@@ -35,6 +38,7 @@ export default function Dashboard() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [optionsOpen, setOptionsOpen] = useState(false);
   const [trash, setTrash] = useState([]);
+  const [attachments, setAttachments] = useState([]);
 
   const operation = useMemo(
     () => operations.find((item) => item.id === activeOperation) || null,
@@ -51,15 +55,48 @@ export default function Dashboard() {
     setActiveOperation(item.id);
     setSection('chat');
     setSidebarOpen(false);
+  }
+
+  function openSection(nextSection) {
+    setSection(nextSection);
+    setSidebarOpen(false);
+  }
+
+  function handleFiles(files, type) {
+    const selected = Array.from(files || []).map((file) => ({
+      id: `${file.name}-${file.size}-${file.lastModified}`,
+      name: file.name,
+      type,
+    }));
+    setAttachments((current) => [...current, ...selected]);
+    setOptionsOpen(false);
+  }
+
+  function addLink() {
+    const url = window.prompt('Cole o link que deseja enviar:');
+    if (!url?.trim()) return;
+    setAttachments((current) => [
+      ...current,
+      { id: `link-${Date.now()}`, name: url.trim(), type: 'link' },
+    ]);
     setOptionsOpen(false);
   }
 
   function sendMessage(event) {
     event.preventDefault();
     const text = draft.trim();
-    if (!text) return;
-    setMessages((current) => [...current, { id: Date.now(), role: 'user', text }]);
+    if (!text && attachments.length === 0) return;
+
+    const attachmentText = attachments.length
+      ? `\n\nAnexos: ${attachments.map((item) => item.name).join(', ')}`
+      : '';
+
+    setMessages((current) => [
+      ...current,
+      { id: Date.now(), role: 'user', text: `${text || 'Arquivo enviado'}${attachmentText}` },
+    ]);
     setDraft('');
+    setAttachments([]);
   }
 
   function deleteConversation() {
@@ -73,6 +110,7 @@ export default function Dashboard() {
     setActiveOperation(null);
     setSearch('');
     setSearchOpen(false);
+    setAttachments([]);
     setOptionsOpen(false);
   }
 
@@ -80,6 +118,7 @@ export default function Dashboard() {
     setMessages([]);
     setSearch('');
     setSearchOpen(false);
+    setAttachments([]);
     setOptionsOpen(false);
   }
 
@@ -87,19 +126,15 @@ export default function Dashboard() {
     setMessages(item.messages);
     setTrash((current) => current.filter((entry) => entry.id !== item.id));
     setSection('chat');
-    setOptionsOpen(false);
-  }
-
-  function openSection(nextSection) {
-    setSection(nextSection);
-    setOptionsOpen(false);
-    setSidebarOpen(false);
   }
 
   return (
     <main className="domnai-app-shell">
-      <button type="button" className="mobile-menu-button" aria-label="Abrir operações" onClick={() => setSidebarOpen(true)}>☰</button>
-      <button type="button" className="options-menu-button" aria-label="Abrir opções" onClick={() => setOptionsOpen((current) => !current)}>⋮</button>
+      <input ref={imageInputRef} className="hidden-file-input" type="file" accept="image/*" multiple onChange={(event) => handleFiles(event.target.files, 'image')} />
+      <input ref={fileInputRef} className="hidden-file-input" type="file" accept=".pdf,.doc,.docx,.xls,.xlsx,.txt,.csv" multiple onChange={(event) => handleFiles(event.target.files, 'file')} />
+
+      <button type="button" className="mobile-menu-button" aria-label="Abrir dashboard" onClick={() => setSidebarOpen(true)}>☰</button>
+      <button type="button" className="options-menu-button" aria-label="Abrir opções da conversa" onClick={() => setOptionsOpen((current) => !current)}>⋮</button>
 
       {sidebarOpen ? <button className="sidebar-backdrop" type="button" aria-label="Fechar menu" onClick={() => setSidebarOpen(false)} /> : null}
       {optionsOpen ? <button className="options-backdrop" type="button" aria-label="Fechar opções" onClick={() => setOptionsOpen(false)} /> : null}
@@ -110,7 +145,11 @@ export default function Dashboard() {
           <button type="button" className="sidebar-close" onClick={() => setSidebarOpen(false)} aria-label="Fechar menu">×</button>
         </div>
 
-        <nav className="sidebar-navigation" aria-label="Operações do DomnAI">
+        <nav className="sidebar-navigation" aria-label="Dashboard do DomnAI">
+          <button className={section === 'chat' ? 'is-active' : ''} type="button" onClick={() => openSection('chat')}>
+            <span>▣</span> Dashboard
+          </button>
+
           <div className="sidebar-group operations-only">
             <p>Operações</p>
             {operations.map((item) => (
@@ -123,6 +162,19 @@ export default function Dashboard() {
                 <span>›</span> {item.name}
               </button>
             ))}
+          </div>
+
+          <div className="sidebar-group sidebar-system-group">
+            <p>Sistema</p>
+            <button className={section === 'trash' ? 'is-active' : ''} type="button" onClick={() => openSection('trash')}>
+              <span>⌫</span> Lixeira
+            </button>
+            <button className={section === 'billing' ? 'is-active' : ''} type="button" onClick={() => openSection('billing')}>
+              <span>◈</span> Faturamento
+            </button>
+            <button className={section === 'settings' ? 'is-active' : ''} type="button" onClick={() => openSection('settings')}>
+              <span>⚙</span> Configurações
+            </button>
           </div>
         </nav>
 
@@ -137,12 +189,11 @@ export default function Dashboard() {
 
       {optionsOpen ? (
         <aside className="conversation-options-menu" aria-label="Opções da conversa">
-          <div className="options-menu-title">PROJETO DomnAI</div>
           <button type="button" onClick={refreshConversation}><span>↻</span> Atualizar conversa</button>
-          <button type="button" onClick={() => { setSearchOpen((current) => !current); setOptionsOpen(false); }}><span>⌕</span> Buscar na conversa</button>
-          <button type="button" onClick={() => openSection('trash')}><span>⌫</span> Lixeira</button>
-          <button type="button" onClick={() => openSection('billing')}><span>◈</span> Faturamento</button>
-          <button type="button" onClick={() => openSection('settings')}><span>⚙</span> Configurações</button>
+          <button type="button" onClick={() => { setSearchOpen(true); setOptionsOpen(false); }}><span>⌕</span> Buscar na conversa</button>
+          <button type="button" onClick={() => imageInputRef.current?.click()}><span>▧</span> Enviar imagem ou print</button>
+          <button type="button" onClick={() => fileInputRef.current?.click()}><span>⌑</span> Enviar PDF ou arquivo</button>
+          <button type="button" onClick={addLink}><span>↗</span> Inserir link</button>
           <button type="button" className="danger-option" onClick={deleteConversation}><span>♲</span> Excluir conversa</button>
         </aside>
       ) : null}
@@ -169,12 +220,14 @@ export default function Dashboard() {
                 ))}
               </div>
 
-              <form className="chat-composer" onSubmit={sendMessage}>
-                <div className="composer-tools">
-                  <button type="button" title="Anexar imagem">▧</button>
-                  <button type="button" title="Anexar arquivo">⌑</button>
-                  <button type="button" title="Inserir link">↗</button>
-                </div>
+              <form className="chat-composer simplified-composer" onSubmit={sendMessage}>
+                {attachments.length ? (
+                  <div className="attachment-preview">
+                    {attachments.map((item) => (
+                      <span key={item.id}>{item.name}<button type="button" onClick={() => setAttachments((current) => current.filter((entry) => entry.id !== item.id))}>×</button></span>
+                    ))}
+                  </div>
+                ) : null}
                 <textarea
                   value={draft}
                   onChange={(event) => setDraft(event.target.value)}
