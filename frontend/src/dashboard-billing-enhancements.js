@@ -53,9 +53,9 @@ function statusBadge(status) {
     past_due: 'Pagamento pendente',
     canceled: 'Cancelado',
     unpaid: 'Inadimplente',
-    inactive: 'FREE',
+    inactive: 'Inativo',
   };
-  return labels[status] || 'FREE';
+  return labels[status] || 'Inativo';
 }
 
 function premiumBenefits() {
@@ -73,9 +73,17 @@ function premiumBenefits() {
 
 function renderBilling(section, status, transactions) {
   const premium = Boolean(status.premiumActive);
+  const freeSelected = status.plan === 'free';
+  const noPlan = !premium && !freeSelected;
   const total = Number(status.totalCredits || 0);
   const planCredits = Number(status.planCredits || 0);
   const extraCredits = Number(status.extraCredits || 0);
+  const currentPlanName = premium ? 'PREMIUM' : freeSelected ? 'FREE' : 'Nenhum plano selecionado';
+  const currentPlanDescription = premium
+    ? `Status: ${statusBadge(status.subscriptionStatus)}${status.currentPeriodEnd ? ` · válido até ${moneyDate(status.currentPeriodEnd)}` : ''}`
+    : freeSelected
+      ? 'Navegação e visualização da plataforma.'
+      : 'Escolha uma opção abaixo para continuar.';
 
   section.innerHTML = `
     <header class="billing-page-header">
@@ -104,11 +112,11 @@ function renderBilling(section, status, transactions) {
       </article>
     </div>
 
-    <section class="billing-current-plan">
+    <section class="billing-current-plan${noPlan ? ' billing-current-plan-empty' : ''}">
       <div>
         <small>Plano atual</small>
-        <h2>${premium ? 'PREMIUM' : 'FREE'}</h2>
-        <p>${premium ? `Status: ${statusBadge(status.subscriptionStatus)}${status.currentPeriodEnd ? ` · válido até ${moneyDate(status.currentPeriodEnd)}` : ''}` : 'Navegação e visualização da plataforma.'}</p>
+        <h2>${currentPlanName}</h2>
+        <p>${currentPlanDescription}</p>
       </div>
       ${premium ? '<button type="button" data-billing-action="portal">Gerenciar assinatura</button>' : ''}
     </section>
@@ -119,12 +127,12 @@ function renderBilling(section, status, transactions) {
         <h2>Escolha seu acesso</h2>
       </div>
       <div class="billing-plan-grid billing-plan-grid-three">
-        <article class="billing-plan-card billing-free-card">
+        <article class="billing-plan-card billing-free-card${freeSelected ? ' billing-plan-selected' : ''}">
           <span class="billing-plan-tag">Grátis</span>
           <h3>FREE</h3>
           <strong>R$ 0</strong>
           <p>Navegação e visualização da plataforma.</p>
-          <button type="button" class="billing-free-button" data-billing-action="free">${premium ? 'Plano FREE' : 'Continuar no FREE'}</button>
+          <button type="button" class="billing-free-button" data-billing-action="free" ${freeSelected ? 'disabled' : ''}>${freeSelected ? 'Plano atual' : 'Escolher FREE'}</button>
         </article>
 
         <article class="billing-plan-card">
@@ -132,7 +140,7 @@ function renderBilling(section, status, transactions) {
           <h3>PREMIUM</h3>
           <strong>R$ 59,90 <small>/mês</small></strong>
           ${premiumBenefits()}
-          <button type="button" data-billing-product="${BILLING_PRODUCTS.monthly}">${premium ? 'Trocar para mensal' : 'Assinar mensal'}</button>
+          <button type="button" data-billing-product="${BILLING_PRODUCTS.monthly}">Assinar PREMIUM</button>
         </article>
 
         <article class="billing-plan-card billing-plan-featured">
@@ -140,7 +148,7 @@ function renderBilling(section, status, transactions) {
           <h3>PREMIUM</h3>
           <strong>R$ 599,00 <small>/ano</small></strong>
           ${premiumBenefits()}
-          <button type="button" data-billing-product="${BILLING_PRODUCTS.yearly}">${premium ? 'Trocar para anual' : 'Assinar anual'}</button>
+          <button type="button" data-billing-product="${BILLING_PRODUCTS.yearly}">Assinar PREMIUM</button>
         </article>
       </div>
     </section>
@@ -205,8 +213,18 @@ function renderBilling(section, status, transactions) {
     });
   });
 
-  section.querySelector('[data-billing-action="free"]')?.addEventListener('click', () => {
-    document.querySelector('.sidebar-navigation > button')?.click();
+  section.querySelector('[data-billing-action="free"]:not([disabled])')?.addEventListener('click', async (event) => {
+    const button = event.currentTarget;
+    button.disabled = true;
+    button.textContent = 'Ativando FREE...';
+    try {
+      const updatedStatus = await billingFetch('/api/billing/select-free', { method: 'POST', body: '{}' });
+      renderBilling(section, updatedStatus, transactions);
+    } catch (error) {
+      window.alert(error.message);
+      button.disabled = false;
+      button.textContent = 'Escolher FREE';
+    }
   });
 
   section.querySelector('[data-billing-action="portal"]')?.addEventListener('click', async (event) => {
