@@ -1,0 +1,119 @@
+.operations-only {
+  display: block !important;
+}
+
+.operations-only > p {
+  margin-bottom: 10px !important;
+}
+
+.operation-category {
+  margin: 0 0 9px;
+  overflow: hidden;
+  border: 1px solid rgba(225, 181, 77, 0.09);
+  border-radius: 13px;
+  background: rgba(255, 255, 255, 0.015);
+}
+
+.operation-category[open] {
+  border-color: rgba(225, 181, 77, 0.18);
+  background: linear-gradient(180deg, rgba(42, 34, 16, 0.16), rgba(255, 255, 255, 0.012));
+}
+
+.operation-category summary {
+  min-height: 45px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 0 12px;
+  color: #d5d5d5;
+  font-size: 0.75rem;
+  font-weight: 700;
+  cursor: pointer;
+  list-style: none;
+  user-select: none;
+}
+
+.operation-category summary::-webkit-details-marker {
+  display: none;
+}
+
+.operation-category summary::after {
+  content: '⌄';
+  order: 3;
+  color: #947b3d;
+  font-size: 0.9rem;
+  transition: transform 160ms ease;
+}
+
+.operation-category[open] summary::after {
+  transform: rotate(180deg);
+}
+
+.operation-category summary > span {
+  min-width: 0;
+  flex: 1;
+}
+
+.operation-category summary > small {
+  min-width: 24px;
+  height: 24px;
+  display: grid;
+  place-items: center;
+  border: 1px solid rgba(225, 181, 77, 0.16);
+  border-radius: 999px;
+  color: #bca35f;
+  font-size: 0.62rem;
+  font-weight: 800;
+}
+
+.operation-category-body {
+  display: grid;
+  gap: 3px;
+  padding: 3px 6px 7px;
+  border-top: 1px solid rgba(255, 255, 255, 0.035);
+}
+
+.operation-category-body > button {
+  width: 100%;
+  min-height: 38px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 9px;
+  border: 0;
+  border-radius: 9px;
+  background: transparent;
+  color: #9f9f9f;
+  text-align: left;
+  font-size: 0.7rem;
+  line-height: 1.28;
+  cursor: pointer;
+}
+
+.operation-category-body > button:hover {
+  background: rgba(225, 181, 77, 0.055);
+  color: #e2e2e2;
+}
+
+.operation-category-body > button.is-active {
+  background: rgba(225, 181, 77, 0.1) !important;
+  color: #e5bf5d !important;
+}
+
+.operation-category-body > button > span {
+  flex: 0 0 auto;
+  color: #806d3d;
+}
+
+@media (max-width: 620px) {
+  .operation-category summary {
+    min-height: 48px;
+    font-size: 0.77rem;
+  }
+
+  .operation-category-body > button {
+    min-height: 42px;
+    font-size: 0.72rem;
+  }
+}
