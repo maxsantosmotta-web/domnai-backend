@@ -21,6 +21,7 @@ import './dashboard-profile-enhancements.css';
 import './dashboard-profile-avatar-sync.css';
 import './dashboard-profile-compact.css';
 import './dashboard-logout-enhancements.css';
+import './dashboard-release-fixes.css';
 import './dashboard-link-enhancements.js';
 import './dashboard-operation-groups.js';
 import './dashboard-extra-icons.js';
@@ -32,6 +33,7 @@ import './dashboard-profile-compact.js';
 import './dashboard-logout-enhancements.js';
 import './dashboard-remove-settings.js';
 import './dashboard-error-localization.js';
+import './dashboard-release-fixes.js';
 import './auth-enhancements.js';
 
 const rootElement = document.getElementById('root');
