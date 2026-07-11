@@ -127,74 +127,69 @@
 
   .mobile-operation-icons {
     position: fixed;
-    top: 31%;
-    left: 50%;
+    top: 28%;
+    left: 22px;
     z-index: 1;
-    width: min(76vw, 360px);
-    display: grid;
-    grid-template-columns: repeat(3, 1fr);
-    gap: 22px 24px;
-    align-items: center;
-    justify-items: center;
+    width: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 13px;
+    align-items: flex-start;
     pointer-events: none;
     opacity: 0;
     visibility: hidden;
-    transform: translate(-50%, -50%) scale(0.98);
+    transform: translateX(-8px);
     transition: opacity 180ms ease, transform 180ms ease, visibility 180ms ease;
   }
 
   .mobile-operation-icons.is-visible {
     opacity: 1;
     visibility: visible;
-    transform: translate(-50%, -50%) scale(1);
+    transform: translateX(0);
   }
 
-  .mobile-operation-icon {
-    width: 76px;
-    height: 76px;
+  .mobile-operation-icon,
+  .mobile-operation-icon.icon-4,
+  .mobile-operation-icon.icon-5 {
+    width: 54px;
+    height: 54px;
     display: grid;
     place-items: center;
-    border: 1px solid rgba(225, 181, 77, 0.13);
-    border-radius: 22px;
-    background: linear-gradient(180deg, rgba(29, 24, 14, 0.28), rgba(11, 11, 11, 0.08));
-    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.018);
+    border: 1px solid rgba(225, 181, 77, 0.12);
+    border-radius: 15px;
+    background: linear-gradient(180deg, rgba(29, 24, 14, 0.22), rgba(11, 11, 11, 0.06));
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.015);
+    transform: none;
   }
 
   .mobile-operation-icon svg {
-    width: 40px;
-    height: 40px;
+    width: 28px;
+    height: 28px;
     fill: none;
-    stroke: rgba(222, 183, 82, 0.5);
+    stroke: rgba(222, 183, 82, 0.46);
     stroke-width: 2;
     stroke-linecap: round;
     stroke-linejoin: round;
-  }
-
-  .mobile-operation-icon.icon-4 {
-    grid-column: 1 / 2;
-    transform: translateX(50%);
-  }
-
-  .mobile-operation-icon.icon-5 {
-    grid-column: 3 / 4;
-    transform: translateX(-50%);
   }
 }
 
 @media (max-width: 390px) {
   .mobile-operation-icons {
-    width: 82vw;
-    gap: 18px;
+    top: 27%;
+    left: 18px;
+    gap: 11px;
   }
 
-  .mobile-operation-icon {
-    width: 68px;
-    height: 68px;
-    border-radius: 19px;
+  .mobile-operation-icon,
+  .mobile-operation-icon.icon-4,
+  .mobile-operation-icon.icon-5 {
+    width: 50px;
+    height: 50px;
+    border-radius: 14px;
   }
 
   .mobile-operation-icon svg {
-    width: 36px;
-    height: 36px;
+    width: 26px;
+    height: 26px;
   }
 }
