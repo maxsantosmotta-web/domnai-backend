@@ -12,6 +12,10 @@
   grid-template-columns: minmax(0, 1fr) 48px;
 }
 
+.simplified-composer textarea {
+  resize: none !important;
+}
+
 .attachment-preview {
   grid-column: 1 / -1;
   display: flex;
