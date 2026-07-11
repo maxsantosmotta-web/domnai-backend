@@ -13,8 +13,10 @@ import './auth-compact.css';
 import './dashboard-visual-assets.css';
 import './dashboard-final-fixes.css';
 import './dashboard-operation-groups.css';
+import './dashboard-extra-icons.css';
 import './dashboard-link-enhancements.js';
 import './dashboard-operation-groups.js';
+import './dashboard-extra-icons.js';
 import './auth-enhancements.js';
 
 const rootElement = document.getElementById('root');
