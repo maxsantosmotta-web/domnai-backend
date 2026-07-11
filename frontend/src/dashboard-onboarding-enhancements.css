@@ -1,9 +1,17 @@
 html.domnai-gate-pending body {
+  min-height: 100vh;
+  overflow: hidden;
   background: #050505;
 }
 
 html.domnai-gate-pending .domnai-app-shell {
-  visibility: hidden;
+  visibility: hidden !important;
+  pointer-events: none !important;
+}
+
+html.domnai-plan-selection-required body {
+  min-height: 100vh;
+  background: #050505;
 }
 
 .domnai-app-shell.onboarding-plan-mode .domnai-sidebar,
@@ -12,7 +20,12 @@ html.domnai-gate-pending .domnai-app-shell {
 .domnai-app-shell.onboarding-plan-mode .global-exit-button,
 .domnai-app-shell.onboarding-plan-mode .conversation-options-menu,
 .domnai-app-shell.onboarding-plan-mode .sidebar-backdrop,
-.domnai-app-shell.onboarding-plan-mode .options-backdrop {
+.domnai-app-shell.onboarding-plan-mode .options-backdrop,
+.domnai-app-shell.onboarding-plan-mode .sidebar-profile,
+.domnai-app-shell.onboarding-plan-mode .chat-workspace,
+.domnai-app-shell.onboarding-plan-mode .visual-asset-grid,
+.domnai-app-shell.onboarding-plan-mode .internal-empty-state,
+.domnai-app-shell.onboarding-plan-mode .domnai-profile-page {
   display: none !important;
 }
 
@@ -25,17 +38,49 @@ html.domnai-gate-pending .domnai-app-shell {
 .domnai-app-shell.onboarding-plan-mode .domnai-main-area {
   width: 100% !important;
   max-width: none !important;
+  min-height: 100vh;
   margin: 0 !important;
   padding: 28px 18px 56px !important;
+  background: #050505;
 }
 
-.domnai-app-shell.onboarding-plan-mode .internal-section {
+.domnai-app-shell.onboarding-plan-mode .domnai-main-area > .internal-section:not(:has(.billing-page-header)) {
+  display: none !important;
+}
+
+.domnai-app-shell.onboarding-plan-mode .internal-section:has(.billing-page-header) {
+  display: block !important;
   width: min(100%, 980px);
   margin: 0 auto;
 }
 
 .domnai-app-shell.onboarding-plan-mode .billing-page-header {
   text-align: center;
+}
+
+.domnai-app-shell.onboarding-plan-mode .billing-page-header::before {
+  content: 'Escolha obrigatória';
+  display: inline-flex;
+  margin-bottom: 10px;
+  padding: 6px 10px;
+  border: 1px solid rgba(216,170,52,.28);
+  border-radius: 999px;
+  background: rgba(216,170,52,.09);
+  color: #e7c35e;
+  font-size: .76rem;
+  font-weight: 800;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+}
+
+.domnai-app-shell.onboarding-plan-mode .billing-page-header h1 {
+  margin-top: 4px;
+}
+
+.domnai-app-shell.onboarding-plan-mode .billing-page-header p {
+  max-width: 620px;
+  margin-right: auto;
+  margin-left: auto;
 }
 
 .domnai-app-shell.onboarding-plan-mode .billing-balance-grid,
@@ -47,11 +92,18 @@ html.domnai-gate-pending .domnai-app-shell {
 }
 
 .domnai-app-shell.onboarding-plan-mode .billing-plans-section {
+  display: block !important;
   margin-top: 22px;
 }
 
 .domnai-app-shell.onboarding-plan-mode .billing-section-title {
   text-align: center;
+}
+
+.domnai-app-shell.onboarding-plan-mode .billing-plan-grid-two {
+  max-width: 860px;
+  margin-right: auto;
+  margin-left: auto;
 }
 
 .birth-date-split {
