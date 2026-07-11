@@ -1,3 +1,6 @@
+import './dashboard-access-control.css';
+import './dashboard-access-control.js';
+
 function translateValidationMessage(text) {
   return String(text || '')
     .replace(/String should have at least (\d+) characters?/gi, 'deve ter pelo menos $1 caracteres')
