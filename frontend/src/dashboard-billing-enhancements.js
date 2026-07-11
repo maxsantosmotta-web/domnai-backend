@@ -11,7 +11,7 @@ function moneyDate(value) {
 
 function transactionLabel(item) {
   const labels = {
-    plan_credit: 'Créditos do Premium',
+    plan_credit: 'Créditos do PREMIUM',
     extra_credit: 'Pacote avulso',
     consumption: 'Consumo',
   };
@@ -53,9 +53,22 @@ function statusBadge(status) {
     past_due: 'Pagamento pendente',
     canceled: 'Cancelado',
     unpaid: 'Inadimplente',
-    inactive: 'Free Demo',
+    inactive: 'FREE',
   };
-  return labels[status] || 'Free Demo';
+  return labels[status] || 'FREE';
+}
+
+function premiumBenefits() {
+  return `
+    <ul class="billing-benefits-list">
+      <li>Acesso completo às operações</li>
+      <li>Chat com análises e respostas</li>
+      <li>Envio de PDF, link, print, imagem e documentos</li>
+      <li>Biblioteca e Lixeira</li>
+      <li>500 créditos por ciclo</li>
+      <li>Compra de créditos avulsos</li>
+    </ul>
+  `;
 }
 
 function renderBilling(section, status, transactions) {
@@ -94,30 +107,39 @@ function renderBilling(section, status, transactions) {
     <section class="billing-current-plan">
       <div>
         <small>Plano atual</small>
-        <h2>${premium ? 'Premium' : 'Free Demo'}</h2>
-        <p>${premium ? `Status: ${statusBadge(status.subscriptionStatus)}${status.currentPeriodEnd ? ` · válido até ${moneyDate(status.currentPeriodEnd)}` : ''}` : 'Explore a plataforma e assine para usar as operações, análises e arquivos.'}</p>
+        <h2>${premium ? 'PREMIUM' : 'FREE'}</h2>
+        <p>${premium ? `Status: ${statusBadge(status.subscriptionStatus)}${status.currentPeriodEnd ? ` · válido até ${moneyDate(status.currentPeriodEnd)}` : ''}` : 'Navegação e visualização da plataforma.'}</p>
       </div>
       ${premium ? '<button type="button" data-billing-action="portal">Gerenciar assinatura</button>' : ''}
     </section>
 
     <section class="billing-plans-section">
       <div class="billing-section-title">
-        <small>Premium</small>
-        <h2>Escolha sua assinatura</h2>
+        <small>Planos</small>
+        <h2>Escolha seu acesso</h2>
       </div>
-      <div class="billing-plan-grid">
+      <div class="billing-plan-grid billing-plan-grid-three">
+        <article class="billing-plan-card billing-free-card">
+          <span class="billing-plan-tag">Grátis</span>
+          <h3>FREE</h3>
+          <strong>R$ 0</strong>
+          <p>Navegação e visualização da plataforma.</p>
+          <button type="button" class="billing-free-button" data-billing-action="free">${premium ? 'Plano FREE' : 'Continuar no FREE'}</button>
+        </article>
+
         <article class="billing-plan-card">
           <span class="billing-plan-tag">Mensal</span>
-          <h3>Premium</h3>
+          <h3>PREMIUM</h3>
           <strong>R$ 59,90 <small>/mês</small></strong>
-          <p>500 créditos a cada ciclo mensal.</p>
+          ${premiumBenefits()}
           <button type="button" data-billing-product="${BILLING_PRODUCTS.monthly}">${premium ? 'Trocar para mensal' : 'Assinar mensal'}</button>
         </article>
+
         <article class="billing-plan-card billing-plan-featured">
           <span class="billing-plan-tag">Anual</span>
-          <h3>Premium</h3>
+          <h3>PREMIUM</h3>
           <strong>R$ 599,00 <small>/ano</small></strong>
-          <p>500 créditos renovados mensalmente durante o plano anual.</p>
+          ${premiumBenefits()}
           <button type="button" data-billing-product="${BILLING_PRODUCTS.yearly}">${premium ? 'Trocar para anual' : 'Assinar anual'}</button>
         </article>
       </div>
@@ -126,16 +148,17 @@ function renderBilling(section, status, transactions) {
     <section class="billing-extra-section">
       <div>
         <small>Pacote avulso</small>
-        <h2>250 créditos adicionais</h2>
-        <p>R$ 25,00 · compre quantas vezes quiser · os créditos não expiram.</p>
+        <h2 class="billing-extra-price">R$ 25,00</h2>
+        <strong class="billing-extra-credits">250 créditos</strong>
+        <p>Compre quantas vezes quiser · os créditos não expiram.</p>
       </div>
       <button type="button" data-billing-product="${BILLING_PRODUCTS.credits}">COMPRAR 🛒</button>
     </section>
 
     <section class="billing-rules-section">
       <div class="billing-section-title">
-        <small>Como os créditos são consumidos</small>
-        <h2>Valores por utilização</h2>
+        <small>Consumo</small>
+        <h2>Créditos por utilização</h2>
       </div>
       <div class="billing-rules-grid">
         <span><strong>1 crédito</strong> Pergunta com resposta</span>
@@ -147,7 +170,7 @@ function renderBilling(section, status, transactions) {
     <section class="billing-history-section">
       <div class="billing-section-title">
         <small>Histórico</small>
-        <h2>Movimentações recentes</h2>
+        <h2>Movimentações</h2>
       </div>
       <div class="billing-history-list">
         ${transactions.length ? transactions.map((item) => `
@@ -180,6 +203,10 @@ function renderBilling(section, status, transactions) {
         button.textContent = original;
       }
     });
+  });
+
+  section.querySelector('[data-billing-action="free"]')?.addEventListener('click', () => {
+    document.querySelector('.sidebar-navigation > button')?.click();
   });
 
   section.querySelector('[data-billing-action="portal"]')?.addEventListener('click', async (event) => {
