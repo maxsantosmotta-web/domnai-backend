@@ -68,7 +68,7 @@ export default function Dashboard() {
     return messages.filter((message) => message.text.toLowerCase().includes(term));
   }, [messages, search]);
 
-  const showExitButton = Boolean(activeOperation) || section !== 'chat';
+  const showExitButton = section !== 'chat';
 
   async function authorizedFetch(url, options = {}) {
     const token = await getToken();
