@@ -55,7 +55,7 @@ def _frontend_url() -> str:
 def _get_or_create_account(db, user_id: str) -> BillingAccount:
     account = db.get(BillingAccount, user_id)
     if account is None:
-        account = BillingAccount(user_id=user_id)
+        account = BillingAccount(user_id=user_id, plan="unselected", subscription_status="inactive")
         db.add(account)
         db.flush()
     return account
@@ -77,8 +77,11 @@ def _is_premium(account: BillingAccount) -> bool:
 
 def _serialize_account(account: BillingAccount) -> dict:
     premium_active = _is_premium(account)
+    plan = "premium" if premium_active else account.plan
+    if plan == "free_demo":
+        plan = "unselected"
     return {
-        "plan": "premium" if premium_active else "free_demo",
+        "plan": plan,
         "subscriptionStatus": account.subscription_status,
         "planCredits": account.plan_credits,
         "extraCredits": account.extra_credits,
@@ -115,6 +118,24 @@ def billing_status(session: dict = Depends(require_authenticated_user)):
     user_id = session.get("sub")
     with session_scope() as db:
         account = _get_or_create_account(db, user_id)
+        if account.plan == "free_demo":
+            account.plan = "unselected"
+            db.flush()
+        return _serialize_account(account)
+
+
+@router.post("/select-free")
+def select_free_plan(session: dict = Depends(require_authenticated_user)):
+    user_id = session.get("sub")
+    with session_scope() as db:
+        account = _get_or_create_account(db, user_id)
+        if _is_premium(account):
+            raise HTTPException(status_code=409, detail="Gerencie ou cancele sua assinatura PREMIUM antes de mudar para o FREE.")
+        account.plan = "free"
+        account.subscription_status = "inactive"
+        account.plan_credits = 0
+        account.current_period_end = None
+        db.flush()
         return _serialize_account(account)
 
 
@@ -128,20 +149,15 @@ def billing_transactions(session: dict = Depends(require_authenticated_user)):
             .order_by(CreditTransaction.created_at.desc())
             .limit(100)
         ).all()
-        return {
-            "items": [
-                {
-                    "id": item.id,
-                    "kind": item.kind,
-                    "amount": item.amount,
-                    "planBalance": item.plan_balance,
-                    "extraBalance": item.extra_balance,
-                    "description": item.description,
-                    "createdAt": item.created_at.isoformat(),
-                }
-                for item in items
-            ]
-        }
+        return {"items": [{
+            "id": item.id,
+            "kind": item.kind,
+            "amount": item.amount,
+            "planBalance": item.plan_balance,
+            "extraBalance": item.extra_balance,
+            "description": item.description,
+            "createdAt": item.created_at.isoformat(),
+        } for item in items]}
 
 
 @router.post("/checkout")
@@ -171,9 +187,7 @@ def create_checkout(payload: CheckoutRequest, session: dict = Depends(require_au
         params["customer_creation"] = "always"
 
     if mode == "subscription":
-        params["subscription_data"] = {
-            "metadata": {"user_id": user_id, "product": payload.product}
-        }
+        params["subscription_data"] = {"metadata": {"user_id": user_id, "product": payload.product}}
 
     checkout = stripe.checkout.Session.create(**params)
     return {"url": checkout.url}
@@ -212,13 +226,7 @@ def consume_credits(payload: ConsumeCreditsRequest, session: dict = Depends(requ
         if remaining:
             account.extra_credits -= remaining
 
-        _record_transaction(
-            db,
-            account,
-            "consumption",
-            -payload.amount,
-            payload.description or "Consumo de créditos",
-        )
+        _record_transaction(db, account, "consumption", -payload.amount, payload.description or "Consumo de créditos")
         return _serialize_account(account)
 
 
@@ -259,7 +267,7 @@ async def stripe_webhook(request: Request):
                     if account.stripe_subscription_id:
                         subscription = stripe.Subscription.retrieve(account.stripe_subscription_id)
                         account.current_period_end = _subscription_period_end(subscription)
-                    _record_transaction(db, account, "plan_credit", PLAN_CREDITS, "Créditos do plano Premium", event_id)
+                    _record_transaction(db, account, "plan_credit", PLAN_CREDITS, "Créditos do plano PREMIUM", event_id)
 
                 elif obj.get("mode") == "payment" and product == "credits_250":
                     account.extra_credits += EXTRA_CREDIT_PACK
@@ -276,7 +284,7 @@ async def stripe_webhook(request: Request):
                     account.plan_credits = PLAN_CREDITS
                     subscription = stripe.Subscription.retrieve(subscription_id)
                     account.current_period_end = _subscription_period_end(subscription)
-                    _record_transaction(db, account, "plan_credit", PLAN_CREDITS, "Renovação do plano Premium", event_id)
+                    _record_transaction(db, account, "plan_credit", PLAN_CREDITS, "Renovação do plano PREMIUM", event_id)
 
         elif event_type in {"customer.subscription.updated", "customer.subscription.deleted"}:
             subscription_id = obj.get("id")
@@ -285,7 +293,7 @@ async def stripe_webhook(request: Request):
                 account.subscription_status = obj.get("status", "inactive")
                 account.current_period_end = _subscription_period_end(obj)
                 if event_type == "customer.subscription.deleted" or obj.get("status") in {"canceled", "unpaid", "incomplete_expired"}:
-                    account.plan = "free_demo"
+                    account.plan = "free"
                     account.plan_credits = 0
 
         elif event_type == "invoice.payment_failed":
