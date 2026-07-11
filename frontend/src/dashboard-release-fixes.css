@@ -1,0 +1,34 @@
+html.domnai-dashboard-active .sidebar-navigation button.is-active {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.global-exit-button,
+.domnai-plan-logout {
+  display: none;
+}
+
+.domnai-profile-page ~ .global-exit-button,
+body:has([data-domnai-profile-page]) .global-exit-button {
+  display: inline-flex;
+}
+
+body:has([role="dialog"]) .chat-workspace,
+body:has(.profile-checklist-overlay) .chat-workspace {
+  visibility: hidden;
+}
+
+@media (max-width: 720px) {
+  .sidebar-navigation button,
+  .sidebar-system-group button {
+    max-width: 100%;
+  }
+
+  .sidebar-navigation button span,
+  .sidebar-system-group button span {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+}
