@@ -10,6 +10,7 @@ import './final-refinement.css';
 import './no-glow.css';
 import './auth-modal.css';
 import './auth-compact.css';
+import './dashboard-visual-assets.css';
 import './auth-enhancements.js';
 
 const rootElement = document.getElementById('root');
