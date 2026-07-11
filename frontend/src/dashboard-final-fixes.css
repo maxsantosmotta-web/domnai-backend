@@ -1,0 +1,88 @@
+.message-author {
+  display: none !important;
+}
+
+.native-delete-button,
+.chat-image-native button.danger,
+.visual-asset-actions button.danger,
+.message-attachment button,
+.chat-visual-attachment button.danger {
+  min-height: 36px !important;
+  padding: 0 13px !important;
+  border: 1px solid rgba(255, 89, 103, 0.34) !important;
+  border-radius: 10px !important;
+  background: rgba(70, 18, 24, 0.32) !important;
+  color: #ff8490 !important;
+  font-size: 0.73rem !important;
+  font-weight: 700 !important;
+  opacity: 1 !important;
+  cursor: pointer !important;
+}
+
+.native-delete-button:hover,
+.chat-image-native button.danger:hover,
+.visual-asset-actions button.danger:hover,
+.message-attachment button:hover,
+.chat-visual-attachment button.danger:hover {
+  border-color: rgba(255, 89, 103, 0.58) !important;
+  background: rgba(92, 24, 31, 0.46) !important;
+  color: #ffadb4 !important;
+}
+
+.native-file-card.is-real-link {
+  grid-template-columns: 58px minmax(0, 1fr) auto;
+  border-color: rgba(225, 181, 77, 0.22);
+  background: linear-gradient(180deg, rgba(38, 31, 17, 0.88), rgba(20, 17, 12, 0.96));
+}
+
+.native-file-card.is-real-link .native-file-badge {
+  min-height: 48px;
+  color: #dfbb59;
+}
+
+.native-file-card.is-real-link .native-file-copy strong {
+  color: #ead58e;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.native-file-card.is-real-link .native-file-action {
+  color: #f1d77c;
+}
+
+.copy-link-button {
+  min-width: 92px;
+  min-height: 36px;
+  padding: 0 12px;
+  border: 1px solid rgba(225, 181, 77, 0.28);
+  border-radius: 10px;
+  background: linear-gradient(180deg, rgba(48, 39, 18, 0.86), rgba(25, 21, 13, 0.94));
+  color: #ead58e;
+  font-size: 0.72rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.copy-link-button:hover {
+  border-color: rgba(225, 181, 77, 0.52);
+  color: #fff0b7;
+}
+
+@media (max-width: 620px) {
+  .chat-native-file:has(.is-real-link) {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .chat-native-file:has(.is-real-link) .copy-link-button,
+  .chat-native-file:has(.is-real-link) .native-delete-button {
+    width: 100%;
+  }
+
+  .native-file-card.is-real-link {
+    grid-template-columns: 52px minmax(0, 1fr);
+  }
+
+  .native-file-card.is-real-link .native-file-action {
+    display: none;
+  }
+}
