@@ -1,0 +1,159 @@
+.global-exit-button {
+  display: none !important;
+}
+
+.domnai-sidebar {
+  height: 100dvh !important;
+}
+
+.sidebar-navigation {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+}
+
+.sidebar-profile.domnai-profile-visible {
+  flex: 0 0 auto;
+  display: flex !important;
+  position: sticky;
+  bottom: 0;
+  z-index: 3;
+  background: linear-gradient(180deg, rgba(8,8,8,.96), #060606 45%);
+}
+
+html.domnai-access-free .operations-only button,
+html.domnai-access-free .sidebar-system-group button:not(:has(span + *)),
+html.domnai-access-free .chat-composer,
+html.domnai-access-free .conversation-options-menu {
+  cursor: not-allowed;
+}
+
+html.domnai-access-free .operations-only button,
+html.domnai-access-free .sidebar-system-group button {
+  position: relative;
+}
+
+html.domnai-access-free .operations-only button::after,
+html.domnai-access-free .sidebar-system-group button:nth-of-type(1)::after,
+html.domnai-access-free .sidebar-system-group button:nth-of-type(2)::after {
+  content: 'PREMIUM';
+  margin-left: auto;
+  padding: 3px 6px;
+  border-radius: 999px;
+  background: rgba(216,170,52,.12);
+  color: #e7c35e;
+  font-size: .56rem;
+  font-weight: 900;
+  letter-spacing: .04em;
+}
+
+html.domnai-access-free .chat-composer {
+  opacity: .6;
+}
+
+html.domnai-access-free .chat-composer::before {
+  content: 'Chat disponível no plano PREMIUM';
+  position: absolute;
+  inset: 0;
+  z-index: 5;
+  display: grid;
+  place-items: center;
+  border-radius: inherit;
+  background: rgba(5,5,5,.84);
+  color: #e7c35e;
+  font-weight: 800;
+  text-align: center;
+}
+
+.domnai-premium-notice {
+  position: fixed;
+  inset: 0;
+  z-index: 5000;
+  display: grid;
+  place-items: center;
+  padding: 18px;
+  background: rgba(0,0,0,.78);
+  backdrop-filter: blur(8px);
+}
+
+.domnai-premium-notice section {
+  width: min(100%, 460px);
+  padding: 26px;
+  border: 1px solid rgba(216,170,52,.35);
+  border-radius: 22px;
+  background: linear-gradient(180deg, #151515, #090909);
+  box-shadow: 0 30px 90px rgba(0,0,0,.5);
+}
+
+.domnai-premium-notice section > span {
+  color: #d9aa31;
+  font-size: .74rem;
+  font-weight: 900;
+  letter-spacing: .1em;
+  text-transform: uppercase;
+}
+
+.domnai-premium-notice h2 {
+  margin: 10px 0 8px;
+  color: #fff;
+}
+
+.domnai-premium-notice p {
+  margin: 0;
+  color: #a7a7a7;
+  line-height: 1.55;
+}
+
+.domnai-premium-notice section > div {
+  display: flex;
+  gap: 10px;
+  margin-top: 22px;
+}
+
+.domnai-premium-notice button {
+  min-height: 44px;
+  flex: 1;
+  border-radius: 12px;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.domnai-premium-notice-close {
+  border: 1px solid rgba(255,255,255,.12);
+  background: #111;
+  color: #ddd;
+}
+
+.domnai-premium-notice-upgrade {
+  border: 1px solid rgba(216,170,52,.45);
+  background: linear-gradient(135deg, #f1cf69, #d9aa31 55%, #b77b12);
+  color: #080808;
+}
+
+@media (max-width: 900px) {
+  .domnai-sidebar {
+    height: 100dvh !important;
+    max-height: 100dvh !important;
+  }
+
+  .sidebar-profile.domnai-profile-visible {
+    padding-bottom: max(10px, env(safe-area-inset-bottom));
+  }
+
+  .chat-column {
+    padding-top: 92px;
+  }
+
+  .clean-chat-area {
+    padding-top: 20px !important;
+  }
+
+  .chat-message.user:first-child {
+    margin-top: 8px;
+  }
+
+  .chat-message.user:first-child p {
+    margin-left: 54px;
+    margin-right: 54px;
+  }
+}
