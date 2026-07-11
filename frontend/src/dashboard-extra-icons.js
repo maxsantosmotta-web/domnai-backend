@@ -6,8 +6,8 @@ const extraMobileIcons = [
   },
   {
     className: 'icon-7',
-    label: 'Pasta e organização',
-    svg: '<svg viewBox="0 0 64 64" aria-hidden="true"><path d="M8 18h18l5 6h25v26H8V18Z"/><path d="M8 24h48"/></svg>',
+    label: 'Trabalhista',
+    svg: '<svg viewBox="0 0 64 64" aria-hidden="true"><rect x="9" y="21" width="46" height="30" rx="4"/><path d="M23 21v-6h18v6M9 32h46M27 32v5h10v-5"/></svg>',
   },
   {
     className: 'icon-8',
