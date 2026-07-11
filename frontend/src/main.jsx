@@ -30,6 +30,7 @@ import './dashboard-profile-enhancements.js';
 import './dashboard-profile-avatar-sync.js';
 import './dashboard-profile-compact.js';
 import './dashboard-logout-enhancements.js';
+import './dashboard-remove-settings.js';
 import './auth-enhancements.js';
 
 const rootElement = document.getElementById('root');
