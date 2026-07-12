@@ -52,9 +52,19 @@ scroll_effect = '''
     return () => window.clearTimeout(timer);
   }, [conversationReady, section]);
 
+  useEffect(() => {
+    const returnToChat = () => {
+      window.setTimeout(() => {
+        setComposerScrollRequest((current) => current + 1);
+      }, 220);
+    };
+    window.addEventListener('domnai-return-to-chat', returnToChat);
+    return () => window.removeEventListener('domnai-return-to-chat', returnToChat);
+  }, []);
+
 '''
 
-if "initialConversationScrollDoneRef.current" not in source:
+if "window.addEventListener('domnai-return-to-chat'" not in source:
     match = re.search(r"  (?:async )?function selectOperation\(item\) \{", source)
     if not match:
         raise RuntimeError('Não foi possível localizar a seleção de operação.')
@@ -104,6 +114,17 @@ source, refresh_count = re.subn(
 )
 if refresh_count != 1:
     raise RuntimeError('Não foi possível ajustar o botão Atualizar conversa.')
+
+attach_old = """      setSection('chat');
+      setPlusOpen(false);"""
+attach_new = """      setSection('chat');
+      setPlusOpen(false);
+      window.setTimeout(() => {
+        setComposerScrollRequest((current) => current + 1);
+      }, 180);"""
+if attach_old not in source:
+    raise RuntimeError('Não foi possível ajustar o retorno da Biblioteca ao chat.')
+source = source.replace(attach_old, attach_new, 1)
 
 source = source.replace(
     '<div ref={chatScrollRef} className="chat-messages clean-chat-area">',
