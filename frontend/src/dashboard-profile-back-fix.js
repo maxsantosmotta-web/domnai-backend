@@ -24,6 +24,9 @@ function safelyReturnFromProfile(event) {
   window.requestAnimationFrame(() => {
     try {
       dashboardButton?.click();
+      const pageScroller = document.scrollingElement || document.documentElement;
+      pageScroller.scrollTo({ top: 0, behavior: 'auto' });
+      window.scrollTo({ top: 0, behavior: 'auto' });
     } finally {
       window.setTimeout(() => {
         domnaiProfileClosing = false;
