@@ -101,6 +101,21 @@
   font-weight: 800;
   cursor: pointer;
   list-style: none;
+  background: transparent !important;
+  outline: none !important;
+  box-shadow: none !important;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.domnai-address-details summary:hover,
+.domnai-address-details summary:focus,
+.domnai-address-details summary:focus-visible,
+.domnai-address-details summary:active,
+.domnai-address-details[open] summary {
+  color: #e7c35e !important;
+  background: transparent !important;
+  outline: none !important;
+  box-shadow: none !important;
 }
 
 .domnai-address-details summary::-webkit-details-marker {
