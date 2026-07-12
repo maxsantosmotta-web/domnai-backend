@@ -5,41 +5,47 @@ path = Path('/frontend/src/Dashboard.jsx')
 source = path.read_text(encoding='utf-8')
 
 source = source.replace(
-    "import React, { useEffect, useMemo, useRef, useState } from 'react';",
     "import React, { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';",
+    "import React, { useEffect, useMemo, useRef, useState } from 'react';",
     1,
 )
 source = source.replace(
-    "import React, { useMemo, useRef, useState } from 'react';",
     "import React, { useLayoutEffect, useMemo, useRef, useState } from 'react';",
+    "import React, { useEffect, useMemo, useRef, useState } from 'react';",
     1,
 )
+source = source.replace("import './dashboard-chat-scroll.css';\n", "", 1)
 
-if "import './dashboard-chat-scroll.css';" not in source:
-    source = source.replace(
-        "import './dashboard-operation-blocks.css';",
-        "import './dashboard-operation-blocks.css';\nimport './dashboard-chat-scroll.css';",
-        1,
-    )
-
-if "const chatScrollRef = useRef(null);" not in source:
+if "const operationComposerRef = useRef(null);" not in source:
     source = source.replace(
         "  const fileInputRef = useRef(null);",
-        "  const fileInputRef = useRef(null);\n  const operationComposerRef = useRef(null);\n  const chatScrollRef = useRef(null);\n  const [composerScrollRequest, setComposerScrollRequest] = useState(0);",
+        "  const fileInputRef = useRef(null);\n  const operationComposerRef = useRef(null);\n  const [composerScrollRequest, setComposerScrollRequest] = useState(0);",
         1,
     )
 
 scroll_effect = '''
-  useLayoutEffect(() => {
-    if (!composerScrollRequest || section !== 'chat') return;
-    const chatArea = chatScrollRef.current;
-    if (!chatArea) return;
-    chatArea.scrollTop = chatArea.scrollHeight;
+  useEffect(() => {
+    if (!composerScrollRequest || section !== 'chat') return undefined;
+
+    const scrollToComposer = () => {
+      const composer = operationComposerRef.current;
+      if (!composer) return;
+      composer.scrollIntoView({ behavior: 'smooth', block: 'end', inline: 'nearest' });
+      const page = document.scrollingElement || document.documentElement;
+      page.scrollTo({ top: page.scrollHeight, behavior: 'smooth' });
+    };
+
+    const frame = window.requestAnimationFrame(scrollToComposer);
+    const timer = window.setTimeout(scrollToComposer, 120);
+    return () => {
+      window.cancelAnimationFrame(frame);
+      window.clearTimeout(timer);
+    };
   }, [composerScrollRequest, section, messages.length]);
 
 '''
 
-if "useLayoutEffect(() =>" not in source:
+if "[composerScrollRequest, section, messages.length]" not in source:
     match = re.search(r"  (?:async )?function selectOperation\(item\) \{", source)
     if not match:
         raise RuntimeError('Não foi possível localizar a seleção de operação.')
@@ -101,11 +107,11 @@ source, refresh_count = re.subn(
 if refresh_count != 1:
     raise RuntimeError('Não foi possível ajustar o botão Atualizar conversa.')
 
-chat_old = '<div className="chat-messages clean-chat-area">'
-chat_new = '<div ref={chatScrollRef} className="chat-messages clean-chat-area">'
-if chat_old not in source:
-    raise RuntimeError('Não foi possível conectar a área rolável do chat.')
-source = source.replace(chat_old, chat_new, 1)
+source = source.replace(
+    '<div ref={chatScrollRef} className="chat-messages clean-chat-area">',
+    '<div className="chat-messages clean-chat-area">',
+    1,
+)
 
 form_old = '<form className="chat-composer simplified-composer composer-with-plus" onSubmit={sendMessage}>'
 form_new = '<form ref={operationComposerRef} className="chat-composer simplified-composer composer-with-plus" onSubmit={sendMessage}>'
