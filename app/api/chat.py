@@ -1,7 +1,10 @@
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
+from sqlalchemy import select
 
 from app.auth import require_authenticated_user
+from app.database import session_scope
+from app.models import LibraryAsset
 from app.services.credit_meter import charge_usage, ensure_minimum_credit
 from app.services.metered_brain import generate_metered_response
 
@@ -14,10 +17,44 @@ class ChatHistoryItem(BaseModel):
     content: str
 
 
+class ChatAttachmentItem(BaseModel):
+    library_id: str = Field(min_length=1, max_length=180)
+
+
 class ChatRequest(BaseModel):
     message: str = Field(min_length=1, max_length=12000)
     operation: str | None = Field(default=None, max_length=180)
     history: list[ChatHistoryItem] = Field(default_factory=list, max_length=40)
+    attachments: list[ChatAttachmentItem] = Field(default_factory=list, max_length=10)
+
+
+def _load_attachments(user_id: str, attachment_ids: list[str]) -> list[dict]:
+    if not attachment_ids:
+        return []
+
+    unique_ids = list(dict.fromkeys(attachment_ids))
+    with session_scope() as db:
+        assets = db.scalars(
+            select(LibraryAsset).where(
+                LibraryAsset.user_id == user_id,
+                LibraryAsset.id.in_(unique_ids),
+            )
+        ).all()
+
+    assets_by_id = {asset.id: asset for asset in assets}
+    missing_ids = [asset_id for asset_id in unique_ids if asset_id not in assets_by_id]
+    if missing_ids:
+        raise HTTPException(status_code=404, detail="Um dos arquivos anexados não foi encontrado na Biblioteca.")
+
+    return [
+        {
+            "id": assets_by_id[asset_id].id,
+            "name": assets_by_id[asset_id].name,
+            "mime_type": assets_by_id[asset_id].mime_type,
+            "content": assets_by_id[asset_id].content,
+        }
+        for asset_id in unique_ids
+    ]
 
 
 @router.post("/respond")
@@ -30,7 +67,11 @@ def respond(payload: ChatRequest, session: dict = Depends(require_authenticated_
     if not message:
         raise HTTPException(status_code=422, detail="Digite uma mensagem para continuar.")
 
-    # Impede nova chamada paga quando o usuário não possui nem o crédito mínimo.
+    attachments = _load_attachments(
+        user_id,
+        [item.library_id for item in payload.attachments],
+    )
+
     ensure_minimum_credit(user_id)
 
     try:
@@ -38,6 +79,7 @@ def respond(payload: ChatRequest, session: dict = Depends(require_authenticated_
             message=message,
             operation=payload.operation.strip() if payload.operation else None,
             history=[item.model_dump() for item in payload.history],
+            attachments=attachments,
         )
     except RuntimeError as exc:
         raise HTTPException(status_code=503, detail=str(exc)) from exc
