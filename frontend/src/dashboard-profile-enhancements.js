@@ -1,3 +1,8 @@
+const DOMNAI_PROFILE_CACHE_KEY = 'domnai:profile:v1';
+let domnaiProfileMemory = null;
+let domnaiProfileAvatarMemory = '';
+let domnaiProfileRefreshing = false;
+
 function profileDigits(value) {
   return String(value || '').replace(/\D/g, '');
 }
@@ -17,10 +22,34 @@ function profileFormatCep(value) {
   return profileDigits(value).slice(0, 8).replace(/(\d{5})(\d)/, '$1-$2');
 }
 
+function readProfileCache() {
+  if (domnaiProfileMemory) return domnaiProfileMemory;
+  try {
+    const cached = JSON.parse(sessionStorage.getItem(DOMNAI_PROFILE_CACHE_KEY) || 'null');
+    if (cached?.profile) domnaiProfileMemory = cached.profile;
+  } catch {
+    // Cache é apenas uma otimização.
+  }
+  return domnaiProfileMemory;
+}
+
+function writeProfileCache(profile) {
+  domnaiProfileMemory = profile || {};
+  try {
+    sessionStorage.setItem(DOMNAI_PROFILE_CACHE_KEY, JSON.stringify({ profile: domnaiProfileMemory, savedAt: Date.now() }));
+  } catch {
+    // Cache é apenas uma otimização.
+  }
+}
+
+function currentSidebarAvatarUrl() {
+  return document.querySelector('.domnai-profile-trigger-avatar img')?.src || domnaiProfileAvatarMemory || '';
+}
+
 async function profileToken() {
-  for (let attempt = 0; attempt < 60; attempt += 1) {
+  for (let attempt = 0; attempt < 40; attempt += 1) {
     if (window.Clerk?.session) return window.Clerk.session.getToken();
-    await new Promise((resolve) => window.setTimeout(resolve, 120));
+    await new Promise((resolve) => window.setTimeout(resolve, 75));
   }
   throw new Error('Sessão não encontrada.');
 }
@@ -55,9 +84,12 @@ async function profileAvatarUrl() {
       cache: 'no-store',
     });
     if (!response.ok) return '';
-    return URL.createObjectURL(await response.blob());
+    const nextUrl = URL.createObjectURL(await response.blob());
+    if (domnaiProfileAvatarMemory && domnaiProfileAvatarMemory.startsWith('blob:')) URL.revokeObjectURL(domnaiProfileAvatarMemory);
+    domnaiProfileAvatarMemory = nextUrl;
+    return nextUrl;
   } catch {
-    return '';
+    return currentSidebarAvatarUrl();
   }
 }
 
@@ -129,39 +161,82 @@ function restoreDashboardFromProfile() {
   [...document.querySelectorAll('.sidebar-navigation button')].find((button) => button.textContent.trim().includes('Dashboard'))?.click();
 }
 
+function renderProfileImmediately(profile, avatarUrl) {
+  const mainArea = document.querySelector('.domnai-main-area');
+  if (!mainArea) return;
+  mainArea.querySelector('[data-domnai-profile-page]')?.remove();
+  mainArea.insertAdjacentHTML('beforeend', profilePageHtml(profile || {}, avatarUrl || ''));
+  bindProfilePage();
+}
+
+async function refreshDomnAIProfileSilently() {
+  if (domnaiProfileRefreshing) return;
+  domnaiProfileRefreshing = true;
+  try {
+    const payload = await profileFetch('/api/profile');
+    const profile = payload?.profile || {};
+    writeProfileCache(profile);
+
+    const page = document.querySelector('[data-domnai-profile-page]');
+    if (!page) return;
+
+    const currentForm = page.querySelector('.domnai-profile-form');
+    const editing = currentForm && [...currentForm.elements].some((element) => element === document.activeElement);
+    if (!editing) renderProfileImmediately(profile, currentSidebarAvatarUrl());
+
+    profileAvatarUrl().then((avatarUrl) => {
+      const avatar = document.querySelector('[data-domnai-profile-page] .domnai-profile-avatar');
+      if (!avatar || !avatarUrl) return;
+      avatar.innerHTML = `<img src="${avatarUrl}" alt="Foto de perfil">`;
+    });
+  } catch {
+    // Mantém o perfil em cache sem interromper a navegação.
+  } finally {
+    domnaiProfileRefreshing = false;
+  }
+}
+
 async function openDomnAIProfile() {
   const mainArea = document.querySelector('.domnai-main-area');
   if (!mainArea) return;
+
   document.querySelector('[data-domnai-profile-page]')?.remove();
   mainArea.classList.add('profile-page-open');
-  mainArea.insertAdjacentHTML('beforeend', '<section class="internal-section domnai-profile-loading" data-domnai-profile-page="true">Carregando perfil...</section>');
-  try {
-    const [payload, avatarUrl] = await Promise.all([profileFetch('/api/profile'), profileAvatarUrl()]);
-    mainArea.querySelector('[data-domnai-profile-page]')?.remove();
-    mainArea.insertAdjacentHTML('beforeend', profilePageHtml(payload.profile || {}, avatarUrl));
-    bindProfilePage();
-  } catch (error) {
-    const page = mainArea.querySelector('[data-domnai-profile-page]');
-    if (page) page.innerHTML = `<div class="internal-empty-state">${error.message}</div>`;
-  }
+
+  const cachedProfile = readProfileCache() || {
+    fullName: window.Clerk?.user?.fullName || window.Clerk?.user?.firstName || '',
+  };
+  renderProfileImmediately(cachedProfile, currentSidebarAvatarUrl());
+  window.requestAnimationFrame(refreshDomnAIProfileSilently);
 }
 
 function bindProfilePage() {
   const page = document.querySelector('[data-domnai-profile-page]');
   const form = page?.querySelector('.domnai-profile-form');
-  if (!page || !form) return;
+  if (!page || !form || form.dataset.bound === 'true') return;
+  form.dataset.bound = 'true';
+
   page.querySelector('.domnai-profile-close')?.addEventListener('click', restoreDashboardFromProfile);
   page.querySelector('.domnai-profile-cancel')?.addEventListener('click', restoreDashboardFromProfile);
   page.querySelector('.domnai-profile-photo-input')?.addEventListener('change', async (event) => {
     const file = event.target.files?.[0];
     if (!file) return;
     const data = new FormData(); data.append('file', file, file.name);
-    try { await profileFetch('/api/profile/avatar', { method: 'POST', body: data }); await openDomnAIProfile(); }
-    catch (error) { window.alert(error.message); }
+    try {
+      await profileFetch('/api/profile/avatar', { method: 'POST', body: data });
+      window.dispatchEvent(new Event('domnai:profile-avatar-updated'));
+      const avatarUrl = await profileAvatarUrl();
+      const avatar = document.querySelector('[data-domnai-profile-page] .domnai-profile-avatar');
+      if (avatar && avatarUrl) avatar.innerHTML = `<img src="${avatarUrl}" alt="Foto de perfil">`;
+    } catch (error) { window.alert(error.message); }
   });
   page.querySelector('.domnai-profile-photo-remove')?.addEventListener('click', async () => {
-    try { await profileFetch('/api/profile/avatar', { method: 'DELETE' }); await openDomnAIProfile(); }
-    catch (error) { window.alert(error.message); }
+    try {
+      await profileFetch('/api/profile/avatar', { method: 'DELETE' });
+      domnaiProfileAvatarMemory = '';
+      window.dispatchEvent(new Event('domnai:profile-avatar-updated'));
+      renderProfileImmediately(readProfileCache() || {}, '');
+    } catch (error) { window.alert(error.message); }
   });
   form.elements.phone.addEventListener('input', () => { form.elements.phone.value = profileFormatPhone(form.elements.phone.value); });
   form.elements.cpf.addEventListener('input', () => { form.elements.cpf.value = profileFormatCpf(form.elements.cpf.value); });
@@ -173,17 +248,25 @@ function bindProfilePage() {
     const button = form.querySelector('.domnai-profile-save');
     const message = form.querySelector('.domnai-profile-message');
     const data = new FormData(form);
+    const payload = {
+      full_name: String(data.get('fullName')).trim(), phone: profileDigits(data.get('phone')), cpf: profileDigits(data.get('cpf')),
+      birth_date: `${String(data.get('birthYear'))}-${String(data.get('birthMonth')).padStart(2,'0')}-${String(data.get('birthDay')).padStart(2,'0')}`,
+      zip_code: profileDigits(data.get('zipCode')), street: String(data.get('street')).trim(), number: String(data.get('number')).trim(),
+      complement: String(data.get('complement')).trim(), lot: String(data.get('lot')).trim(), block: String(data.get('block')).trim(), building: String(data.get('building')).trim(), apartment: String(data.get('apartment')).trim(),
+      neighborhood: String(data.get('neighborhood')).trim(), city: String(data.get('city')).trim(), state: String(data.get('state')).trim().toUpperCase()
+    };
     button.disabled = true; button.textContent = 'Salvando...'; message.hidden = true;
     try {
-      await profileFetch('/api/profile', { method: 'PUT', body: JSON.stringify({
-        full_name: String(data.get('fullName')).trim(), phone: profileDigits(data.get('phone')), cpf: profileDigits(data.get('cpf')),
-        birth_date: `${String(data.get('birthYear'))}-${String(data.get('birthMonth')).padStart(2,'0')}-${String(data.get('birthDay')).padStart(2,'0')}`,
-        zip_code: profileDigits(data.get('zipCode')), street: String(data.get('street')).trim(), number: String(data.get('number')).trim(),
-        complement: String(data.get('complement')).trim(), lot: String(data.get('lot')).trim(), block: String(data.get('block')).trim(), building: String(data.get('building')).trim(), apartment: String(data.get('apartment')).trim(),
-        neighborhood: String(data.get('neighborhood')).trim(), city: String(data.get('city')).trim(), state: String(data.get('state')).trim().toUpperCase()
-      }) });
+      await profileFetch('/api/profile', { method: 'PUT', body: JSON.stringify(payload) });
+      writeProfileCache({
+        fullName: payload.full_name, phone: payload.phone, cpf: payload.cpf, birthDate: payload.birth_date,
+        zipCode: payload.zip_code, street: payload.street, number: payload.number, complement: payload.complement,
+        lot: payload.lot, block: payload.block, building: payload.building, apartment: payload.apartment,
+        neighborhood: payload.neighborhood, city: payload.city, state: payload.state,
+      });
       message.textContent = 'Dados atualizados com sucesso.'; message.className = 'domnai-profile-message success'; message.hidden = false;
-      window.setTimeout(openDomnAIProfile, 500);
+      button.disabled = false; button.textContent = 'Salvar alterações';
+      window.dispatchEvent(new Event('domnai:profile-updated'));
     } catch (error) {
       message.textContent = error.message; message.className = 'domnai-profile-message error'; message.hidden = false; button.disabled = false; button.textContent = 'Salvar alterações';
     }
@@ -211,3 +294,4 @@ window.addEventListener('click', (event) => {
 const profileObserver = new MutationObserver(installNativeProfileTrigger);
 profileObserver.observe(document.documentElement, { childList: true, subtree: true });
 installNativeProfileTrigger();
+readProfileCache();
