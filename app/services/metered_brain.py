@@ -1,3 +1,4 @@
+import base64
 import os
 from dataclasses import dataclass
 
@@ -27,7 +28,10 @@ def _as_int(value) -> int:
         return 0
 
 
-def _gateway_response(message: str, history: list[dict], operation: str | None) -> MeteredBrainResult:
+def _gateway_response(message: str, history: list[dict], operation: str | None, attachments: list[dict]) -> MeteredBrainResult:
+    if attachments:
+        raise RuntimeError("A leitura de arquivos exige o provedor OpenAI configurado no DomnAI.")
+
     api_key = _integration_api_key()
     base_url = _integration_base_url()
     if not api_key or not base_url:
@@ -68,14 +72,38 @@ def _gateway_response(message: str, history: list[dict], operation: str | None) 
     )
 
 
-def _openai_response(message: str, history: list[dict], operation: str | None) -> MeteredBrainResult:
+def _attachment_content(attachment: dict) -> dict:
+    mime_type = str(attachment.get("mime_type") or "application/octet-stream").lower()
+    filename = str(attachment.get("name") or "arquivo")[:255]
+    encoded = base64.b64encode(attachment.get("content") or b"").decode("ascii")
+    data_url = f"data:{mime_type};base64,{encoded}"
+
+    if mime_type.startswith("image/"):
+        return {
+            "type": "input_image",
+            "image_url": data_url,
+            "detail": "auto",
+        }
+
+    return {
+        "type": "input_file",
+        "filename": filename,
+        "file_data": data_url,
+    }
+
+
+def _openai_response(message: str, history: list[dict], operation: str | None, attachments: list[dict]) -> MeteredBrainResult:
     api_key = os.getenv("OPENAI_API_KEY", "").strip()
     if not api_key:
         raise RuntimeError("OPENAI_API_KEY não configurada.")
 
     model = os.getenv("DOMNAI_OPENAI_MODEL", "gpt-4.1-mini").strip()
     input_messages = _normalized_history(history)
-    input_messages.append({"role": "user", "content": message})
+
+    user_content = [{"type": "input_text", "text": message}]
+    user_content.extend(_attachment_content(attachment) for attachment in attachments)
+    input_messages.append({"role": "user", "content": user_content})
+
     data = _post_json(
         "https://api.openai.com/v1/responses",
         {"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"},
@@ -111,14 +139,20 @@ def _openai_response(message: str, history: list[dict], operation: str | None) -
     )
 
 
-def generate_metered_response(message: str, history: list[dict], operation: str | None) -> MeteredBrainResult:
+def generate_metered_response(
+    message: str,
+    history: list[dict],
+    operation: str | None,
+    attachments: list[dict] | None = None,
+) -> MeteredBrainResult:
     provider = os.getenv("DOMNAI_AI_PROVIDER", "auto").strip().lower()
+    safe_attachments = attachments or []
 
     if provider == "gateway":
-        return _gateway_response(message, history, operation)
+        return _gateway_response(message, history, operation, safe_attachments)
     if provider in {"openai", "", "auto"}:
         if os.getenv("OPENAI_API_KEY", "").strip():
-            return _openai_response(message, history, operation)
+            return _openai_response(message, history, operation, safe_attachments)
         raise RuntimeError("OPENAI_API_KEY do DomnAI não configurada.")
     if provider == "anthropic":
         raise RuntimeError("Medição automática de créditos para Anthropic ainda não foi habilitada.")
