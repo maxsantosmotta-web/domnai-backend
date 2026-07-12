@@ -1,0 +1,69 @@
+.global-exit-button {
+  display: none !important;
+}
+
+.internal-section > header,
+.domnai-profile-page > header,
+.billing-page-header {
+  position: relative !important;
+  padding-right: 86px !important;
+}
+
+.module-back-button,
+.billing-back-to-chat.module-back-button,
+.domnai-profile-close.module-back-button {
+  position: absolute !important;
+  top: 0 !important;
+  right: 0 !important;
+  left: auto !important;
+  width: auto !important;
+  min-width: 0 !important;
+  height: 34px !important;
+  min-height: 34px !important;
+  margin: 0 !important;
+  padding: 0 11px !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  border: 1px solid rgba(216, 170, 52, 0.24) !important;
+  border-radius: 10px !important;
+  background: rgba(10, 10, 10, 0.96) !important;
+  color: #d7d7d7 !important;
+  box-shadow: none !important;
+  font-size: 0.72rem !important;
+  font-weight: 500 !important;
+  letter-spacing: 0 !important;
+  line-height: 1 !important;
+  cursor: pointer !important;
+  transform: none !important;
+  z-index: 5 !important;
+}
+
+.module-back-button:hover,
+.module-back-button:focus-visible {
+  border-color: rgba(216, 170, 52, 0.44) !important;
+  color: #ffffff !important;
+  transform: none !important;
+}
+
+.billing-back-to-chat.module-back-button > span,
+.domnai-profile-close.module-back-button > span {
+  display: none !important;
+}
+
+@media (max-width: 620px) {
+  .internal-section > header,
+  .domnai-profile-page > header,
+  .billing-page-header {
+    padding-right: 78px !important;
+  }
+
+  .module-back-button,
+  .billing-back-to-chat.module-back-button,
+  .domnai-profile-close.module-back-button {
+    height: 32px !important;
+    min-height: 32px !important;
+    padding: 0 10px !important;
+    font-size: 0.7rem !important;
+  }
+}
