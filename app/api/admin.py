@@ -1,6 +1,6 @@
 import json
 import os
-from urllib import error, parse, request
+from urllib import error, request
 
 from fastapi import APIRouter, Depends, HTTPException
 
@@ -30,17 +30,35 @@ def _clerk_request(url: str):
         return json.loads(response.read().decode("utf-8"))
 
 
-def _clerk_user_email(user_id: str) -> str:
-    try:
-        payload = _clerk_request(f"https://api.clerk.com/v1/users/{user_id}")
-    except (error.HTTPError, error.URLError, TimeoutError, ValueError, RuntimeError) as exc:
-        raise HTTPException(status_code=502, detail="Não foi possível validar a conta no Clerk.") from exc
-
+def _extract_primary_email(payload: dict) -> str:
     primary_id = payload.get("primary_email_address_id")
     addresses = payload.get("email_addresses") or []
     primary = next((item for item in addresses if item.get("id") == primary_id), None)
     selected = primary or (addresses[0] if addresses else {})
     return str(selected.get("email_address", "")).strip().lower()
+
+
+def _clerk_user_email(user_id: str) -> str:
+    try:
+        payload = _clerk_request(f"https://api.clerk.com/v1/users/{user_id}")
+    except (error.HTTPError, error.URLError, TimeoutError, ValueError, RuntimeError) as exc:
+        raise HTTPException(status_code=502, detail="Não foi possível validar a conta no Clerk.") from exc
+    return _extract_primary_email(payload)
+
+
+def _find_owner_user_id() -> str | None:
+    try:
+        users = _clerk_request("https://api.clerk.com/v1/users?limit=100&order_by=-created_at")
+    except Exception:
+        return None
+
+    if not isinstance(users, list):
+        return None
+
+    for user in users:
+        if _extract_primary_email(user) == OWNER_EMAIL:
+            return str(user.get("id") or "").strip() or None
+    return None
 
 
 def _grant_admin_access(user_id: str) -> dict:
@@ -77,16 +95,11 @@ def _grant_admin_access(user_id: str) -> dict:
 
 
 def bootstrap_owner_on_startup() -> None:
-    secret = _clerk_secret()
-    if not secret:
+    user_id = _find_owner_user_id()
+    if not user_id:
         return
     try:
-        query = parse.urlencode({"email_address": OWNER_EMAIL})
-        users = _clerk_request(f"https://api.clerk.com/v1/users?{query}")
-        if isinstance(users, list) and users:
-            user_id = str(users[0].get("id") or "").strip()
-            if user_id:
-                _grant_admin_access(user_id)
+        _grant_admin_access(user_id)
     except Exception:
         return
 
