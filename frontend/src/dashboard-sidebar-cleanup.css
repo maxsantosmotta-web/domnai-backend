@@ -1,0 +1,14 @@
+.domnai-dashboard-item-hidden {
+  display: none !important;
+  pointer-events: none !important;
+}
+
+.domnai-operations-label {
+  display: block !important;
+  margin: 8px 0 16px !important;
+  color: #e7c35e !important;
+  font-size: .82rem !important;
+  font-weight: 900 !important;
+  letter-spacing: .12em !important;
+  text-transform: uppercase !important;
+}
