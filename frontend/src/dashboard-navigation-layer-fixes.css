@@ -55,8 +55,11 @@ body.domnai-checklist-exclusive .global-exit-button {
 
 .domnai-context-logout,
 .domnai-plan-logout,
-.global-exit-button {
+.global-exit-button,
+.domnai-hidden-exit,
+.domnai-settings-hidden {
   display: none !important;
+  pointer-events: none !important;
 }
 
 .domnai-premium-gate-soft {
