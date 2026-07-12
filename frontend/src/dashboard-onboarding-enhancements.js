@@ -1,14 +1,40 @@
 document.documentElement.classList.add('domnai-gate-pending');
 
+const ONBOARDING_CACHE_KEY = 'domnai:onboarding-status:v1';
+const ONBOARDING_CACHE_MAX_AGE = 5 * 60 * 1000;
+const ONBOARDING_REFRESH_AGE = 30 * 1000;
+
 let lastOnboardingStatus = null;
+let lastOnboardingCheckedAt = 0;
 let gateRunning = false;
 let retryTimer = null;
 let revealTimer = null;
+let onboardingFrame = 0;
+
+function readCachedOnboardingStatus() {
+  try {
+    const cached = JSON.parse(sessionStorage.getItem(ONBOARDING_CACHE_KEY) || 'null');
+    if (!cached?.status || Date.now() - Number(cached.savedAt || 0) > ONBOARDING_CACHE_MAX_AGE) return null;
+    lastOnboardingCheckedAt = Number(cached.savedAt || 0);
+    return cached.status;
+  } catch {
+    return null;
+  }
+}
+
+function cacheOnboardingStatus(status) {
+  lastOnboardingCheckedAt = Date.now();
+  try {
+    sessionStorage.setItem(ONBOARDING_CACHE_KEY, JSON.stringify({ status, savedAt: lastOnboardingCheckedAt }));
+  } catch {
+    // Cache é apenas uma otimização; o fluxo continua sem ele.
+  }
+}
 
 async function onboardingToken() {
-  for (let attempt = 0; attempt < 100; attempt += 1) {
+  for (let attempt = 0; attempt < 40; attempt += 1) {
     if (window.Clerk?.session) return window.Clerk.session.getToken();
-    await new Promise((resolve) => window.setTimeout(resolve, 120));
+    await new Promise((resolve) => window.setTimeout(resolve, 75));
   }
   throw new Error('Sessão não encontrada.');
 }
@@ -44,9 +70,8 @@ function revealPlanScreenWhenReady(attempt = 0) {
   }
 
   openBillingSection();
-
-  if (attempt < 40) {
-    revealTimer = window.setTimeout(() => revealPlanScreenWhenReady(attempt + 1), 100);
+  if (attempt < 20) {
+    revealTimer = window.setTimeout(() => revealPlanScreenWhenReady(attempt + 1), 80);
   } else {
     document.documentElement.classList.remove('domnai-gate-pending');
   }
@@ -58,10 +83,8 @@ function lockPlatformForPlanSelection() {
 
   shell.classList.add('onboarding-plan-mode');
   shell.setAttribute('data-plan-gate', 'required');
-
   openBillingSection();
   window.requestAnimationFrame(openBillingSection);
-  window.setTimeout(openBillingSection, 120);
   revealPlanScreenWhenReady();
 
   document.querySelectorAll('.domnai-main-area > :not(.internal-section)').forEach((node) => {
@@ -86,7 +109,6 @@ function releasePlatformAfterPlanSelection() {
 function applyPlanGate(status) {
   lastOnboardingStatus = status;
   const needsPlan = needsPlanSelection(status);
-
   document.documentElement.classList.toggle('domnai-plan-selection-required', needsPlan);
 
   if (needsPlan) {
@@ -97,20 +119,30 @@ function applyPlanGate(status) {
   }
 }
 
-function scheduleGateRetry(delay = 500) {
+function scheduleGateRetry(delay = 500, force = false) {
   window.clearTimeout(retryTimer);
-  retryTimer = window.setTimeout(enforcePlanGate, delay);
+  retryTimer = window.setTimeout(() => enforcePlanGate(force), delay);
 }
 
-async function enforcePlanGate() {
+async function enforcePlanGate(force = false) {
   if (gateRunning) return;
+  if (!force && lastOnboardingStatus && Date.now() - lastOnboardingCheckedAt < ONBOARDING_REFRESH_AGE) {
+    applyPlanGate(lastOnboardingStatus);
+    return;
+  }
+
   gateRunning = true;
   try {
     const status = await onboardingStatus();
+    cacheOnboardingStatus(status);
     applyPlanGate(status);
   } catch {
-    document.documentElement.classList.add('domnai-gate-pending');
-    scheduleGateRetry(700);
+    if (lastOnboardingStatus) {
+      applyPlanGate(lastOnboardingStatus);
+    } else {
+      document.documentElement.classList.add('domnai-gate-pending');
+      scheduleGateRetry(700, true);
+    }
   } finally {
     gateRunning = false;
   }
@@ -126,11 +158,11 @@ function syncBirthDate(wrapper) {
   const month = wrapper.querySelector('[name="birthMonth"]')?.value.padStart(2, '0') || '';
   const year = wrapper.querySelector('[name="birthYear"]')?.value || '';
   const hidden = wrapper.querySelector('[name="birthDate"]');
-  hidden.value = day && month && year.length === 4 ? `${year}-${month}-${day}` : '';
+  if (hidden) hidden.value = day && month && year.length === 4 ? `${year}-${month}-${day}` : '';
 }
 
-function enhanceBirthDate() {
-  document.querySelectorAll('.profile-checklist-form input[name="birthDate"]:not([data-split-ready])').forEach((input) => {
+function enhanceBirthDate(root = document) {
+  root.querySelectorAll?.('.profile-checklist-form input[name="birthDate"]:not([data-split-ready])').forEach((input) => {
     input.dataset.splitReady = 'true';
     const { day, month, year } = splitBirthDate(input.value);
     const label = input.closest('label');
@@ -156,22 +188,34 @@ function enhanceBirthDate() {
   });
 }
 
-const onboardingObserver = new MutationObserver(() => {
-  enhanceBirthDate();
-  if (lastOnboardingStatus && needsPlanSelection(lastOnboardingStatus)) {
-    openBillingSection();
-    revealPlanScreenWhenReady();
-  } else if (!lastOnboardingStatus) {
-    scheduleGateRetry(100);
-  }
+const onboardingObserver = new MutationObserver((mutations) => {
+  if (onboardingFrame) return;
+  onboardingFrame = window.requestAnimationFrame(() => {
+    onboardingFrame = 0;
+    const addedRoot = mutations.flatMap((mutation) => [...mutation.addedNodes])
+      .find((node) => node.nodeType === Node.ELEMENT_NODE) || document;
+    enhanceBirthDate(addedRoot);
+
+    if (lastOnboardingStatus && needsPlanSelection(lastOnboardingStatus)) {
+      openBillingSection();
+      revealPlanScreenWhenReady();
+    }
+  });
 });
 
-onboardingObserver.observe(document.documentElement, { childList: true, subtree: true });
-window.addEventListener('hashchange', () => scheduleGateRetry(80));
-window.addEventListener('focus', () => scheduleGateRetry(80));
-window.addEventListener('pageshow', () => scheduleGateRetry(80));
+onboardingObserver.observe(document.body || document.documentElement, { childList: true, subtree: true });
+window.addEventListener('hashchange', () => {
+  if (lastOnboardingStatus && needsPlanSelection(lastOnboardingStatus)) window.requestAnimationFrame(openBillingSection);
+});
+window.addEventListener('pageshow', (event) => {
+  if (event.persisted || Date.now() - lastOnboardingCheckedAt > ONBOARDING_REFRESH_AGE) enforcePlanGate(true);
+});
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'visible' && Date.now() - lastOnboardingCheckedAt > ONBOARDING_REFRESH_AGE) enforcePlanGate(true);
+});
+window.addEventListener('domnai:billing-updated', () => enforcePlanGate(true));
 
-window.setInterval(enforcePlanGate, 1200);
-
+const cachedStatus = readCachedOnboardingStatus();
+if (cachedStatus) applyPlanGate(cachedStatus);
 enhanceBirthDate();
-enforcePlanGate();
+enforcePlanGate(!cachedStatus);
