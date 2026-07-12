@@ -36,6 +36,7 @@ import './dashboard-remove-settings.js';
 import './dashboard-error-localization.js';
 import './dashboard-release-fixes.js';
 import './dashboard-navigation-layer-fixes.js';
+import './dashboard-profile-back-fix.js';
 import './auth-enhancements.js';
 
 const rootElement = document.getElementById('root');
