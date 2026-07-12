@@ -12,7 +12,7 @@ source = source.replace(
 
 source = source.replace(
     "  const fileInputRef = useRef(null);",
-    "  const fileInputRef = useRef(null);\n  const longPressTimerRef = useRef(null);\n  const longPressActionRef = useRef(null);\n  const deletePromptLockedRef = useRef(false);",
+    "  const fileInputRef = useRef(null);\n  const longPressTimerRef = useRef(null);\n  const longPressActionRef = useRef(null);\n  const longPressStartRef = useRef(null);\n  const deletePromptLockedRef = useRef(false);",
     1,
 )
 
@@ -53,15 +53,24 @@ helpers = '''
     if (event.target.closest('button')) return;
     window.clearTimeout(longPressTimerRef.current);
     longPressActionRef.current = null;
+    longPressStartRef.current = { x: event.clientX, y: event.clientY };
     longPressTimerRef.current = window.setTimeout(() => {
       longPressTimerRef.current = null;
       longPressActionRef.current = action;
     }, 650);
   }
 
+  function moveLongPress(event) {
+    const start = longPressStartRef.current;
+    if (!start) return;
+    const distance = Math.hypot(event.clientX - start.x, event.clientY - start.y);
+    if (distance > 14) cancelLongPress();
+  }
+
   function finishLongPress() {
     window.clearTimeout(longPressTimerRef.current);
     longPressTimerRef.current = null;
+    longPressStartRef.current = null;
     const action = longPressActionRef.current;
     longPressActionRef.current = null;
     if (action) window.setTimeout(action, 0);
@@ -71,6 +80,7 @@ helpers = '''
     window.clearTimeout(longPressTimerRef.current);
     longPressTimerRef.current = null;
     longPressActionRef.current = null;
+    longPressStartRef.current = null;
   }
 
 '''
@@ -113,8 +123,7 @@ article_new = '''<article
                   onPointerDown={(event) => startLongPress(() => confirmDeleteMessage(message.id), event)}
                   onPointerUp={finishLongPress}
                   onPointerCancel={cancelLongPress}
-                  onPointerMove={cancelLongPress}
-                  onPointerLeave={cancelLongPress}
+                  onPointerMove={moveLongPress}
                   onContextMenu={(event) => { event.preventDefault(); }}
                 >'''
 if article_old not in source:
@@ -129,8 +138,7 @@ image_new = '''<figure
                           onPointerDown={(event) => { event.stopPropagation(); startLongPress(() => confirmDeleteAttachment(item), event); }}
                           onPointerUp={(event) => { event.stopPropagation(); finishLongPress(); }}
                           onPointerCancel={cancelLongPress}
-                          onPointerMove={cancelLongPress}
-                          onPointerLeave={cancelLongPress}
+                          onPointerMove={moveLongPress}
                           onContextMenu={(event) => { event.preventDefault(); event.stopPropagation(); }}
                         >'''
 if image_old not in source:
@@ -145,8 +153,7 @@ file_new = '''<div
                           onPointerDown={(event) => { event.stopPropagation(); startLongPress(() => confirmDeleteAttachment(item), event); }}
                           onPointerUp={(event) => { event.stopPropagation(); finishLongPress(); }}
                           onPointerCancel={cancelLongPress}
-                          onPointerMove={cancelLongPress}
-                          onPointerLeave={cancelLongPress}
+                          onPointerMove={moveLongPress}
                           onContextMenu={(event) => { event.preventDefault(); event.stopPropagation(); }}
                         >'''
 if file_old not in source:
