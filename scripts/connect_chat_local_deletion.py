@@ -5,20 +5,14 @@ path = Path('/frontend/src/Dashboard.jsx')
 source = path.read_text(encoding='utf-8')
 
 source = source.replace(
-    "import './dashboard-operation-blocks.css';",
-    "import './dashboard-operation-blocks.css';\nimport './dashboard-delete-modal.css';",
+    "import './dashboard-delete-modal.css';\n",
+    "",
     1,
 )
 
 source = source.replace(
     "  const fileInputRef = useRef(null);",
     "  const fileInputRef = useRef(null);\n  const longPressTimerRef = useRef(null);",
-    1,
-)
-
-source = source.replace(
-    "  const [conversationReady, setConversationReady] = useState(false);",
-    "  const [conversationReady, setConversationReady] = useState(false);\n  const [pendingDelete, setPendingDelete] = useState(null);",
     1,
 )
 
@@ -38,36 +32,15 @@ helpers = '''
   }
 
   function confirmDeleteMessage(messageId) {
-    setPendingDelete({ type: 'message', messageId });
+    if (window.confirm('Apagar esta mensagem?')) {
+      deleteChatMessage(messageId);
+    }
   }
 
   function confirmDeleteAttachment(item) {
-    setPendingDelete({ type: 'attachment', item });
-  }
-
-  function confirmDeleteConversation() {
-    setPendingDelete({ type: 'conversation' });
-    setOptionsOpen(false);
-  }
-
-  function executePendingDelete() {
-    if (!pendingDelete) return;
-
-    if (pendingDelete.type === 'message') {
-      deleteChatMessage(pendingDelete.messageId);
-    } else if (pendingDelete.type === 'attachment') {
-      removeAttachmentFromChat(pendingDelete.item);
-    } else if (pendingDelete.type === 'conversation') {
-      setMessages([]);
-      setActiveOperation(null);
-      setSearch('');
-      setSearchOpen(false);
-      setAttachments([]);
-      setOptionsOpen(false);
-      setPlusOpen(false);
+    if (window.confirm('Apagar este item da conversa?')) {
+      removeAttachmentFromChat(item);
     }
-
-    setPendingDelete(null);
   }
 
   function startLongPress(action, event) {
@@ -96,7 +69,14 @@ source, count = re.subn(
   }
 
   async function deleteConversation() {
-    confirmDeleteConversation();
+    if (!window.confirm('Apagar a conversa?')) return;
+    setMessages([]);
+    setActiveOperation(null);
+    setSearch('');
+    setSearchOpen(false);
+    setAttachments([]);
+    setOptionsOpen(false);
+    setPlusOpen(false);
   }''',
     source,
     count=1,
@@ -146,21 +126,5 @@ file_new = '''<div
 if file_old not in source:
     raise RuntimeError('Não foi possível ativar a exclusão unitária nos arquivos.')
 source = source.replace(file_old, file_new, 1)
-
-modal_marker = "      {sidebarOpen ? <button className=\"sidebar-backdrop\""
-modal_index = source.find(modal_marker)
-if modal_index == -1:
-    raise RuntimeError('Não foi possível inserir a confirmação de exclusão.')
-modal = '''      {pendingDelete ? (
-        <div className="chat-delete-modal-backdrop" role="dialog" aria-modal="true" aria-label="Confirmar exclusão">
-          <div className="chat-delete-modal">
-            <button type="button" className="cancel" onClick={() => setPendingDelete(null)}>Cancelar</button>
-            <button type="button" className="delete" onClick={executePendingDelete}>Apagar</button>
-          </div>
-        </div>
-      ) : null}
-
-'''
-source = source[:modal_index] + modal + source[modal_index:]
 
 path.write_text(source, encoding='utf-8')
