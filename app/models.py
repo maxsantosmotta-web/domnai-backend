@@ -118,15 +118,3 @@ class ActiveChatState(Base):
     messages_json: Mapped[str] = mapped_column(Text, nullable=False, default="[]")
     active_operation: Mapped[str | None] = mapped_column(String(120), nullable=True)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc), nullable=False)
-
-
-class ChatConversation(Base):
-    __tablename__ = "chat_conversations"
-
-    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid4()))
-    user_id: Mapped[str] = mapped_column(String(128), nullable=False, index=True)
-    title: Mapped[str] = mapped_column(String(180), nullable=False)
-    operation_id: Mapped[str | None] = mapped_column(String(120), nullable=True, index=True)
-    messages_json: Mapped[str] = mapped_column(Text, nullable=False, default="[]")
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), nullable=False, index=True)
-    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc), nullable=False)
