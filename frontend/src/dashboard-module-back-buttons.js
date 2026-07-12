@@ -1,11 +1,19 @@
+function requestChatComposerScroll() {
+  window.setTimeout(() => {
+    window.dispatchEvent(new CustomEvent('domnai-return-to-chat'));
+  }, 40);
+}
+
 function clickDashboardNow() {
   const dashboardButton = [...document.querySelectorAll('.sidebar-navigation button')]
     .find((button) => button.textContent.trim().includes('Dashboard'));
   if (dashboardButton) {
     dashboardButton.click();
+    requestChatComposerScroll();
     return true;
   }
   window.location.hash = '#/';
+  requestChatComposerScroll();
   return false;
 }
 
@@ -91,6 +99,7 @@ document.addEventListener('click', (event) => {
     const originalDashboardButton = profilePage.querySelector('.domnai-profile-close');
     if (originalDashboardButton) {
       originalDashboardButton.click();
+      requestChatComposerScroll();
       return;
     }
   }
