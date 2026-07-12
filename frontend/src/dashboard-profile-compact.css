@@ -2,6 +2,26 @@
   padding: 22px;
 }
 
+.domnai-profile-card-title {
+  display: block !important;
+  margin-bottom: 16px !important;
+}
+
+.domnai-profile-card-title > span {
+  display: none !important;
+}
+
+.domnai-profile-card-title > div {
+  margin: 0 !important;
+  padding: 0 !important;
+}
+
+.domnai-profile-card-title h2,
+.domnai-profile-card-title p {
+  margin-left: 0 !important;
+  padding-left: 0 !important;
+}
+
 .domnai-profile-grid {
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 12px;
