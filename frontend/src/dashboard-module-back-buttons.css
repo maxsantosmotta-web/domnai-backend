@@ -6,12 +6,16 @@
 .domnai-profile-page > header,
 .billing-page-header {
   position: relative !important;
+}
+
+.internal-section > header > div:first-child,
+.domnai-profile-page > header > div:first-child,
+.billing-page-header > div:first-child {
   padding-right: 86px !important;
 }
 
 .module-back-button,
-.billing-back-to-chat.module-back-button,
-.domnai-profile-close.module-back-button {
+.billing-back-to-chat.module-back-button {
   position: absolute !important;
   top: 0 !important;
   right: 0 !important;
@@ -46,21 +50,63 @@
   transform: none !important;
 }
 
-.billing-back-to-chat.module-back-button > span,
-.domnai-profile-close.module-back-button > span {
+.billing-back-to-chat.module-back-button > span {
   display: none !important;
 }
 
+.billing-loading-state {
+  display: none !important;
+}
+
+.billing-quiet-loading {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 18px;
+  margin-top: 28px;
+}
+
+.billing-quiet-loading > div {
+  min-height: 150px;
+  border: 1px solid rgba(216, 170, 52, 0.12);
+  border-radius: 22px;
+  background: linear-gradient(180deg, rgba(18, 18, 18, 0.72), rgba(8, 8, 8, 0.72));
+  opacity: 0.42;
+}
+
+@media (max-width: 820px) {
+  .domnai-profile-header {
+    padding-right: 0 !important;
+  }
+
+  .domnai-profile-header > div:first-child {
+    width: 100%;
+    box-sizing: border-box;
+    padding-right: 78px !important;
+  }
+
+  .domnai-profile-header > .domnai-profile-close,
+  .domnai-profile-header > button:not(.module-back-button) {
+    width: 100% !important;
+    align-self: stretch !important;
+    margin-left: 0 !important;
+    margin-right: 0 !important;
+    text-align: center !important;
+  }
+
+  .billing-quiet-loading {
+    grid-template-columns: 1fr;
+  }
+}
+
 @media (max-width: 620px) {
-  .internal-section > header,
-  .domnai-profile-page > header,
-  .billing-page-header {
+  .internal-section > header > div:first-child,
+  .domnai-profile-page > header > div:first-child,
+  .billing-page-header > div:first-child {
     padding-right: 78px !important;
   }
 
   .module-back-button,
-  .billing-back-to-chat.module-back-button,
-  .domnai-profile-close.module-back-button {
+  .billing-back-to-chat.module-back-button {
     height: 32px !important;
     min-height: 32px !important;
     padding: 0 10px !important;
