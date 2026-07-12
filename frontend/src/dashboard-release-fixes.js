@@ -18,13 +18,13 @@ function restoreBillingWhenEmpty() {
   window.dispatchEvent(new HashChangeEvent('hashchange'));
 }
 
-function softenFreePlanCopy() {
-  document.querySelectorAll('body *').forEach((element) => {
+function softenFreePlanCopy(root = document) {
+  root.querySelectorAll?.('body *, *').forEach((element) => {
     if (element.children.length) return;
     const text = element.textContent.trim();
 
     if (text === 'Chat disponível no plano PREMIUM') {
-      element.remove();
+      element.style.display = 'none';
       return;
     }
 
@@ -37,13 +37,8 @@ function softenFreePlanCopy() {
       element.textContent = 'Conheça o plano PREMIUM para acessar operações, chat, arquivos, Biblioteca e Lixeira.';
     }
 
-    if (text === 'Continuar no FREE') {
-      element.textContent = 'Voltar';
-    }
-
-    if (text === 'Ver plano PREMIUM') {
-      element.textContent = 'Conhecer PREMIUM';
-    }
+    if (text === 'Continuar no FREE') element.textContent = 'Voltar';
+    if (text === 'Ver plano PREMIUM') element.textContent = 'Conhecer PREMIUM';
   });
 }
 
@@ -56,23 +51,27 @@ function keepLogoutInsideProfileOnly() {
 
 function repairDashboardVisualState() {
   const dashboardButton = findSidebarButton('Dashboard');
-  if (dashboardButton?.classList.contains('is-active')) {
-    document.documentElement.classList.add('domnai-dashboard-active');
-  } else {
-    document.documentElement.classList.remove('domnai-dashboard-active');
-  }
+  document.documentElement.classList.toggle('domnai-dashboard-active', Boolean(dashboardButton?.classList.contains('is-active')));
 }
 
-function applyReleaseFixes() {
+function applyReleaseFixes(root = document) {
   restoreBillingWhenEmpty();
-  softenFreePlanCopy();
+  softenFreePlanCopy(root);
   keepLogoutInsideProfileOnly();
   repairDashboardVisualState();
 }
 
-const releaseFixObserver = new MutationObserver(() => window.requestAnimationFrame(applyReleaseFixes));
-releaseFixObserver.observe(document.documentElement, { childList: true, subtree: true, characterData: true });
-window.addEventListener('hashchange', () => window.setTimeout(applyReleaseFixes, 80));
-window.addEventListener('focus', () => window.setTimeout(applyReleaseFixes, 80));
-window.setInterval(applyReleaseFixes, 1200);
+let releaseFixFrame = 0;
+const releaseFixObserver = new MutationObserver((mutations) => {
+  if (releaseFixFrame) return;
+  releaseFixFrame = window.requestAnimationFrame(() => {
+    releaseFixFrame = 0;
+    const addedRoot = mutations.flatMap((mutation) => [...mutation.addedNodes])
+      .find((node) => node.nodeType === Node.ELEMENT_NODE) || document;
+    applyReleaseFixes(addedRoot);
+  });
+});
+
+releaseFixObserver.observe(document.body || document.documentElement, { childList: true, subtree: true });
+window.addEventListener('hashchange', () => window.requestAnimationFrame(() => applyReleaseFixes()));
 applyReleaseFixes();
