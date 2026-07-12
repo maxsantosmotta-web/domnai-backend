@@ -11,6 +11,38 @@ if "const operationComposerRef = useRef(null);" not in source:
         1,
     )
 
+scroll_helper = '''
+  function moveUserToChatComposer() {
+    const performScroll = (behavior = 'auto') => {
+      const chatArea = document.querySelector('.clean-chat-area');
+      if (chatArea) {
+        chatArea.scrollTo({ top: chatArea.scrollHeight, behavior });
+      }
+
+      const composer = operationComposerRef.current;
+      if (!composer) return;
+
+      const composerTop = window.scrollY + composer.getBoundingClientRect().top;
+      const targetTop = Math.max(0, composerTop - window.innerHeight + composer.offsetHeight + 24);
+      window.scrollTo({ top: targetTop, behavior });
+    };
+
+    window.requestAnimationFrame(() => {
+      window.requestAnimationFrame(() => performScroll('auto'));
+    });
+    window.setTimeout(() => performScroll('smooth'), 180);
+    window.setTimeout(() => performScroll('auto'), 700);
+  }
+
+'''
+
+marker = "  function selectOperation(item) {"
+if "function moveUserToChatComposer()" not in source:
+    index = source.find(marker)
+    if index == -1:
+        raise RuntimeError('Não foi possível localizar a seleção de operação.')
+    source = source[:index] + scroll_helper + source[index:]
+
 replacement = '''  function selectOperation(item) {
     if (responding) return;
 
@@ -34,19 +66,12 @@ replacement = '''  function selectOperation(item) {
       }]);
     }
 
-    window.setTimeout(() => {
-      const composer = operationComposerRef.current;
-      if (!composer) return;
-      composer.scrollIntoView({ behavior: 'smooth', block: 'center' });
-      window.setTimeout(() => {
-        composer.querySelector('textarea')?.focus({ preventScroll: true });
-      }, 450);
-    }, 80);
+    moveUserToChatComposer();
   }
 '''
 
 source, count = re.subn(
-    r"  (?:async )?function selectOperation\(item\) \{.*?\n  \}",
+    r"  function selectOperation\(item\) \{.*?\n  \}",
     replacement.rstrip(),
     source,
     count=1,
@@ -62,15 +87,7 @@ refresh_replacement = '''  function refreshConversation() {
     setSearchOpen(false);
     setOptionsOpen(false);
     setPlusOpen(false);
-
-    window.setTimeout(() => {
-      const composer = operationComposerRef.current;
-      if (!composer) return;
-      composer.scrollIntoView({ behavior: 'smooth', block: 'center' });
-      window.setTimeout(() => {
-        composer.querySelector('textarea')?.focus({ preventScroll: true });
-      }, 450);
-    }, 80);
+    moveUserToChatComposer();
   }'''
 
 source, refresh_count = re.subn(
