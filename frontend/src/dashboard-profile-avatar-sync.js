@@ -1,6 +1,7 @@
 let domnaiSidebarAvatarUrl = '';
 let domnaiSidebarIdentityBusy = false;
 let domnaiSidebarIdentityTimer = null;
+let domnaiSidebarIdentityLoaded = false;
 
 async function domnaiProfileIdentityToken() {
   for (let attempt = 0; attempt < 60; attempt += 1) {
@@ -26,7 +27,12 @@ async function domnaiFetchJson(url, token) {
   return response.json();
 }
 
-async function syncDomnAISidebarIdentity() {
+function renderSidebarInitial(avatarTarget, displayName) {
+  if (avatarTarget.querySelector('img')) return;
+  avatarTarget.textContent = (displayName || window.Clerk?.user?.primaryEmailAddress?.emailAddress || 'U').charAt(0).toUpperCase();
+}
+
+async function syncDomnAISidebarIdentity({ forceAvatar = false } = {}) {
   if (domnaiSidebarIdentityBusy) return;
 
   const trigger = document.querySelector('.domnai-profile-trigger');
@@ -47,54 +53,69 @@ async function syncDomnAISidebarIdentity() {
 
     const fullName = profilePayload?.profile?.fullName || window.Clerk?.user?.fullName || window.Clerk?.user?.firstName || '';
     const displayName = domnaiCompactName(fullName);
-    titleTarget.textContent = displayName || 'Minha conta';
-
+    const nextTitle = displayName || 'Minha conta';
     const plan = billingPayload?.premiumActive
       ? 'PREMIUM'
       : billingPayload?.plan === 'free'
         ? 'FREE'
         : 'Plano não selecionado';
-    subtitleTarget.textContent = `Conta ${plan}`;
+    const nextSubtitle = `Conta ${plan}`;
 
-    const response = await fetch(`/api/profile/avatar?t=${Date.now()}`, {
+    if (titleTarget.textContent !== nextTitle) titleTarget.textContent = nextTitle;
+    if (subtitleTarget.textContent !== nextSubtitle) subtitleTarget.textContent = nextSubtitle;
+
+    if (domnaiSidebarIdentityLoaded && !forceAvatar) return;
+
+    const response = await fetch('/api/profile/avatar', {
       headers: { Authorization: `Bearer ${token}` },
       cache: 'no-store',
     });
 
     if (!response.ok) {
-      if (domnaiSidebarAvatarUrl) URL.revokeObjectURL(domnaiSidebarAvatarUrl);
-      domnaiSidebarAvatarUrl = '';
-      avatarTarget.innerHTML = '';
-      avatarTarget.textContent = (displayName || window.Clerk?.user?.primaryEmailAddress?.emailAddress || 'U').charAt(0).toUpperCase();
+      renderSidebarInitial(avatarTarget, displayName);
+      domnaiSidebarIdentityLoaded = true;
       return;
     }
 
     const nextUrl = URL.createObjectURL(await response.blob());
+    const image = avatarTarget.querySelector('img');
+
+    if (image) {
+      image.src = nextUrl;
+    } else {
+      avatarTarget.textContent = '';
+      const nextImage = document.createElement('img');
+      nextImage.src = nextUrl;
+      nextImage.alt = 'Foto de perfil';
+      avatarTarget.appendChild(nextImage);
+    }
+
     if (domnaiSidebarAvatarUrl) URL.revokeObjectURL(domnaiSidebarAvatarUrl);
     domnaiSidebarAvatarUrl = nextUrl;
-    avatarTarget.innerHTML = `<img src="${nextUrl}" alt="Foto de perfil">`;
+    domnaiSidebarIdentityLoaded = true;
   } catch {
-    // Mantém os dados já exibidos quando a sincronização não puder ser concluída.
+    // Mantém a identidade já exibida quando a sincronização não puder ser concluída.
   } finally {
     domnaiSidebarIdentityBusy = false;
   }
 }
 
-function scheduleDomnAISidebarIdentitySync(delay = 120) {
+function scheduleDomnAISidebarIdentitySync(delay = 120, options = {}) {
   window.clearTimeout(domnaiSidebarIdentityTimer);
-  domnaiSidebarIdentityTimer = window.setTimeout(syncDomnAISidebarIdentity, delay);
+  domnaiSidebarIdentityTimer = window.setTimeout(() => syncDomnAISidebarIdentity(options), delay);
 }
 
 const domnaiSidebarIdentityObserver = new MutationObserver(() => {
-  if (document.querySelector('.domnai-profile-trigger')) scheduleDomnAISidebarIdentitySync();
+  if (document.querySelector('.domnai-profile-trigger') && !domnaiSidebarIdentityLoaded) {
+    scheduleDomnAISidebarIdentitySync();
+  }
 });
 
 domnaiSidebarIdentityObserver.observe(document.documentElement, { childList: true, subtree: true });
-window.addEventListener('focus', () => scheduleDomnAISidebarIdentitySync(80));
-window.addEventListener('pageshow', () => scheduleDomnAISidebarIdentitySync(80));
 window.addEventListener('hashchange', () => scheduleDomnAISidebarIdentitySync(80));
-window.setInterval(() => {
-  if (document.querySelector('.domnai-profile-trigger')) syncDomnAISidebarIdentity();
-}, 3000);
+window.addEventListener('domnai:profile-avatar-updated', () => {
+  domnaiSidebarIdentityLoaded = false;
+  scheduleDomnAISidebarIdentitySync(40, { forceAvatar: true });
+});
 
 scheduleDomnAISidebarIdentitySync();
