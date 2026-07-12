@@ -41,32 +41,6 @@ helpers = '''
     }, 500);
   }
 
-  async function copyMessageText(text, button) {
-    const value = String(text || '').trim();
-    if (!value) return;
-    try {
-      if (navigator.clipboard?.writeText) {
-        await navigator.clipboard.writeText(value);
-      } else {
-        const textarea = document.createElement('textarea');
-        textarea.value = value;
-        textarea.style.position = 'fixed';
-        textarea.style.opacity = '0';
-        document.body.appendChild(textarea);
-        textarea.select();
-        document.execCommand('copy');
-        textarea.remove();
-      }
-      if (button) {
-        const original = button.textContent;
-        button.textContent = 'Copiado';
-        window.setTimeout(() => { button.textContent = original; }, 1200);
-      }
-    } catch {
-      window.alert('Não foi possível copiar esta mensagem.');
-    }
-  }
-
   function confirmDeleteMessage(messageId) {
     runSingleDeletePrompt('Apagar esta mensagem? OK para apagar ou Cancelar para manter.', () => deleteChatMessage(messageId));
   }
@@ -76,7 +50,7 @@ helpers = '''
   }
 
   function startLongPress(action, event) {
-    if (event.target.closest('button')) return;
+    if (event.target.closest('button, p')) return;
     window.clearTimeout(longPressTimerRef.current);
     longPressActionRef.current = action;
     longPressStartRef.current = { x: event.clientX, y: event.clientY };
@@ -146,21 +120,23 @@ article_old = '<article className={`chat-message ${message.role}${message.isErro
 article_new = '''<article
                   className={`chat-message ${message.role}${message.isError ? ' error' : ''}`}
                   key={message.id}
-                  style={{ WebkitTouchCallout: 'none', userSelect: 'none' }}
+                  style={{ WebkitTouchCallout: 'default', userSelect: 'text' }}
                   onPointerDown={(event) => startLongPress(() => confirmDeleteMessage(message.id), event)}
                   onPointerUp={finishLongPress}
                   onPointerCancel={cancelLongPress}
                   onPointerMove={moveLongPress}
-                  onContextMenu={(event) => { event.preventDefault(); }}
+                  onContextMenu={(event) => {
+                    if (!event.target.closest('p')) event.preventDefault();
+                  }}
                 >'''
 if article_old not in source:
     raise RuntimeError('Não foi possível ativar a exclusão unitária nas mensagens.')
 source = source.replace(article_old, article_new, 1)
 
 text_old = "{message.text ? <p>{message.text}</p> : null}"
-text_new = "{message.text ? <><p>{message.text}</p><button type=\"button\" className=\"copy-message-button\" onClick={(event) => { event.stopPropagation(); copyMessageText(message.text, event.currentTarget); }}>Copiar</button></> : null}"
+text_new = "{message.text ? <p style={{ WebkitTouchCallout: 'default', userSelect: 'text' }}>{message.text}</p> : null}"
 if text_old not in source:
-    raise RuntimeError('Não foi possível adicionar a cópia das mensagens.')
+    raise RuntimeError('Não foi possível liberar a seleção nativa das mensagens.')
 source = source.replace(text_old, text_new, 1)
 
 image_old = '<figure className="chat-image-native" key={item.id}>'
