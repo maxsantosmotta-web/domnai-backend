@@ -6,10 +6,12 @@ source = path.read_text(encoding='utf-8')
 css_imports = [
     "import './dashboard-billing-back-compact.css';",
     "import './dashboard-module-back-buttons.css';",
+    "import './dashboard-billing-instant-shell.css';",
 ]
 js_imports = [
     "import './dashboard-billing-back-text-fix.js';",
     "import './dashboard-module-back-buttons.js';",
+    "import './dashboard-billing-instant-shell.js';",
 ]
 
 for css_import in css_imports:
