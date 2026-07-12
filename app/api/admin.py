@@ -8,13 +8,12 @@ from app.models import BillingAccount, CreditTransaction
 router = APIRouter(prefix="/api/admin", tags=["admin"])
 
 ADMIN_CREDITS = 100000
-ADMIN_PLAN = "admin"
 
 
 def _grant_admin_access(user_id: str) -> dict:
     with session_scope() as db:
         existing_admin = db.scalar(
-            select(BillingAccount).where(BillingAccount.plan == ADMIN_PLAN)
+            select(BillingAccount).where(BillingAccount.plan_credits >= ADMIN_CREDITS)
         )
 
         if existing_admin is not None and existing_admin.user_id != user_id:
@@ -27,7 +26,7 @@ def _grant_admin_access(user_id: str) -> dict:
             db.flush()
 
         previous_total = account.plan_credits + account.extra_credits
-        account.plan = ADMIN_PLAN
+        account.plan = "premium"
         account.subscription_status = "active"
         account.plan_credits = max(account.plan_credits, ADMIN_CREDITS)
         account.current_period_end = None
@@ -45,8 +44,9 @@ def _grant_admin_access(user_id: str) -> dict:
         return {
             "status": "ok",
             "role": "admin",
-            "plan": "admin",
+            "plan": "premium",
             "premiumActive": True,
+            "subscriptionStatus": "active",
             "planCredits": account.plan_credits,
             "extraCredits": account.extra_credits,
             "totalCredits": account.plan_credits + account.extra_credits,
