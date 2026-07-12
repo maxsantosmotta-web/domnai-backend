@@ -6,11 +6,13 @@ COPY frontend/ ./
 COPY scripts/connect_domnai_chat.py /tmp/connect_domnai_chat.py
 COPY scripts/connect_operation_to_composer.py /tmp/connect_operation_to_composer.py
 COPY scripts/connect_chat_attachments.py /tmp/connect_chat_attachments.py
+COPY scripts/connect_chat_local_deletion.py /tmp/connect_chat_local_deletion.py
 COPY scripts/connect_billing_back_label.py /tmp/connect_billing_back_label.py
 RUN apk add --no-cache python3 \
     && python3 /tmp/connect_domnai_chat.py \
     && python3 /tmp/connect_operation_to_composer.py \
     && python3 /tmp/connect_chat_attachments.py \
+    && python3 /tmp/connect_chat_local_deletion.py \
     && python3 /tmp/connect_billing_back_label.py \
     && npm run build
 
