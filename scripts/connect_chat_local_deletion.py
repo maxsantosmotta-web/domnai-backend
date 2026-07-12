@@ -46,7 +46,10 @@ helpers = '''
   function startLongPress(action, event) {
     if (event.target.closest('button')) return;
     window.clearTimeout(longPressTimerRef.current);
-    longPressTimerRef.current = window.setTimeout(action, 650);
+    longPressTimerRef.current = window.setTimeout(() => {
+      longPressTimerRef.current = null;
+      action();
+    }, 650);
   }
 
   function cancelLongPress() {
@@ -89,11 +92,12 @@ article_old = '<article className={`chat-message ${message.role}${message.isErro
 article_new = '''<article
                   className={`chat-message ${message.role}${message.isError ? ' error' : ''}`}
                   key={message.id}
+                  style={{ WebkitTouchCallout: 'none', userSelect: 'none' }}
                   onPointerDown={(event) => startLongPress(() => confirmDeleteMessage(message.id), event)}
                   onPointerUp={cancelLongPress}
                   onPointerCancel={cancelLongPress}
-                  onPointerLeave={cancelLongPress}
-                  onContextMenu={(event) => { event.preventDefault(); confirmDeleteMessage(message.id); }}
+                  onPointerMove={cancelLongPress}
+                  onContextMenu={(event) => { event.preventDefault(); cancelLongPress(); }}
                 >'''
 if article_old not in source:
     raise RuntimeError('Não foi possível ativar a exclusão unitária nas mensagens.')
@@ -103,11 +107,12 @@ image_old = '<figure className="chat-image-native" key={item.id}>'
 image_new = '''<figure
                           className="chat-image-native"
                           key={item.id}
+                          style={{ WebkitTouchCallout: 'none', userSelect: 'none' }}
                           onPointerDown={(event) => { event.stopPropagation(); startLongPress(() => confirmDeleteAttachment(item), event); }}
                           onPointerUp={(event) => { event.stopPropagation(); cancelLongPress(); }}
                           onPointerCancel={cancelLongPress}
-                          onPointerLeave={cancelLongPress}
-                          onContextMenu={(event) => { event.preventDefault(); event.stopPropagation(); confirmDeleteAttachment(item); }}
+                          onPointerMove={cancelLongPress}
+                          onContextMenu={(event) => { event.preventDefault(); event.stopPropagation(); cancelLongPress(); }}
                         >'''
 if image_old not in source:
     raise RuntimeError('Não foi possível ativar a exclusão unitária nas imagens.')
@@ -117,11 +122,12 @@ file_old = '<div className="chat-native-file" key={item.id}>'
 file_new = '''<div
                           className="chat-native-file"
                           key={item.id}
+                          style={{ WebkitTouchCallout: 'none', userSelect: 'none' }}
                           onPointerDown={(event) => { event.stopPropagation(); startLongPress(() => confirmDeleteAttachment(item), event); }}
                           onPointerUp={(event) => { event.stopPropagation(); cancelLongPress(); }}
                           onPointerCancel={cancelLongPress}
-                          onPointerLeave={cancelLongPress}
-                          onContextMenu={(event) => { event.preventDefault(); event.stopPropagation(); confirmDeleteAttachment(item); }}
+                          onPointerMove={cancelLongPress}
+                          onContextMenu={(event) => { event.preventDefault(); event.stopPropagation(); cancelLongPress(); }}
                         >'''
 if file_old not in source:
     raise RuntimeError('Não foi possível ativar a exclusão unitária nos arquivos.')
