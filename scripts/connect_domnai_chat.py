@@ -1,0 +1,103 @@
+from pathlib import Path
+import re
+
+path = Path('/frontend/src/Dashboard.jsx')
+source = path.read_text(encoding='utf-8')
+
+if "const [responding, setResponding]" not in source:
+    source = source.replace(
+        "  const [uploading, setUploading] = useState(false);",
+        "  const [uploading, setUploading] = useState(false);\n  const [responding, setResponding] = useState(false);",
+        1,
+    )
+
+send_block = '''  async function sendMessage(event) {
+    event.preventDefault();
+    const text = draft.trim();
+    if ((!text && attachments.length === 0) || uploading || responding) return;
+
+    const sentAttachments = [...attachments];
+    const userMessage = {
+      id: Date.now(),
+      role: 'user',
+      text,
+      attachments: sentAttachments,
+    };
+    const history = messages
+      .filter((message) => ['user', 'assistant'].includes(message.role) && message.text?.trim())
+      .slice(-40)
+      .map((message) => ({ role: message.role, content: message.text.trim() }));
+    const operationName = operations.find((item) => item.id === activeOperation)?.name || null;
+    const messageForApi = text || `Analise os arquivos anexados: ${sentAttachments.map((item) => item.name).join(', ')}`;
+
+    setMessages((current) => [...current, userMessage]);
+    setDraft('');
+    setAttachments([]);
+    setPlusOpen(false);
+    setResponding(true);
+
+    try {
+      const response = await authorizedFetch('/api/chat/respond', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          message: messageForApi,
+          operation: operationName,
+          history,
+        }),
+      });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        throw new Error(payload.detail || 'Não foi possível obter a resposta do DomnAI.');
+      }
+      setMessages((current) => [...current, {
+        id: Date.now() + 1,
+        role: 'assistant',
+        text: payload.reply || 'O DomnAI não retornou uma resposta em texto.',
+        attachments: [],
+      }]);
+    } catch (error) {
+      setMessages((current) => [...current, {
+        id: Date.now() + 1,
+        role: 'assistant',
+        text: error.message || 'Não foi possível concluir a análise. Tente novamente.',
+        attachments: [],
+        isError: true,
+      }]);
+    } finally {
+      setResponding(false);
+    }
+  }
+
+'''
+
+source, count = re.subn(
+    r"  (?:async )?function sendMessage\(event\) \{.*?\n  \}\n\n(?=  async function moveLibraryAssetToTrash)",
+    send_block,
+    source,
+    count=1,
+    flags=re.S,
+)
+if count != 1 and "async function sendMessage(event)" not in source:
+    raise RuntimeError('Não foi possível localizar sendMessage em Dashboard.jsx.')
+
+source = source.replace(
+    "<article className={`chat-message ${message.role}`} key={message.id}>",
+    "<article className={`chat-message ${message.role}${message.isError ? ' error' : ''}`} key={message.id}>",
+)
+
+analyzing = "              {responding ? <article className=\"chat-message assistant analyzing\"><span className=\"message-author\">DomnAI</span><p>DomnAI está analisando...</p></article> : null}"
+if analyzing not in source:
+    target = "            </div>\n            <form className=\"chat-composer simplified-composer composer-with-plus\" onSubmit={sendMessage}>"
+    replacement = f"{analyzing}\n            </div>\n            <form className=\"chat-composer simplified-composer composer-with-plus\" onSubmit={{sendMessage}}>"
+    if target not in source:
+        raise RuntimeError('Não foi possível localizar o compositor do chat.')
+    source = source.replace(target, replacement, 1)
+
+source = source.replace(
+    "placeholder={uploading ? 'Salvando na biblioteca...' : 'Digite sua mensagem...'} rows=\"3\" disabled={uploading} /><button type=\"submit\" className=\"send-message-button\" aria-label=\"Enviar mensagem\" disabled={uploading}>➤</button>",
+    "placeholder={uploading ? 'Salvando na biblioteca...' : responding ? 'Aguarde a resposta do DomnAI...' : 'Digite sua mensagem...'} rows=\"3\" disabled={uploading || responding} /><button type=\"submit\" className=\"send-message-button\" aria-label=\"Enviar mensagem\" disabled={uploading || responding}>➤</button>",
+    1,
+)
+
+path.write_text(source, encoding='utf-8')
