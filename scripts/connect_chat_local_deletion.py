@@ -68,11 +68,11 @@ helpers = '''
   }
 
   function confirmDeleteMessage(messageId) {
-    runSingleDeletePrompt('Apagar esta mensagem?\n\nOK para apagar ou Cancelar para manter.', () => deleteChatMessage(messageId));
+    runSingleDeletePrompt('Apagar esta mensagem? OK para apagar ou Cancelar para manter.', () => deleteChatMessage(messageId));
   }
 
   function confirmDeleteAttachment(item) {
-    runSingleDeletePrompt('Apagar este item da conversa?\n\nOK para apagar ou Cancelar para manter.', () => removeAttachmentFromChat(item));
+    runSingleDeletePrompt('Apagar este item da conversa? OK para apagar ou Cancelar para manter.', () => removeAttachmentFromChat(item));
   }
 
   function startLongPress(action, event) {
