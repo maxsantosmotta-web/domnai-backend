@@ -41,23 +41,52 @@ helpers = '''
     }, 500);
   }
 
+  async function copyMessageText(text, button) {
+    const value = String(text || '').trim();
+    if (!value) return;
+    try {
+      if (navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(value);
+      } else {
+        const textarea = document.createElement('textarea');
+        textarea.value = value;
+        textarea.style.position = 'fixed';
+        textarea.style.opacity = '0';
+        document.body.appendChild(textarea);
+        textarea.select();
+        document.execCommand('copy');
+        textarea.remove();
+      }
+      if (button) {
+        const original = button.textContent;
+        button.textContent = 'Copiado';
+        window.setTimeout(() => { button.textContent = original; }, 1200);
+      }
+    } catch {
+      window.alert('Não foi possível copiar esta mensagem.');
+    }
+  }
+
   function confirmDeleteMessage(messageId) {
-    runSingleDeletePrompt('Apagar esta mensagem?', () => deleteChatMessage(messageId));
+    runSingleDeletePrompt('Apagar esta mensagem?\n\nOK para apagar ou Cancelar para manter.', () => deleteChatMessage(messageId));
   }
 
   function confirmDeleteAttachment(item) {
-    runSingleDeletePrompt('Apagar este item da conversa?', () => removeAttachmentFromChat(item));
+    runSingleDeletePrompt('Apagar este item da conversa?\n\nOK para apagar ou Cancelar para manter.', () => removeAttachmentFromChat(item));
   }
 
   function startLongPress(action, event) {
     if (event.target.closest('button')) return;
     window.clearTimeout(longPressTimerRef.current);
-    longPressActionRef.current = null;
+    longPressActionRef.current = action;
     longPressStartRef.current = { x: event.clientX, y: event.clientY };
     longPressTimerRef.current = window.setTimeout(() => {
       longPressTimerRef.current = null;
-      longPressActionRef.current = action;
-    }, 650);
+      const pendingAction = longPressActionRef.current;
+      longPressActionRef.current = null;
+      longPressStartRef.current = null;
+      if (pendingAction) pendingAction();
+    }, 600);
   }
 
   function moveLongPress(event) {
@@ -70,10 +99,8 @@ helpers = '''
   function finishLongPress() {
     window.clearTimeout(longPressTimerRef.current);
     longPressTimerRef.current = null;
-    longPressStartRef.current = null;
-    const action = longPressActionRef.current;
     longPressActionRef.current = null;
-    if (action) window.setTimeout(action, 0);
+    longPressStartRef.current = null;
   }
 
   function cancelLongPress() {
@@ -129,6 +156,12 @@ article_new = '''<article
 if article_old not in source:
     raise RuntimeError('Não foi possível ativar a exclusão unitária nas mensagens.')
 source = source.replace(article_old, article_new, 1)
+
+text_old = "{message.text ? <p>{message.text}</p> : null}"
+text_new = "{message.text ? <><p>{message.text}</p><button type=\"button\" className=\"copy-message-button\" onClick={(event) => { event.stopPropagation(); copyMessageText(message.text, event.currentTarget); }}>Copiar</button></> : null}"
+if text_old not in source:
+    raise RuntimeError('Não foi possível adicionar a cópia das mensagens.')
+source = source.replace(text_old, text_new, 1)
 
 image_old = '<figure className="chat-image-native" key={item.id}>'
 image_new = '''<figure
