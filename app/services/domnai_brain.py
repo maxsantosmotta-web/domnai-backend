@@ -114,6 +114,51 @@ def _post_json(url: str, headers: dict[str, str], payload: dict, timeout: int = 
         raise RuntimeError("Não foi possível conectar ao provedor de inteligência.") from exc
 
 
+def _integration_api_key() -> str:
+    return (
+        os.getenv("AI_INTEGRATIONS_OPENAI_API_KEY", "").strip()
+        or os.getenv("AI_INTEGRATION_OPENAI_API_KEY", "").strip()
+    )
+
+
+def _integration_base_url() -> str:
+    return (
+        os.getenv("AI_INTEGRATIONS_OPENAI_BASE_URL", "").strip()
+        or os.getenv("AI_INTEGRATION_OPENAI_BASE_URL", "").strip()
+    ).rstrip("/")
+
+
+def _gateway_response(message: str, history: list[dict], operation: str | None) -> BrainResult:
+    api_key = _integration_api_key()
+    base_url = _integration_base_url()
+    if not api_key or not base_url:
+        raise RuntimeError("Integração OpenAI do gateway não configurada.")
+
+    model = os.getenv("DOMNAI_GATEWAY_MODEL", "gpt-4o-mini").strip()
+    messages = [{"role": "system", "content": build_system_prompt(operation)}]
+    messages.extend(_normalized_history(history))
+    messages.append({"role": "user", "content": message})
+
+    data = _post_json(
+        f"{base_url}/chat/completions",
+        {"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"},
+        {
+            "model": model,
+            "messages": messages,
+            "temperature": 0.35,
+            "max_tokens": 1800,
+        },
+    )
+
+    choices = data.get("choices") or []
+    text = ""
+    if choices:
+        text = str((choices[0].get("message") or {}).get("content") or "").strip()
+    if not text:
+        raise RuntimeError("O gateway não retornou uma resposta em texto.")
+    return BrainResult(text=text, provider="replit-openai-gateway", model=model)
+
+
 def _openai_response(message: str, history: list[dict], operation: str | None) -> BrainResult:
     api_key = os.getenv("OPENAI_API_KEY", "").strip()
     if not api_key:
@@ -185,13 +230,17 @@ def _anthropic_response(message: str, history: list[dict], operation: str | None
 def generate_domnai_response(message: str, history: list[dict], operation: str | None) -> BrainResult:
     provider = os.getenv("DOMNAI_AI_PROVIDER", "auto").strip().lower()
 
+    if provider == "gateway":
+        return _gateway_response(message, history, operation)
     if provider == "openai":
         return _openai_response(message, history, operation)
     if provider == "anthropic":
         return _anthropic_response(message, history, operation)
     if provider not in {"", "auto"}:
-        raise RuntimeError("DOMNAI_AI_PROVIDER inválido. Use openai, anthropic ou auto.")
+        raise RuntimeError("DOMNAI_AI_PROVIDER inválido. Use gateway, openai, anthropic ou auto.")
 
+    if _integration_api_key() and _integration_base_url():
+        return _gateway_response(message, history, operation)
     if os.getenv("OPENAI_API_KEY", "").strip():
         return _openai_response(message, history, operation)
     if os.getenv("ANTHROPIC_API_KEY", "").strip():
