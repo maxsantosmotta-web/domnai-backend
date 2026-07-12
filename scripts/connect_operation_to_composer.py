@@ -59,7 +59,6 @@ replacement = '''  function selectOperation(item) {
 
     setActiveOperation(item.id);
     setSection('chat');
-    setDraft(item.name);
     setAttachments([]);
     setPlusOpen(false);
     setSidebarOpen(false);
@@ -75,6 +74,7 @@ replacement = '''  function selectOperation(item) {
     }
 
     window.setTimeout(() => {
+      setDraft(item.name);
       setComposerScrollRequest((current) => current + 1);
     }, 240);
   }
