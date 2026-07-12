@@ -99,6 +99,11 @@ function restoreVisibleAppAfterReturn() {
 }
 
 function handleNavigationClick(event) {
+  const freeButton = event.target.closest('[data-billing-action="free"]');
+  if (freeButton) {
+    window.setTimeout(() => window.dispatchEvent(new Event('domnai:billing-updated')), 450);
+  }
+
   const menuButton = event.target.closest('.mobile-menu-button');
   if (menuButton) {
     window.requestAnimationFrame(syncMobileMenuScrollLock);
