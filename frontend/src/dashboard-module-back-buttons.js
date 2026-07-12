@@ -13,7 +13,7 @@ function ensureModuleBackButton(section, label) {
   const header = section.querySelector(':scope > header');
   if (!header) return;
 
-  let button = header.querySelector('.module-back-button');
+  let button = header.querySelector('.module-back-button:not(.domnai-profile-close)');
   if (!button) {
     button = document.createElement('button');
     button.type = 'button';
@@ -38,14 +38,13 @@ function applyModuleBackButtons() {
 
   const profilePage = document.querySelector('[data-domnai-profile-page]');
   if (profilePage) {
-    const oldButton = profilePage.querySelector('.domnai-profile-close');
-    if (oldButton) {
-      oldButton.textContent = 'Voltar';
-      oldButton.classList.add('module-back-button');
-      oldButton.setAttribute('aria-label', 'Voltar ao chat a partir do Perfil');
-    } else {
-      ensureModuleBackButton(profilePage, 'Perfil');
+    const originalDashboardButton = profilePage.querySelector('.domnai-profile-close');
+    if (originalDashboardButton) {
+      originalDashboardButton.textContent = 'Voltar ao Dashboard';
+      originalDashboardButton.classList.remove('module-back-button');
+      originalDashboardButton.setAttribute('aria-label', 'Voltar ao Dashboard');
     }
+    ensureModuleBackButton(profilePage, 'Perfil');
   }
 
   const billingButton = document.querySelector('.billing-back-to-chat');
