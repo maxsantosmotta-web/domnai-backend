@@ -120,29 +120,25 @@ article_old = '<article className={`chat-message ${message.role}${message.isErro
 article_new = '''<article
                   className={`chat-message ${message.role}${message.isError ? ' error' : ''}`}
                   key={message.id}
-                  style={{ WebkitTouchCallout: 'default', userSelect: 'text', position: 'relative' }}
-                >
-                  <span
-                    aria-hidden="true"
-                    style={{ position: 'absolute', left: 0, top: 0, bottom: 0, width: '22px', zIndex: 2, touchAction: 'none', userSelect: 'none' }}
-                    onPointerDown={(event) => { event.stopPropagation(); startLongPress(() => confirmDeleteMessage(message.id), event); }}
-                    onPointerUp={(event) => { event.stopPropagation(); finishLongPress(); }}
-                    onPointerCancel={cancelLongPress}
-                    onPointerMove={moveLongPress}
-                    onContextMenu={(event) => { event.preventDefault(); event.stopPropagation(); }}
-                  />
-                  <span
-                    aria-hidden="true"
-                    style={{ position: 'absolute', right: 0, top: 0, bottom: 0, width: '22px', zIndex: 2, touchAction: 'none', userSelect: 'none' }}
-                    onPointerDown={(event) => { event.stopPropagation(); startLongPress(() => confirmDeleteMessage(message.id), event); }}
-                    onPointerUp={(event) => { event.stopPropagation(); finishLongPress(); }}
-                    onPointerCancel={cancelLongPress}
-                    onPointerMove={moveLongPress}
-                    onContextMenu={(event) => { event.preventDefault(); event.stopPropagation(); }}
-                  />'''
+                  style={{ WebkitTouchCallout: 'default', userSelect: 'text' }}
+                >'''
 if article_old not in source:
-    raise RuntimeError('Não foi possível ativar a exclusão unitária nas mensagens.')
+    raise RuntimeError('Não foi possível localizar as mensagens do chat.')
 source = source.replace(article_old, article_new, 1)
+
+author_old = '<span className="message-author">{message.role === \'assistant\' ? \'DomnAI\' : \'Você\'}</span>'
+author_new = '''<span
+                    className="message-author"
+                    style={{ display: 'block', width: '100%', minHeight: '28px', touchAction: 'none', userSelect: 'none', WebkitTouchCallout: 'none' }}
+                    onPointerDown={(event) => { event.stopPropagation(); startLongPress(() => confirmDeleteMessage(message.id), event); }}
+                    onPointerUp={(event) => { event.stopPropagation(); finishLongPress(); }}
+                    onPointerCancel={cancelLongPress}
+                    onPointerMove={moveLongPress}
+                    onContextMenu={(event) => { event.preventDefault(); event.stopPropagation(); }}
+                  >{message.role === 'assistant' ? 'DomnAI' : 'Você'}</span>'''
+if author_old not in source:
+    raise RuntimeError('Não foi possível localizar o cabeçalho das mensagens.')
+source = source.replace(author_old, author_new, 1)
 
 text_old = "{message.text ? <p>{message.text}</p> : null}"
 text_new = "{message.text ? <p style={{ WebkitTouchCallout: 'default', userSelect: 'text' }}>{message.text}</p> : null}"
