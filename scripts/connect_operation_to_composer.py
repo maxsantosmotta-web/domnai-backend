@@ -7,40 +7,57 @@ source = path.read_text(encoding='utf-8')
 if "const operationComposerRef = useRef(null);" not in source:
     source = source.replace(
         "  const fileInputRef = useRef(null);",
-        "  const fileInputRef = useRef(null);\n  const operationComposerRef = useRef(null);",
+        "  const fileInputRef = useRef(null);\n  const operationComposerRef = useRef(null);\n  const [composerScrollRequest, setComposerScrollRequest] = useState(0);",
         1,
     )
 
-scroll_helper = '''
-  function moveUserToChatComposer() {
-    const performScroll = (behavior = 'auto') => {
+scroll_effect = '''
+  useEffect(() => {
+    if (!composerScrollRequest || section !== 'chat') return undefined;
+
+    let cancelled = false;
+    let secondFrame = null;
+
+    const moveToComposer = () => {
+      if (cancelled) return;
+
       const chatArea = document.querySelector('.clean-chat-area');
       if (chatArea) {
-        chatArea.scrollTo({ top: chatArea.scrollHeight, behavior });
+        chatArea.scrollTop = chatArea.scrollHeight;
       }
 
       const composer = operationComposerRef.current;
       if (!composer) return;
 
-      const composerTop = window.scrollY + composer.getBoundingClientRect().top;
-      const targetTop = Math.max(0, composerTop - window.innerHeight + composer.offsetHeight + 24);
-      window.scrollTo({ top: targetTop, behavior });
+      composer.scrollIntoView({ behavior: 'auto', block: 'end', inline: 'nearest' });
+
+      const pageScroller = document.scrollingElement || document.documentElement;
+      pageScroller.scrollTop = pageScroller.scrollHeight;
+      window.scrollTo(0, pageScroller.scrollHeight);
     };
 
-    window.requestAnimationFrame(() => {
-      window.requestAnimationFrame(() => performScroll('auto'));
+    const firstFrame = window.requestAnimationFrame(() => {
+      secondFrame = window.requestAnimationFrame(moveToComposer);
     });
-    window.setTimeout(() => performScroll('smooth'), 180);
-    window.setTimeout(() => performScroll('auto'), 700);
-  }
+    const settleTimer = window.setTimeout(moveToComposer, 180);
+    const finalTimer = window.setTimeout(moveToComposer, 420);
+
+    return () => {
+      cancelled = true;
+      window.cancelAnimationFrame(firstFrame);
+      if (secondFrame !== null) window.cancelAnimationFrame(secondFrame);
+      window.clearTimeout(settleTimer);
+      window.clearTimeout(finalTimer);
+    };
+  }, [composerScrollRequest, section, messages.length]);
 
 '''
 
-if "function moveUserToChatComposer()" not in source:
+if "[composerScrollRequest, section, messages.length]" not in source:
     match = re.search(r"  (?:async )?function selectOperation\(item\) \{", source)
     if not match:
         raise RuntimeError('Não foi possível localizar a seleção de operação.')
-    source = source[:match.start()] + scroll_helper + source[match.start():]
+    source = source[:match.start()] + scroll_effect + source[match.start():]
 
 replacement = '''  function selectOperation(item) {
     if (responding) return;
@@ -65,7 +82,7 @@ replacement = '''  function selectOperation(item) {
       }]);
     }
 
-    moveUserToChatComposer();
+    setComposerScrollRequest((current) => current + 1);
   }
 '''
 
@@ -86,7 +103,7 @@ refresh_replacement = '''  function refreshConversation() {
     setSearchOpen(false);
     setOptionsOpen(false);
     setPlusOpen(false);
-    moveUserToChatComposer();
+    setComposerScrollRequest((current) => current + 1);
   }'''
 
 source, refresh_count = re.subn(
