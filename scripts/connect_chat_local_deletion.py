@@ -5,8 +5,20 @@ path = Path('/frontend/src/Dashboard.jsx')
 source = path.read_text(encoding='utf-8')
 
 source = source.replace(
+    "import './dashboard-operation-blocks.css';",
+    "import './dashboard-operation-blocks.css';\nimport './dashboard-delete-modal.css';",
+    1,
+)
+
+source = source.replace(
     "  const fileInputRef = useRef(null);",
     "  const fileInputRef = useRef(null);\n  const longPressTimerRef = useRef(null);",
+    1,
+)
+
+source = source.replace(
+    "  const [conversationReady, setConversationReady] = useState(false);",
+    "  const [conversationReady, setConversationReady] = useState(false);\n  const [pendingDelete, setPendingDelete] = useState(null);",
     1,
 )
 
@@ -26,15 +38,36 @@ helpers = '''
   }
 
   function confirmDeleteMessage(messageId) {
-    if (window.confirm('Excluir somente esta mensagem da conversa? Os arquivos continuarão salvos na Biblioteca.')) {
-      deleteChatMessage(messageId);
-    }
+    setPendingDelete({ type: 'message', messageId });
   }
 
   function confirmDeleteAttachment(item) {
-    if (window.confirm('Remover somente este arquivo da conversa? Ele continuará salvo na Biblioteca.')) {
-      removeAttachmentFromChat(item);
+    setPendingDelete({ type: 'attachment', item });
+  }
+
+  function confirmDeleteConversation() {
+    setPendingDelete({ type: 'conversation' });
+    setOptionsOpen(false);
+  }
+
+  function executePendingDelete() {
+    if (!pendingDelete) return;
+
+    if (pendingDelete.type === 'message') {
+      deleteChatMessage(pendingDelete.messageId);
+    } else if (pendingDelete.type === 'attachment') {
+      removeAttachmentFromChat(pendingDelete.item);
+    } else if (pendingDelete.type === 'conversation') {
+      setMessages([]);
+      setActiveOperation(null);
+      setSearch('');
+      setSearchOpen(false);
+      setAttachments([]);
+      setOptionsOpen(false);
+      setPlusOpen(false);
     }
+
+    setPendingDelete(null);
   }
 
   function startLongPress(action, event) {
@@ -51,11 +84,10 @@ helpers = '''
 '''
 
 marker = "  async function deleteAttachment(item) {"
-if helpers.strip() not in source:
-    index = source.find(marker)
-    if index == -1:
-        raise RuntimeError('Não foi possível localizar a exclusão de anexos.')
-    source = source[:index] + helpers + source[index:]
+index = source.find(marker)
+if index == -1:
+    raise RuntimeError('Não foi possível localizar a exclusão de anexos.')
+source = source[:index] + helpers + source[index:]
 
 source, count = re.subn(
     r"  async function deleteAttachment\(item\) \{.*?\n  \}\n\n  async function deleteConversation\(\) \{.*?\n  \}",
@@ -64,14 +96,7 @@ source, count = re.subn(
   }
 
   async function deleteConversation() {
-    if (!window.confirm('Excluir toda a conversa? Os arquivos continuarão salvos na Biblioteca.')) return;
-    setMessages([]);
-    setActiveOperation(null);
-    setSearch('');
-    setSearchOpen(false);
-    setAttachments([]);
-    setOptionsOpen(false);
-    setPlusOpen(false);
+    confirmDeleteConversation();
   }''',
     source,
     count=1,
@@ -121,5 +146,21 @@ file_new = '''<div
 if file_old not in source:
     raise RuntimeError('Não foi possível ativar a exclusão unitária nos arquivos.')
 source = source.replace(file_old, file_new, 1)
+
+modal_marker = "      {sidebarOpen ? <button className=\"sidebar-backdrop\""
+modal_index = source.find(modal_marker)
+if modal_index == -1:
+    raise RuntimeError('Não foi possível inserir a confirmação de exclusão.')
+modal = '''      {pendingDelete ? (
+        <div className="chat-delete-modal-backdrop" role="dialog" aria-modal="true" aria-label="Confirmar exclusão">
+          <div className="chat-delete-modal">
+            <button type="button" className="cancel" onClick={() => setPendingDelete(null)}>Cancelar</button>
+            <button type="button" className="delete" onClick={executePendingDelete}>Apagar</button>
+          </div>
+        </div>
+      ) : null}
+
+'''
+source = source[:modal_index] + modal + source[modal_index:]
 
 path.write_text(source, encoding='utf-8')
