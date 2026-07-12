@@ -4,10 +4,92 @@ import re
 path = Path('/frontend/src/Dashboard.jsx')
 source = path.read_text(encoding='utf-8')
 
+source = source.replace(
+    "import React, { useMemo, useRef, useState } from 'react';",
+    "import React, { useEffect, useMemo, useRef, useState } from 'react';",
+    1,
+)
+source = source.replace(
+    "  const { getToken } = useAuth();",
+    "  const { getToken, userId } = useAuth();",
+    1,
+)
+
 if "const [responding, setResponding]" not in source:
     source = source.replace(
         "  const [uploading, setUploading] = useState(false);",
         "  const [uploading, setUploading] = useState(false);\n  const [responding, setResponding] = useState(false);",
+        1,
+    )
+
+if "const [conversationReady, setConversationReady]" not in source:
+    source = source.replace(
+        "  const [responding, setResponding] = useState(false);",
+        "  const [responding, setResponding] = useState(false);\n  const [conversationReady, setConversationReady] = useState(false);",
+        1,
+    )
+
+persistence_block = '''
+  useEffect(() => {
+    if (!userId) return undefined;
+    let cancelled = false;
+    setConversationReady(false);
+
+    authorizedFetch('/api/chat-state')
+      .then(async (response) => {
+        if (!response.ok) throw new Error('Não foi possível restaurar a conversa.');
+        return response.json();
+      })
+      .then((payload) => {
+        if (cancelled) return;
+        setMessages(Array.isArray(payload.messages) ? payload.messages : []);
+        setActiveOperation(payload.activeOperation || null);
+        setConversationReady(true);
+      })
+      .catch(() => {
+        if (!cancelled) setConversationReady(true);
+      });
+
+    return () => { cancelled = true; };
+  }, [userId]);
+
+  useEffect(() => {
+    if (!userId || !conversationReady) return undefined;
+    const timer = window.setTimeout(() => {
+      const serializableMessages = messages.map((message) => ({
+        id: message.id,
+        role: message.role,
+        text: message.text || '',
+        isError: Boolean(message.isError),
+        attachments: (message.attachments || []).map((item) => ({
+          id: item.id,
+          libraryId: item.libraryId || null,
+          name: item.name,
+          type: item.type,
+          mimeType: item.mimeType || '',
+          size: item.size || item.sizeBytes || 0,
+        })),
+      }));
+
+      authorizedFetch('/api/chat-state', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          messages: serializableMessages,
+          active_operation: activeOperation,
+        }),
+      }).catch(() => {});
+    }, 250);
+
+    return () => window.clearTimeout(timer);
+  }, [messages, activeOperation, conversationReady, userId]);
+
+'''
+
+if "authorizedFetch('/api/chat-state')" not in source:
+    source = source.replace(
+        "  const showExitButton = section !== 'chat';\n",
+        persistence_block + "  const showExitButton = section !== 'chat';\n",
         1,
     )
 
