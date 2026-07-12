@@ -3,7 +3,10 @@ WORKDIR /frontend
 COPY frontend/package*.json ./
 RUN npm install
 COPY frontend/ ./
-RUN npm run build
+COPY scripts/connect_domnai_chat.py /tmp/connect_domnai_chat.py
+RUN apk add --no-cache python3 \
+    && python3 /tmp/connect_domnai_chat.py \
+    && npm run build
 
 FROM python:3.13-slim AS runtime
 WORKDIR /app
