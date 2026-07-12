@@ -10,6 +10,11 @@ source = source.replace(
     1,
 )
 source = source.replace(
+    "import './dashboard-adjustments.css';",
+    "import './dashboard-adjustments.css';\nimport './dashboard-operation-blocks.css';",
+    1,
+)
+source = source.replace(
     "  const { getToken } = useAuth();",
     "  const { getToken, userId } = useAuth();",
     1,
@@ -60,6 +65,7 @@ persistence_block = '''
         id: message.id,
         role: message.role,
         text: message.text || '',
+        operationId: message.operationId || null,
         isError: Boolean(message.isError),
         attachments: (message.attachments || []).map((item) => ({
           id: item.id,
@@ -93,58 +99,33 @@ if "authorizedFetch('/api/chat-state')" not in source:
         1,
     )
 
-select_operation_block = '''  async function selectOperation(item) {
+select_operation_block = '''  function selectOperation(item) {
     if (responding) return;
 
-    const currentOperationName = operations.find((operation) => operation.id === activeOperation)?.name || null;
-    const serializableMessages = messages.map((message) => ({
-      id: message.id,
-      role: message.role,
-      text: message.text || '',
-      isError: Boolean(message.isError),
-      attachments: (message.attachments || []).map((attachment) => ({
-        id: attachment.id,
-        libraryId: attachment.libraryId || null,
-        name: attachment.name,
-        type: attachment.type,
-        mimeType: attachment.mimeType || '',
-        size: attachment.size || attachment.sizeBytes || 0,
-      })),
-    }));
+    const lastMessage = messages[messages.length - 1];
+    const alreadyCurrent = activeOperation === item.id && lastMessage?.role === 'operation';
 
-    setSidebarOpen(false);
+    setActiveOperation(item.id);
     setSection('chat');
     setDraft('');
     setAttachments([]);
     setPlusOpen(false);
+    setSidebarOpen(false);
 
-    try {
-      const response = await authorizedFetch('/api/chat-state/new-operation', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          messages: serializableMessages,
-          current_operation: activeOperation,
-          current_operation_name: currentOperationName,
-          next_operation: item.id,
-          next_operation_name: item.name,
-        }),
-      });
-      const payload = await response.json().catch(() => ({}));
-      if (!response.ok) throw new Error(payload.detail || 'Não foi possível iniciar a nova operação.');
-
-      setConversationReady(false);
-      setMessages([]);
-      setActiveOperation(item.id);
-      window.setTimeout(() => setConversationReady(true), 0);
-    } catch (error) {
-      window.alert(error.message || 'Não foi possível iniciar a nova operação.');
+    if (!alreadyCurrent) {
+      setMessages((current) => [...current, {
+        id: `operation-${item.id}-${Date.now()}`,
+        role: 'operation',
+        text: item.name,
+        operationId: item.id,
+        attachments: [],
+      }]);
     }
   }
 '''
 
 source, operation_count = re.subn(
-    r"  function selectOperation\(item\) \{.*?\n  \}",
+    r"  (?:async )?function selectOperation\(item\) \{.*?\n  \}",
     select_operation_block.rstrip(),
     source,
     count=1,
@@ -165,10 +146,17 @@ send_block = '''  async function sendMessage(event) {
       text,
       attachments: sentAttachments,
     };
-    const history = messages
+
+    const lastOperationIndex = messages.reduce(
+      (lastIndex, message, index) => message.role === 'operation' ? index : lastIndex,
+      -1,
+    );
+    const currentBlockMessages = lastOperationIndex >= 0 ? messages.slice(lastOperationIndex + 1) : messages;
+    const history = currentBlockMessages
       .filter((message) => ['user', 'assistant'].includes(message.role) && message.text?.trim())
       .slice(-40)
       .map((message) => ({ role: message.role, content: message.text.trim() }));
+
     const operationName = operations.find((item) => item.id === activeOperation)?.name || null;
     const messageForApi = text || `Analise os arquivos anexados: ${sentAttachments.map((item) => item.name).join(', ')}`;
 
@@ -223,10 +211,29 @@ source, count = re.subn(
 if count != 1 and "async function sendMessage(event)" not in source:
     raise RuntimeError('Não foi possível localizar sendMessage em Dashboard.jsx.')
 
-source = source.replace(
-    "<article className={`chat-message ${message.role}`} key={message.id}>",
-    "<article className={`chat-message ${message.role}${message.isError ? ' error' : ''}`} key={message.id}>",
+old_render_pattern = r"\{visibleMessages\.map\(\(message\) => <article className=\{`chat-message \$\{message\.role\}[^}]*\}`\} key=\{message\.id\}>.*?</article>\)\}"
+operation_render = '''{visibleMessages.map((message) => message.role === 'operation' ? (
+                <div className="chat-operation-divider" key={message.id} data-operation-id={message.operationId || ''}>
+                  <span>Nova operação</span>
+                  <strong>{message.text}</strong>
+                </div>
+              ) : (
+                <article className={`chat-message ${message.role}${message.isError ? ' error' : ''}`} key={message.id}>
+                  <span className="message-author">{message.role === 'assistant' ? 'DomnAI' : 'Você'}</span>
+                  {message.text ? <p>{message.text}</p> : null}
+                  {(message.attachments || []).length ? <div className="message-attachments">{message.attachments.map((item) => item.type === 'image' && item.previewUrl ? <figure className="chat-image-native" key={item.id}><img src={item.previewUrl} alt={item.name} /><figcaption><span>{item.name}</span><div><button type="button" onClick={() => openAttachment(item)}>Abrir imagem</button><button type="button" className="danger" onClick={() => deleteAttachment(item)}>Excluir</button></div></figcaption></figure> : <div className="chat-native-file" key={item.id}>{renderNativeFile(item, () => openAttachment(item))}<button type="button" className="native-delete-button" onClick={() => deleteAttachment(item)}>Excluir</button></div>)}</div> : null}
+                </article>
+              ))}'''
+
+source, render_count = re.subn(
+    old_render_pattern,
+    operation_render,
+    source,
+    count=1,
+    flags=re.S,
 )
+if render_count != 1:
+    raise RuntimeError('Não foi possível localizar a renderização das mensagens.')
 
 analyzing = "              {responding ? <article className=\"chat-message assistant analyzing\"><span className=\"message-author\">DomnAI</span><p>DomnAI está analisando...</p></article> : null}"
 if analyzing not in source:
