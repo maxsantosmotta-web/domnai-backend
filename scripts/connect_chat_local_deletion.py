@@ -12,7 +12,7 @@ source = source.replace(
 
 source = source.replace(
     "  const fileInputRef = useRef(null);",
-    "  const fileInputRef = useRef(null);\n  const longPressTimerRef = useRef(null);\n  const longPressActionRef = useRef(null);",
+    "  const fileInputRef = useRef(null);\n  const longPressTimerRef = useRef(null);\n  const longPressActionRef = useRef(null);\n  const deletePromptLockedRef = useRef(false);",
     1,
 )
 
@@ -31,16 +31,22 @@ helpers = '''
     setMessages((current) => current.filter((message) => message.id !== messageId));
   }
 
+  function runSingleDeletePrompt(text, onConfirm) {
+    if (deletePromptLockedRef.current) return;
+    deletePromptLockedRef.current = true;
+    const confirmed = window.confirm(text);
+    if (confirmed) onConfirm();
+    window.setTimeout(() => {
+      deletePromptLockedRef.current = false;
+    }, 500);
+  }
+
   function confirmDeleteMessage(messageId) {
-    if (window.confirm('Apagar esta mensagem?')) {
-      deleteChatMessage(messageId);
-    }
+    runSingleDeletePrompt('Apagar esta mensagem?', () => deleteChatMessage(messageId));
   }
 
   function confirmDeleteAttachment(item) {
-    if (window.confirm('Apagar este item da conversa?')) {
-      removeAttachmentFromChat(item);
-    }
+    runSingleDeletePrompt('Apagar este item da conversa?', () => removeAttachmentFromChat(item));
   }
 
   function startLongPress(action, event) {
@@ -82,14 +88,15 @@ source, count = re.subn(
   }
 
   async function deleteConversation() {
-    if (!window.confirm('Apagar a conversa?')) return;
-    setMessages([]);
-    setActiveOperation(null);
-    setSearch('');
-    setSearchOpen(false);
-    setAttachments([]);
-    setOptionsOpen(false);
-    setPlusOpen(false);
+    runSingleDeletePrompt('Apagar a conversa?', () => {
+      setMessages([]);
+      setActiveOperation(null);
+      setSearch('');
+      setSearchOpen(false);
+      setAttachments([]);
+      setOptionsOpen(false);
+      setPlusOpen(false);
+    });
   }''',
     source,
     count=1,
