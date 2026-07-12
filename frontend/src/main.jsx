@@ -23,6 +23,7 @@ import './dashboard-profile-compact.css';
 import './dashboard-logout-enhancements.css';
 import './dashboard-release-fixes.css';
 import './dashboard-navigation-layer-fixes.css';
+import './dashboard-sidebar-cleanup.css';
 import './dashboard-link-enhancements.js';
 import './dashboard-operation-groups.js';
 import './dashboard-extra-icons.js';
@@ -37,6 +38,7 @@ import './dashboard-error-localization.js';
 import './dashboard-release-fixes.js';
 import './dashboard-navigation-layer-fixes.js';
 import './dashboard-profile-back-fix.js';
+import './dashboard-sidebar-cleanup.js';
 import './auth-enhancements.js';
 
 const rootElement = document.getElementById('root');
