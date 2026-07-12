@@ -2,16 +2,6 @@ function navText(button) {
   return String(button?.textContent || '').replace(/\s+/g, ' ').trim();
 }
 
-function activeSystemPage() {
-  const active = [...document.querySelectorAll('.sidebar-navigation button.is-active, .sidebar-system-group button.is-active')][0];
-  const label = navText(active);
-  if (label.includes('Faturamento')) return 'billing';
-  if (label.includes('Biblioteca')) return 'library';
-  if (label.includes('Lixeira')) return 'trash';
-  if (label.includes('Dashboard')) return 'dashboard';
-  return '';
-}
-
 function closeMobileSidebar() {
   const sidebar = document.querySelector('.domnai-sidebar');
   if (!sidebar) return;
@@ -26,40 +16,30 @@ function closeMobileSidebar() {
   if (closeButton) closeButton.click();
   sidebar.classList.remove('is-open', 'open', 'active', 'visible');
   document.querySelectorAll('.sidebar-backdrop').forEach((backdrop) => backdrop.classList.remove('is-visible', 'visible', 'active'));
+  document.body.classList.remove('domnai-mobile-menu-open');
 }
 
-async function safeSignOut(button) {
-  const original = button.textContent;
-  button.disabled = true;
-  button.textContent = 'Saindo...';
-  try {
-    await window.Clerk?.signOut?.({ redirectUrl: `${window.location.origin}/#/` });
-  } catch (error) {
-    button.disabled = false;
-    button.textContent = original;
-    window.alert(error?.message || 'Não foi possível sair da conta.');
-  }
+function removeTemporaryLogoutButtons() {
+  document.querySelectorAll('.domnai-context-logout, .domnai-plan-logout, .global-exit-button').forEach((button) => button.remove());
 }
 
-function installContextLogout() {
-  const profileOpen = Boolean(document.querySelector('[data-domnai-profile-page]'));
-  const page = activeSystemPage();
-  const allowed = profileOpen || ['billing', 'library', 'trash'].includes(page);
-  let button = document.querySelector('.domnai-context-logout');
+function detectMobileMenuState() {
+  const sidebar = document.querySelector('.domnai-sidebar');
+  const backdrop = document.querySelector('.sidebar-backdrop');
+  if (!sidebar) return false;
 
-  if (!allowed) {
-    button?.remove();
-    return;
-  }
+  const classOpen = ['is-open', 'open', 'active', 'visible'].some((name) => sidebar.classList.contains(name));
+  const backdropOpen = backdrop && ['is-visible', 'visible', 'active'].some((name) => backdrop.classList.contains(name));
+  const ariaOpen = sidebar.getAttribute('aria-hidden') === 'false';
+  const style = window.getComputedStyle(sidebar);
+  const mobile = window.matchMedia('(max-width: 820px)').matches;
+  const visibleByStyle = mobile && style.display !== 'none' && style.visibility !== 'hidden' && style.transform === 'none';
 
-  if (!button) {
-    button = document.createElement('button');
-    button.type = 'button';
-    button.className = 'domnai-context-logout';
-    button.textContent = 'Sair da conta';
-    button.addEventListener('click', () => safeSignOut(button));
-    document.body.appendChild(button);
-  }
+  return mobile && (classOpen || backdropOpen || ariaOpen || visibleByStyle);
+}
+
+function syncMobileMenuScrollLock() {
+  document.body.classList.toggle('domnai-mobile-menu-open', detectMobileMenuState());
 }
 
 function enforceExclusiveLayers() {
@@ -69,7 +49,8 @@ function enforceExclusiveLayers() {
   document.body.classList.toggle('domnai-checklist-exclusive', checklistOpen);
 
   if (profileOpen || checklistOpen) closeMobileSidebar();
-  installContextLogout();
+  removeTemporaryLogoutButtons();
+  syncMobileMenuScrollLock();
 }
 
 function softenPremiumGate() {
@@ -103,6 +84,17 @@ function softenPremiumGate() {
 }
 
 function handleNavigationClick(event) {
+  const menuButton = event.target.closest('.mobile-menu-button');
+  if (menuButton) {
+    window.setTimeout(syncMobileMenuScrollLock, 20);
+    return;
+  }
+
+  if (event.target.closest('.sidebar-backdrop')) {
+    window.setTimeout(() => document.body.classList.remove('domnai-mobile-menu-open'), 0);
+    return;
+  }
+
   const profile = event.target.closest('.domnai-profile-trigger, .sidebar-profile');
   if (profile) {
     window.setTimeout(() => {
@@ -129,9 +121,10 @@ const navigationLayerObserver = new MutationObserver(() => {
   });
 });
 
-navigationLayerObserver.observe(document.documentElement, { childList: true, subtree: true, characterData: true });
+navigationLayerObserver.observe(document.documentElement, { childList: true, subtree: true, characterData: true, attributes: true, attributeFilter: ['class', 'aria-hidden', 'style'] });
 window.addEventListener('hashchange', () => window.setTimeout(enforceExclusiveLayers, 50));
 window.addEventListener('focus', () => window.setTimeout(enforceExclusiveLayers, 50));
+window.addEventListener('resize', syncMobileMenuScrollLock);
 window.setInterval(enforceExclusiveLayers, 1000);
 enforceExclusiveLayers();
 softenPremiumGate();
