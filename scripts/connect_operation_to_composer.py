@@ -74,7 +74,9 @@ replacement = '''  function selectOperation(item) {
       }]);
     }
 
-    setComposerScrollRequest((current) => current + 1);
+    window.setTimeout(() => {
+      setComposerScrollRequest((current) => current + 1);
+    }, 240);
   }
 '''
 
