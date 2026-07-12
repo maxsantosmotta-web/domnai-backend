@@ -93,6 +93,66 @@ if "authorizedFetch('/api/chat-state')" not in source:
         1,
     )
 
+select_operation_block = '''  async function selectOperation(item) {
+    if (responding) return;
+
+    const currentOperationName = operations.find((operation) => operation.id === activeOperation)?.name || null;
+    const serializableMessages = messages.map((message) => ({
+      id: message.id,
+      role: message.role,
+      text: message.text || '',
+      isError: Boolean(message.isError),
+      attachments: (message.attachments || []).map((attachment) => ({
+        id: attachment.id,
+        libraryId: attachment.libraryId || null,
+        name: attachment.name,
+        type: attachment.type,
+        mimeType: attachment.mimeType || '',
+        size: attachment.size || attachment.sizeBytes || 0,
+      })),
+    }));
+
+    setSidebarOpen(false);
+    setSection('chat');
+    setDraft('');
+    setAttachments([]);
+    setPlusOpen(false);
+
+    try {
+      const response = await authorizedFetch('/api/chat-state/new-operation', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          messages: serializableMessages,
+          current_operation: activeOperation,
+          current_operation_name: currentOperationName,
+          next_operation: item.id,
+          next_operation_name: item.name,
+        }),
+      });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(payload.detail || 'Não foi possível iniciar a nova operação.');
+
+      setConversationReady(false);
+      setMessages([]);
+      setActiveOperation(item.id);
+      window.setTimeout(() => setConversationReady(true), 0);
+    } catch (error) {
+      window.alert(error.message || 'Não foi possível iniciar a nova operação.');
+    }
+  }
+'''
+
+source, operation_count = re.subn(
+    r"  function selectOperation\(item\) \{.*?\n  \}",
+    select_operation_block.rstrip(),
+    source,
+    count=1,
+    flags=re.S,
+)
+if operation_count != 1:
+    raise RuntimeError('Não foi possível localizar selectOperation em Dashboard.jsx.')
+
 send_block = '''  async function sendMessage(event) {
     event.preventDefault();
     const text = draft.trim();
