@@ -16,7 +16,7 @@
 
 .operation-category[open] {
   border-color: rgba(225, 181, 77, 0.18);
-  background: linear-gradient(180deg, rgba(42, 34, 16, 0.16), rgba(255, 255, 255, 0.012));
+  background: rgba(255, 255, 255, 0.015);
 }
 
 .operation-category summary {
@@ -32,6 +32,20 @@
   cursor: pointer;
   list-style: none;
   user-select: none;
+  background: transparent !important;
+  -webkit-tap-highlight-color: transparent;
+  outline: none;
+}
+
+.operation-category summary:hover,
+.operation-category summary:focus,
+.operation-category summary:focus-visible,
+.operation-category summary:active,
+.operation-category[open] summary {
+  background: transparent !important;
+  color: #d5d5d5 !important;
+  outline: none !important;
+  box-shadow: none !important;
 }
 
 .operation-category summary::-webkit-details-marker {
@@ -158,7 +172,7 @@
     border: 1px solid rgba(225, 181, 77, 0.12);
     border-radius: 15px;
     background: linear-gradient(180deg, rgba(29, 24, 14, 0.22), rgba(11, 11, 11, 0.06));
-    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.015);
+    box-shadow: inset 0 1px 0 rgba(255,255,255,0.015);
     transform: none;
   }
 
