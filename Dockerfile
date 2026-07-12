@@ -8,12 +8,14 @@ COPY scripts/connect_operation_to_composer.py /tmp/connect_operation_to_composer
 COPY scripts/connect_chat_attachments.py /tmp/connect_chat_attachments.py
 COPY scripts/connect_chat_local_deletion.py /tmp/connect_chat_local_deletion.py
 COPY scripts/connect_billing_back_label.py /tmp/connect_billing_back_label.py
+COPY scripts/connect_auth_blank_refresh.py /tmp/connect_auth_blank_refresh.py
 RUN apk add --no-cache python3 \
     && python3 /tmp/connect_domnai_chat.py \
     && python3 /tmp/connect_operation_to_composer.py \
     && python3 /tmp/connect_chat_attachments.py \
     && python3 /tmp/connect_chat_local_deletion.py \
     && python3 /tmp/connect_billing_back_label.py \
+    && python3 /tmp/connect_auth_blank_refresh.py \
     && npm run build
 
 FROM python:3.13-slim AS runtime
