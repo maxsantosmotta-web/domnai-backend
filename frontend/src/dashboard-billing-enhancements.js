@@ -269,7 +269,10 @@ function renderBilling(section, status, transactions, selectedPeriod = 'monthly'
     : freeSelected ? 'Navegação e visualização da plataforma.' : 'Escolha uma opção abaixo para continuar.';
 
   section.innerHTML = `
-    <header class="billing-page-header"><div><span>Faturamento</span><h1>Plano e créditos</h1><p>Acompanhe seu saldo, assinatura e pacotes adicionais.</p></div></header>
+    <header class="billing-page-header">
+      <div><span>Faturamento</span><h1>Plano e créditos</h1><p>Acompanhe seu saldo, assinatura e pacotes adicionais.</p></div>
+      <button type="button" class="billing-back-to-chat" data-billing-action="back-to-chat" aria-label="Voltar ao chat"><span>←</span><span class="billing-back-label">Voltar ao chat</span></button>
+    </header>
     <div class="billing-balance-grid">
       <article class="billing-balance-card billing-balance-primary"><small>Saldo disponível</small><strong>${total}</strong><span>créditos</span></article>
       <article class="billing-balance-card"><small>Créditos do plano</small><strong>${planCredits}</strong><span>renovados por ciclo</span></article>
@@ -304,6 +307,15 @@ function renderBilling(section, status, transactions, selectedPeriod = 'monthly'
     <section class="billing-rules-section"><div class="billing-section-title"><small>Consumo</small><h2>Créditos por utilização</h2></div><div class="billing-rules-grid"><span><strong>1 crédito</strong> Pergunta com resposta</span><span><strong>2 créditos</strong> Análise completa</span><span><strong>5 a 10 créditos</strong> PDF, link, print, imagem ou documento</span></div></section>
     <section class="billing-history-section"><div class="billing-section-title"><small>Histórico</small><h2>Movimentações</h2></div><div class="billing-history-list">${transactions.length ? transactions.map((item) => `<article><div><strong>${transactionLabel(item)}</strong><small>${new Date(item.createdAt).toLocaleString('pt-BR')}</small></div><span class="${item.amount >= 0 ? 'credit-positive' : 'credit-negative'}">${item.amount >= 0 ? '+' : ''}${item.amount}</span></article>`).join('') : '<p class="billing-empty-history">Nenhuma movimentação registrada ainda.</p>'}</div></section>
   `;
+
+  section.querySelector('[data-billing-action="back-to-chat"]')?.addEventListener('click', () => {
+    const globalExit = document.querySelector('.global-exit-button');
+    if (globalExit) {
+      globalExit.click();
+      return;
+    }
+    window.location.hash = '#/';
+  });
 
   section.querySelectorAll('[data-billing-period]').forEach((button) => button.addEventListener('click', () => renderBilling(section, status, transactions, button.dataset.billingPeriod)));
 
