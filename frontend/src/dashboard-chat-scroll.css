@@ -1,0 +1,23 @@
+.chat-workspace {
+  height: 100dvh;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.chat-column {
+  height: 100dvh;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.clean-chat-area {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+}
+
+.chat-composer {
+  flex: 0 0 auto;
+}
