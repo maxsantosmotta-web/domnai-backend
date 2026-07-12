@@ -20,34 +20,19 @@ jobs:
         run: |
           python <<'PY'
           from pathlib import Path
+          import re
 
           path = Path('frontend/src/Dashboard.jsx')
           source = path.read_text(encoding='utf-8')
 
-          source = source.replace(
-              "  const [uploading, setUploading] = useState(false);\n",
-              "  const [uploading, setUploading] = useState(false);\n  const [responding, setResponding] = useState(false);\n",
-              1,
-          )
+          if "const [responding, setResponding]" not in source:
+              source = source.replace(
+                  "  const [uploading, setUploading] = useState(false);",
+                  "  const [uploading, setUploading] = useState(false);\n  const [responding, setResponding] = useState(false);",
+                  1,
+              )
 
-          old_send = """  function sendMessage(event) {
-            event.preventDefault();
-            const text = draft.trim();
-            if ((!text && attachments.length === 0) || uploading) return;
-
-            setMessages((current) => [...current, {
-              id: Date.now(),
-              role: 'user',
-              text,
-              attachments: [...attachments],
-            }]);
-            setDraft('');
-            setAttachments([]);
-            setPlusOpen(false);
-          }
-          """
-
-          new_send = """  async function sendMessage(event) {
+          send_block = '''  async function sendMessage(event) {
             event.preventDefault();
             const text = draft.trim();
             if ((!text && attachments.length === 0) || uploading || responding) return;
@@ -104,28 +89,31 @@ jobs:
               setResponding(false);
             }
           }
-          """
 
-          if old_send not in source:
-              if "async function sendMessage(event)" not in source:
-                  raise SystemExit('Bloco sendMessage original não encontrado.')
-          else:
-              source = source.replace(old_send, new_send, 1)
+'''
+
+          source, count = re.subn(
+              r"  (?:async )?function sendMessage\(event\) \{.*?\n  \}\n\n(?=  async function moveLibraryAssetToTrash)",
+              send_block,
+              source,
+              count=1,
+              flags=re.S,
+          )
+          if count != 1 and "async function sendMessage(event)" not in source:
+              raise SystemExit('Não foi possível localizar sendMessage.')
 
           source = source.replace(
               "<article className={`chat-message ${message.role}`} key={message.id}>",
               "<article className={`chat-message ${message.role}${message.isError ? ' error' : ''}`} key={message.id}>",
           )
 
-          messages_close = """              {visibleMessages.map((message) => <article className={`chat-message ${message.role}${message.isError ? ' error' : ''}`} key={message.id}><span className=\"message-author\">{message.role === 'assistant' ? 'DomnAI' : 'Você'}</span>{message.text ? <p>{message.text}</p> : null}{(message.attachments || []).length ? <div className=\"message-attachments\">"""
-          if messages_close not in source:
-              pass
-
-          source = source.replace(
-              "              {visibleMessages.map((message) => <article className={`chat-message ${message.role}${message.isError ? ' error' : ''}`} key={message.id}><span className=\"message-author\">{message.role === 'assistant' ? 'DomnAI' : 'Você'}</span>{message.text ? <p>{message.text}</p> : null}{(message.attachments || []).length ? <div className=\"message-attachments\">{message.attachments.map((item) => item.type === 'image' && item.previewUrl ? <figure className=\"chat-image-native\" key={item.id}><img src={item.previewUrl} alt={item.name} /><figcaption><span>{item.name}</span><div><button type=\"button\" onClick={() => openAttachment(item)}>Abrir imagem</button><button type=\"button\" className=\"danger\" onClick={() => deleteAttachment(item)}>Excluir</button></div></figcaption></figure> : <div className=\"chat-native-file\" key={item.id}>{renderNativeFile(item, () => openAttachment(item))}<button type=\"button\" className=\"native-delete-button\" onClick={() => deleteAttachment(item)}>Excluir</button></div>)}</div> : null}</article>)}\n",
-              "              {visibleMessages.map((message) => <article className={`chat-message ${message.role}${message.isError ? ' error' : ''}`} key={message.id}><span className=\"message-author\">{message.role === 'assistant' ? 'DomnAI' : 'Você'}</span>{message.text ? <p>{message.text}</p> : null}{(message.attachments || []).length ? <div className=\"message-attachments\">{message.attachments.map((item) => item.type === 'image' && item.previewUrl ? <figure className=\"chat-image-native\" key={item.id}><img src={item.previewUrl} alt={item.name} /><figcaption><span>{item.name}</span><div><button type=\"button\" onClick={() => openAttachment(item)}>Abrir imagem</button><button type=\"button\" className=\"danger\" onClick={() => deleteAttachment(item)}>Excluir</button></div></figcaption></figure> : <div className=\"chat-native-file\" key={item.id}>{renderNativeFile(item, () => openAttachment(item))}<button type=\"button\" className=\"native-delete-button\" onClick={() => deleteAttachment(item)}>Excluir</button></div>)}</div> : null}</article>)}\n              {responding ? <article className=\"chat-message assistant analyzing\"><span className=\"message-author\">DomnAI</span><p>DomnAI está analisando...</p></article> : null}\n",
-              1,
-          )
+          marker = "              {responding ? <article className=\"chat-message assistant analyzing\"><span className=\"message-author\">DomnAI</span><p>DomnAI está analisando...</p></article> : null}"
+          if marker not in source:
+              source = source.replace(
+                  "            </div>\n            <form className=\"chat-composer simplified-composer composer-with-plus\" onSubmit={sendMessage}>",
+                  f"{marker}\n            </div>\n            <form className=\"chat-composer simplified-composer composer-with-plus\" onSubmit={{sendMessage}}>",
+                  1,
+              )
 
           source = source.replace(
               "placeholder={uploading ? 'Salvando na biblioteca...' : 'Digite sua mensagem...'} rows=\"3\" disabled={uploading} /><button type=\"submit\" className=\"send-message-button\" aria-label=\"Enviar mensagem\" disabled={uploading}>➤</button>",
