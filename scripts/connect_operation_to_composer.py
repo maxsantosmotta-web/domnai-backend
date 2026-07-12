@@ -56,6 +56,34 @@ source, count = re.subn(
 if count != 1:
     raise RuntimeError('Não foi possível ajustar o fluxo de seleção da operação.')
 
+refresh_replacement = '''  function refreshConversation() {
+    setSection('chat');
+    setSearch('');
+    setSearchOpen(false);
+    setOptionsOpen(false);
+    setPlusOpen(false);
+
+    window.setTimeout(() => {
+      const composer = operationComposerRef.current;
+      if (!composer) return;
+      composer.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      window.setTimeout(() => {
+        composer.querySelector('textarea')?.focus({ preventScroll: true });
+      }, 450);
+    }, 80);
+  }'''
+
+source, refresh_count = re.subn(
+    r"  function refreshConversation\(\) \{.*?\n  \}",
+    refresh_replacement,
+    source,
+    count=1,
+    flags=re.S,
+)
+
+if refresh_count != 1:
+    raise RuntimeError('Não foi possível ajustar o botão Atualizar conversa.')
+
 form_old = '<form className="chat-composer simplified-composer composer-with-plus" onSubmit={sendMessage}>'
 form_new = '<form ref={operationComposerRef} className="chat-composer simplified-composer composer-with-plus" onSubmit={sendMessage}>'
 if form_old not in source:
