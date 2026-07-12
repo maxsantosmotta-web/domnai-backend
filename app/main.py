@@ -6,6 +6,7 @@ from fastapi.staticfiles import StaticFiles
 
 from app.api.auth import router as auth_router
 from app.api.billing import router as billing_router
+from app.api.chat import router as chat_router
 from app.api.config import router as config_router
 from app.api.database import router as database_router
 from app.api.decisions import router as decisions_router
@@ -50,6 +51,7 @@ def initialize_database_tables() -> None:
 app.include_router(health_router)
 app.include_router(config_router)
 app.include_router(auth_router)
+app.include_router(chat_router)
 app.include_router(decisions_router)
 app.include_router(database_router)
 app.include_router(library_router)
