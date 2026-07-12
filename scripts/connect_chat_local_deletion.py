@@ -42,11 +42,11 @@ helpers = '''
   }
 
   function confirmDeleteMessage(messageId) {
-    runSingleDeletePrompt('Apagar esta mensagem? OK para apagar ou Cancelar para manter.', () => deleteChatMessage(messageId));
+    runSingleDeletePrompt('Apagar mensagem?', () => deleteChatMessage(messageId));
   }
 
   function confirmDeleteAttachment(item) {
-    runSingleDeletePrompt('Apagar este item da conversa? OK para apagar ou Cancelar para manter.', () => removeAttachmentFromChat(item));
+    runSingleDeletePrompt('Apagar item?', () => removeAttachmentFromChat(item));
   }
 
   function startLongPress(action, event) {
@@ -99,7 +99,7 @@ source, count = re.subn(
   }
 
   async function deleteConversation() {
-    runSingleDeletePrompt('Apagar a conversa?', () => {
+    runSingleDeletePrompt('Apagar conversa?', () => {
       setMessages([]);
       setActiveOperation(null);
       setSearch('');
