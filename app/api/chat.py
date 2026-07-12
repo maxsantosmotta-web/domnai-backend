@@ -41,20 +41,21 @@ def _load_attachments(user_id: str, attachment_ids: list[str]) -> list[dict]:
             )
         ).all()
 
-    assets_by_id = {asset.id: asset for asset in assets}
+        assets_by_id = {
+            asset.id: {
+                "id": asset.id,
+                "name": asset.name,
+                "mime_type": asset.mime_type,
+                "content": bytes(asset.content or b""),
+            }
+            for asset in assets
+        }
+
     missing_ids = [asset_id for asset_id in unique_ids if asset_id not in assets_by_id]
     if missing_ids:
         raise HTTPException(status_code=404, detail="Um dos arquivos anexados não foi encontrado na Biblioteca.")
 
-    return [
-        {
-            "id": assets_by_id[asset_id].id,
-            "name": assets_by_id[asset_id].name,
-            "mime_type": assets_by_id[asset_id].mime_type,
-            "content": assets_by_id[asset_id].content,
-        }
-        for asset_id in unique_ids
-    ]
+    return [assets_by_id[asset_id] for asset_id in unique_ids]
 
 
 @router.post("/respond")
