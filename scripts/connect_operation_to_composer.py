@@ -19,7 +19,7 @@ source = source.replace("import './dashboard-chat-scroll.css';\n", "", 1)
 if "const operationComposerRef = useRef(null);" not in source:
     source = source.replace(
         "  const fileInputRef = useRef(null);",
-        "  const fileInputRef = useRef(null);\n  const operationComposerRef = useRef(null);\n  const [composerScrollRequest, setComposerScrollRequest] = useState(0);",
+        "  const fileInputRef = useRef(null);\n  const operationComposerRef = useRef(null);\n  const initialConversationScrollDoneRef = useRef(false);\n  const [composerScrollRequest, setComposerScrollRequest] = useState(0);",
         1,
     )
 
@@ -43,9 +43,18 @@ scroll_effect = '''
     };
   }, [composerScrollRequest, section, messages.length]);
 
+  useEffect(() => {
+    if (!conversationReady || section !== 'chat' || initialConversationScrollDoneRef.current) return undefined;
+    initialConversationScrollDoneRef.current = true;
+    const timer = window.setTimeout(() => {
+      setComposerScrollRequest((current) => current + 1);
+    }, 180);
+    return () => window.clearTimeout(timer);
+  }, [conversationReady, section]);
+
 '''
 
-if "[composerScrollRequest, section, messages.length]" not in source:
+if "initialConversationScrollDoneRef.current" not in source:
     match = re.search(r"  (?:async )?function selectOperation\(item\) \{", source)
     if not match:
         raise RuntimeError('Não foi possível localizar a seleção de operação.')
@@ -54,24 +63,11 @@ if "[composerScrollRequest, section, messages.length]" not in source:
 replacement = '''  function selectOperation(item) {
     if (responding) return;
 
-    const lastMessage = messages[messages.length - 1];
-    const alreadyCurrent = activeOperation === item.id && lastMessage?.role === 'operation';
-
     setActiveOperation(item.id);
     setSection('chat');
     setAttachments([]);
     setPlusOpen(false);
     setSidebarOpen(false);
-
-    if (!alreadyCurrent) {
-      setMessages((current) => [...current, {
-        id: `operation-${item.id}-${Date.now()}`,
-        role: 'operation',
-        text: '',
-        operationId: item.id,
-        attachments: [],
-      }]);
-    }
 
     window.setTimeout(() => {
       setDraft(item.name);
