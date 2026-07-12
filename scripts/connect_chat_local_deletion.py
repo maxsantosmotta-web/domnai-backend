@@ -120,15 +120,26 @@ article_old = '<article className={`chat-message ${message.role}${message.isErro
 article_new = '''<article
                   className={`chat-message ${message.role}${message.isError ? ' error' : ''}`}
                   key={message.id}
-                  style={{ WebkitTouchCallout: 'default', userSelect: 'text' }}
-                  onPointerDown={(event) => startLongPress(() => confirmDeleteMessage(message.id), event)}
-                  onPointerUp={finishLongPress}
-                  onPointerCancel={cancelLongPress}
-                  onPointerMove={moveLongPress}
-                  onContextMenu={(event) => {
-                    if (!event.target.closest('p')) event.preventDefault();
-                  }}
-                >'''
+                  style={{ WebkitTouchCallout: 'default', userSelect: 'text', position: 'relative' }}
+                >
+                  <span
+                    aria-hidden="true"
+                    style={{ position: 'absolute', left: 0, top: 0, bottom: 0, width: '22px', zIndex: 2, touchAction: 'none', userSelect: 'none' }}
+                    onPointerDown={(event) => { event.stopPropagation(); startLongPress(() => confirmDeleteMessage(message.id), event); }}
+                    onPointerUp={(event) => { event.stopPropagation(); finishLongPress(); }}
+                    onPointerCancel={cancelLongPress}
+                    onPointerMove={moveLongPress}
+                    onContextMenu={(event) => { event.preventDefault(); event.stopPropagation(); }}
+                  />
+                  <span
+                    aria-hidden="true"
+                    style={{ position: 'absolute', right: 0, top: 0, bottom: 0, width: '22px', zIndex: 2, touchAction: 'none', userSelect: 'none' }}
+                    onPointerDown={(event) => { event.stopPropagation(); startLongPress(() => confirmDeleteMessage(message.id), event); }}
+                    onPointerUp={(event) => { event.stopPropagation(); finishLongPress(); }}
+                    onPointerCancel={cancelLongPress}
+                    onPointerMove={moveLongPress}
+                    onContextMenu={(event) => { event.preventDefault(); event.stopPropagation(); }}
+                  />'''
 if article_old not in source:
     raise RuntimeError('Não foi possível ativar a exclusão unitária nas mensagens.')
 source = source.replace(article_old, article_new, 1)
