@@ -4,8 +4,10 @@ COPY frontend/package*.json ./
 RUN npm install
 COPY frontend/ ./
 COPY scripts/connect_domnai_chat.py /tmp/connect_domnai_chat.py
+COPY scripts/connect_billing_back_label.py /tmp/connect_billing_back_label.py
 RUN apk add --no-cache python3 \
     && python3 /tmp/connect_domnai_chat.py \
+    && python3 /tmp/connect_billing_back_label.py \
     && npm run build
 
 FROM python:3.13-slim AS runtime
