@@ -1,3 +1,11 @@
+body.domnai-mobile-menu-open {
+  position: fixed;
+  width: 100%;
+  overflow: hidden !important;
+  overscroll-behavior: none;
+  touch-action: none;
+}
+
 body.domnai-profile-exclusive,
 body.domnai-checklist-exclusive {
   overflow: hidden !important;
@@ -24,6 +32,7 @@ body.domnai-profile-exclusive [data-domnai-profile-page] {
   overflow-y: auto !important;
   background: #050505 !important;
   padding: 24px 18px 80px !important;
+  -webkit-overflow-scrolling: touch;
 }
 
 body.domnai-checklist-exclusive .profile-checklist-overlay {
@@ -33,6 +42,7 @@ body.domnai-checklist-exclusive .profile-checklist-overlay {
   overflow-y: auto !important;
   background: rgba(3, 3, 3, .96) !important;
   backdrop-filter: none !important;
+  -webkit-overflow-scrolling: touch;
 }
 
 body.domnai-checklist-exclusive .domnai-main-area,
@@ -43,24 +53,10 @@ body.domnai-checklist-exclusive .global-exit-button {
   pointer-events: none !important;
 }
 
-.domnai-context-logout {
-  position: fixed;
-  top: max(14px, env(safe-area-inset-top));
-  right: 14px;
-  z-index: 4500;
-  min-height: 42px;
-  padding: 0 14px;
-  border: 1px solid rgba(205, 76, 76, .34);
-  border-radius: 12px;
-  background: rgba(120, 28, 28, .14);
-  color: #ffaaaa;
-  font-weight: 800;
-  cursor: pointer;
-}
-
-.domnai-context-logout:disabled {
-  opacity: .65;
-  cursor: wait;
+.domnai-context-logout,
+.domnai-plan-logout,
+.global-exit-button {
+  display: none !important;
 }
 
 .domnai-premium-gate-soft {
@@ -100,11 +96,6 @@ body.domnai-checklist-exclusive .global-exit-button {
 
   .domnai-profile-header {
     padding-top: 0 !important;
-  }
-
-  .domnai-context-logout {
-    top: max(12px, env(safe-area-inset-top));
-    right: 12px;
   }
 
   .domnai-premium-gate-soft {
