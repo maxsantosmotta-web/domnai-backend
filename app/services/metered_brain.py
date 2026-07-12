@@ -116,15 +116,10 @@ def generate_metered_response(message: str, history: list[dict], operation: str 
 
     if provider == "gateway":
         return _gateway_response(message, history, operation)
-    if provider == "openai":
-        return _openai_response(message, history, operation)
+    if provider in {"openai", "", "auto"}:
+        if os.getenv("OPENAI_API_KEY", "").strip():
+            return _openai_response(message, history, operation)
+        raise RuntimeError("OPENAI_API_KEY do DomnAI não configurada.")
     if provider == "anthropic":
         raise RuntimeError("Medição automática de créditos para Anthropic ainda não foi habilitada.")
-    if provider not in {"", "auto"}:
-        raise RuntimeError("DOMNAI_AI_PROVIDER inválido. Use gateway, openai ou auto.")
-
-    if _integration_api_key() and _integration_base_url():
-        return _gateway_response(message, history, operation)
-    if os.getenv("OPENAI_API_KEY", "").strip():
-        return _openai_response(message, history, operation)
-    raise RuntimeError("Nenhum provedor de inteligência compatível com medição foi configurado.")
+    raise RuntimeError("DOMNAI_AI_PROVIDER inválido. Use openai, gateway ou auto.")
