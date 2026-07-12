@@ -11,6 +11,7 @@ function safelyReturnFromProfile(event) {
 
   const page = document.querySelector('[data-domnai-profile-page]');
   const mainArea = document.querySelector('.domnai-main-area');
+  const isDashboardButton = button.classList.contains('domnai-profile-close');
   const dashboardButton = [...document.querySelectorAll('.sidebar-navigation button')]
     .find((item) => item.textContent.trim().includes('Dashboard'));
 
@@ -23,10 +24,14 @@ function safelyReturnFromProfile(event) {
 
   window.requestAnimationFrame(() => {
     try {
-      dashboardButton?.click();
-      const pageScroller = document.scrollingElement || document.documentElement;
-      pageScroller.scrollTo({ top: 0, behavior: 'auto' });
-      window.scrollTo({ top: 0, behavior: 'auto' });
+      if (isDashboardButton) {
+        const mobileMenuButton = document.querySelector('.mobile-menu-button');
+        if (window.matchMedia('(max-width: 820px)').matches) {
+          window.setTimeout(() => mobileMenuButton?.click(), 40);
+        }
+      } else {
+        dashboardButton?.click();
+      }
     } finally {
       window.setTimeout(() => {
         domnaiProfileClosing = false;
