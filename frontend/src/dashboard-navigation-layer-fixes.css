@@ -62,6 +62,24 @@ body.domnai-checklist-exclusive .global-exit-button {
   pointer-events: none !important;
 }
 
+body:not(.domnai-chat-context) .options-menu-button,
+body:not(.domnai-chat-context) .conversation-options-menu,
+body:not(.domnai-chat-context) .options-backdrop {
+  display: none !important;
+  pointer-events: none !important;
+}
+
+body.domnai-profile-exclusive .mobile-menu-button,
+body.domnai-profile-exclusive .options-menu-button {
+  display: none !important;
+  pointer-events: none !important;
+}
+
+html.domnai-gate-pending:not(.domnai-plan-selection-required) .domnai-app-shell {
+  visibility: visible !important;
+  pointer-events: auto !important;
+}
+
 .domnai-premium-gate-soft {
   width: min(92vw, 420px) !important;
   max-width: 420px !important;
@@ -94,7 +112,7 @@ body.domnai-checklist-exclusive .global-exit-button {
 
 @media (max-width: 720px) {
   body.domnai-profile-exclusive [data-domnai-profile-page] {
-    padding: 74px 14px 90px !important;
+    padding: 24px 14px 90px !important;
   }
 
   .domnai-profile-header {
