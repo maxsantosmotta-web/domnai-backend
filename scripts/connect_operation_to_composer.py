@@ -15,6 +15,13 @@ source = source.replace(
     1,
 )
 
+if "import './dashboard-chat-scroll.css';" not in source:
+    source = source.replace(
+        "import './dashboard-operation-blocks.css';",
+        "import './dashboard-operation-blocks.css';\nimport './dashboard-chat-scroll.css';",
+        1,
+    )
+
 if "const chatScrollRef = useRef(null);" not in source:
     source = source.replace(
         "  const fileInputRef = useRef(null);",
