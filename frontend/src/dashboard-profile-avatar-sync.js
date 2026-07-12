@@ -32,6 +32,16 @@ function renderSidebarInitial(avatarTarget, displayName) {
   avatarTarget.textContent = (displayName || window.Clerk?.user?.primaryEmailAddress?.emailAddress || 'U').charAt(0).toUpperCase();
 }
 
+function restoreSidebarAvatarFromMemory(avatarTarget) {
+  if (!domnaiSidebarAvatarUrl || avatarTarget.querySelector('img')) return false;
+  avatarTarget.textContent = '';
+  const image = document.createElement('img');
+  image.src = domnaiSidebarAvatarUrl;
+  image.alt = 'Foto de perfil';
+  avatarTarget.appendChild(image);
+  return true;
+}
+
 async function syncDomnAISidebarIdentity({ forceAvatar = false } = {}) {
   if (domnaiSidebarIdentityBusy) return;
 
@@ -40,6 +50,11 @@ async function syncDomnAISidebarIdentity({ forceAvatar = false } = {}) {
   const titleTarget = trigger?.querySelector('strong');
   const subtitleTarget = trigger?.querySelector('small');
   if (!trigger || !avatarTarget || !titleTarget || !subtitleTarget) return;
+
+  if (domnaiSidebarIdentityLoaded && !forceAvatar) {
+    restoreSidebarAvatarFromMemory(avatarTarget);
+    return;
+  }
 
   domnaiSidebarIdentityBusy = true;
   try {
@@ -64,7 +79,10 @@ async function syncDomnAISidebarIdentity({ forceAvatar = false } = {}) {
     if (titleTarget.textContent !== nextTitle) titleTarget.textContent = nextTitle;
     if (subtitleTarget.textContent !== nextSubtitle) subtitleTarget.textContent = nextSubtitle;
 
-    if (domnaiSidebarIdentityLoaded && !forceAvatar) return;
+    if (domnaiSidebarIdentityLoaded && !forceAvatar) {
+      restoreSidebarAvatarFromMemory(avatarTarget);
+      return;
+    }
 
     const response = await fetch('/api/profile/avatar', {
       headers: { Authorization: `Bearer ${token}` },
@@ -94,7 +112,7 @@ async function syncDomnAISidebarIdentity({ forceAvatar = false } = {}) {
     domnaiSidebarAvatarUrl = nextUrl;
     domnaiSidebarIdentityLoaded = true;
   } catch {
-    // Mantém a identidade já exibida quando a sincronização não puder ser concluída.
+    restoreSidebarAvatarFromMemory(avatarTarget);
   } finally {
     domnaiSidebarIdentityBusy = false;
   }
@@ -106,9 +124,15 @@ function scheduleDomnAISidebarIdentitySync(delay = 120, options = {}) {
 }
 
 const domnaiSidebarIdentityObserver = new MutationObserver(() => {
-  if (document.querySelector('.domnai-profile-trigger') && !domnaiSidebarIdentityLoaded) {
-    scheduleDomnAISidebarIdentitySync();
+  const avatarTarget = document.querySelector('.domnai-profile-trigger-avatar');
+  if (!avatarTarget) return;
+
+  if (domnaiSidebarIdentityLoaded) {
+    restoreSidebarAvatarFromMemory(avatarTarget);
+    return;
   }
+
+  scheduleDomnAISidebarIdentitySync();
 });
 
 domnaiSidebarIdentityObserver.observe(document.documentElement, { childList: true, subtree: true });
