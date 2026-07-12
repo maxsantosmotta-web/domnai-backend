@@ -99,62 +99,15 @@ if "authorizedFetch('/api/chat-state')" not in source:
         1,
     )
 
-select_operation_block = '''  async function selectOperation(item) {
+select_operation_block = '''  function selectOperation(item) {
     if (responding) return;
-
-    const lastMessage = messages[messages.length - 1];
-    const alreadyCurrent = activeOperation === item.id && lastMessage?.role === 'operation';
 
     setActiveOperation(item.id);
     setSection('chat');
-    setDraft('');
+    setDraft(item.name);
     setAttachments([]);
     setPlusOpen(false);
     setSidebarOpen(false);
-
-    if (alreadyCurrent) return;
-
-    const operationDivider = {
-      id: `operation-${item.id}-${Date.now()}`,
-      role: 'operation',
-      text: item.name,
-      operationId: item.id,
-      attachments: [],
-    };
-
-    setMessages((current) => [...current, operationDivider]);
-    setResponding(true);
-
-    try {
-      const response = await authorizedFetch('/api/chat/respond', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          message: 'Inicie esta operação agora. Faça somente a primeira pergunta necessária para conduzir o usuário, de forma objetiva e sem pedir que ele explique o nome da operação. Quando a operação depender de arquivo, imagem, contrato, orçamento, anúncio ou documento, peça diretamente que o usuário envie o material adequado.',
-          operation: item.name,
-          history: [],
-        }),
-      });
-      const payload = await response.json().catch(() => ({}));
-      if (!response.ok) throw new Error(payload.detail || 'Não foi possível iniciar esta operação.');
-
-      setMessages((current) => [...current, {
-        id: Date.now() + 1,
-        role: 'assistant',
-        text: payload.reply || 'Envie as informações ou arquivos necessários para começarmos.',
-        attachments: [],
-      }]);
-    } catch (error) {
-      setMessages((current) => [...current, {
-        id: Date.now() + 1,
-        role: 'assistant',
-        text: error.message || 'Não foi possível iniciar esta operação. Tente novamente.',
-        attachments: [],
-        isError: true,
-      }]);
-    } finally {
-      setResponding(false);
-    }
   }
 '''
 
@@ -248,7 +201,7 @@ if count != 1 and "async function sendMessage(event)" not in source:
 operation_render = '''{visibleMessages.map((message) => message.role === 'operation' ? (
                 <div className="chat-operation-divider" key={message.id} data-operation-id={message.operationId || ''}>
                   <span>Nova operação</span>
-                  <strong>{message.text}</strong>
+                  {message.text ? <strong>{message.text}</strong> : null}
                 </div>
               ) : (
                 <article className={`chat-message ${message.role}${message.isError ? ' error' : ''}`} key={message.id}>
