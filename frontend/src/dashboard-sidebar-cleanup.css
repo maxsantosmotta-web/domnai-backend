@@ -4,6 +4,16 @@
   pointer-events: none !important;
 }
 
+.domnai-sidebar .sidebar-brand {
+  justify-content: center !important;
+}
+
+.domnai-sidebar .sidebar-brand img {
+  width: 170px !important;
+  max-width: 72% !important;
+  margin: 0 auto !important;
+}
+
 .domnai-operations-label {
   display: block !important;
   margin: 8px 0 16px !important;
@@ -17,6 +27,11 @@
 @media (max-width: 820px) {
   .domnai-app-shell:has(.domnai-sidebar.is-open) > .mobile-menu-button {
     display: none !important;
+  }
+
+  .domnai-sidebar .sidebar-brand img {
+    width: 156px !important;
+    max-width: 62% !important;
   }
 
   .domnai-sidebar.is-open .sidebar-close {
