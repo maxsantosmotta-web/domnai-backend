@@ -3,7 +3,7 @@ function navText(button) {
 }
 
 function activeNavigationLabel() {
-  const active = [...document.querySelectorAll('.sidebar-navigation button.is-active, .sidebar-system-group button.is-active')][0];
+  const active = document.querySelector('.sidebar-navigation button.is-active, .sidebar-system-group button.is-active');
   return navText(active);
 }
 
@@ -18,14 +18,14 @@ function closeMobileSidebar() {
     return aria.includes('fechar') || title.includes('fechar') || text === '×' || text === '✕' || text === 'X';
   });
 
-  if (closeButton) closeButton.click();
+  if (closeButton && sidebar.classList.contains('is-open')) closeButton.click();
   sidebar.classList.remove('is-open', 'open', 'active', 'visible');
   document.querySelectorAll('.sidebar-backdrop').forEach((backdrop) => backdrop.classList.remove('is-visible', 'visible', 'active'));
   document.body.classList.remove('domnai-mobile-menu-open');
 }
 
 function hideTemporaryLogoutButtons() {
-  document.querySelectorAll('.domnai-context-logout, .domnai-plan-logout, .global-exit-button').forEach((button) => {
+  document.querySelectorAll('.domnai-context-logout, .domnai-plan-logout, .global-exit-button:not(.domnai-hidden-exit)').forEach((button) => {
     button.classList.add('domnai-hidden-exit');
     button.setAttribute('aria-hidden', 'true');
     button.setAttribute('tabindex', '-1');
@@ -35,16 +35,11 @@ function hideTemporaryLogoutButtons() {
 function detectMobileMenuState() {
   const sidebar = document.querySelector('.domnai-sidebar');
   const backdrop = document.querySelector('.sidebar-backdrop');
-  if (!sidebar) return false;
+  if (!sidebar || !window.matchMedia('(max-width: 820px)').matches) return false;
 
   const classOpen = ['is-open', 'open', 'active', 'visible'].some((name) => sidebar.classList.contains(name));
   const backdropOpen = backdrop && ['is-visible', 'visible', 'active'].some((name) => backdrop.classList.contains(name));
-  const ariaOpen = sidebar.getAttribute('aria-hidden') === 'false';
-  const style = window.getComputedStyle(sidebar);
-  const mobile = window.matchMedia('(max-width: 820px)').matches;
-  const visibleByStyle = mobile && style.display !== 'none' && style.visibility !== 'hidden' && style.transform === 'none';
-
-  return mobile && (classOpen || backdropOpen || ariaOpen || visibleByStyle);
+  return Boolean(classOpen || backdropOpen || sidebar.getAttribute('aria-hidden') === 'false');
 }
 
 function syncMobileMenuScrollLock() {
@@ -69,9 +64,8 @@ function syncContextControls() {
 }
 
 function softenPremiumGate() {
-  const all = [...document.querySelectorAll('body *')];
-  const title = all.find((element) => {
-    if (element.children.length) return false;
+  const candidates = document.querySelectorAll('[role="dialog"] h1, [role="dialog"] h2, [role="dialog"] h3, section h1, section h2, section h3');
+  const title = [...candidates].find((element) => {
     const text = navText(element);
     return text === 'Este recurso faz parte do plano PREMIUM' || text === 'Este recurso não está disponível no plano FREE';
   });
@@ -86,8 +80,7 @@ function softenPremiumGate() {
   if (eyebrow) eyebrow.textContent = 'ACESSO PREMIUM';
   title.textContent = 'Disponível no PREMIUM';
 
-  const paragraph = [...gate.querySelectorAll('p, div, span')].find((element) => {
-    if (element.children.length) return false;
+  const paragraph = [...gate.querySelectorAll('p')].find((element) => {
     const text = navText(element);
     return text.includes('Conheça o plano PREMIUM') || text.includes('Assine o PREMIUM');
   });
@@ -98,18 +91,6 @@ function softenPremiumGate() {
   if (buttons[1]) buttons[1].textContent = 'Ver PREMIUM';
 }
 
-function keepDashboardOpenWhenAlreadyActive(event) {
-  const dashboardButton = event.target.closest('.sidebar-navigation button');
-  if (!dashboardButton) return false;
-  if (!navText(dashboardButton).includes('Dashboard')) return false;
-  if (!dashboardButton.classList.contains('is-active')) return false;
-
-  event.preventDefault();
-  event.stopPropagation();
-  event.stopImmediatePropagation();
-  return true;
-}
-
 function restoreVisibleAppAfterReturn() {
   if (document.visibilityState && document.visibilityState !== 'visible') return;
   if (document.documentElement.classList.contains('domnai-plan-selection-required')) return;
@@ -118,55 +99,57 @@ function restoreVisibleAppAfterReturn() {
 }
 
 function handleNavigationClick(event) {
-  if (keepDashboardOpenWhenAlreadyActive(event)) return;
-
   const menuButton = event.target.closest('.mobile-menu-button');
   if (menuButton) {
-    window.setTimeout(syncMobileMenuScrollLock, 20);
+    window.requestAnimationFrame(syncMobileMenuScrollLock);
     return;
   }
 
   if (event.target.closest('.sidebar-backdrop')) {
-    window.setTimeout(() => document.body.classList.remove('domnai-mobile-menu-open'), 0);
+    document.body.classList.remove('domnai-mobile-menu-open');
     return;
   }
 
   const profile = event.target.closest('.domnai-profile-trigger, .sidebar-profile');
   if (profile) {
-    window.setTimeout(() => {
+    window.requestAnimationFrame(() => {
       closeMobileSidebar();
       syncContextControls();
-    }, 0);
+    });
     return;
   }
 
   const navigationButton = event.target.closest('.sidebar-navigation button, .sidebar-system-group button');
   if (!navigationButton) return;
-  window.setTimeout(() => {
+  window.requestAnimationFrame(() => {
     closeMobileSidebar();
     syncContextControls();
-  }, 0);
+  });
 }
 
 document.addEventListener('click', handleNavigationClick, true);
 
+let navigationFrame = 0;
 const navigationLayerObserver = new MutationObserver(() => {
-  window.requestAnimationFrame(() => {
+  if (navigationFrame) return;
+  navigationFrame = window.requestAnimationFrame(() => {
+    navigationFrame = 0;
     syncContextControls();
     softenPremiumGate();
   });
 });
 
-navigationLayerObserver.observe(document.documentElement, { childList: true, subtree: true, characterData: true, attributes: true, attributeFilter: ['class', 'aria-hidden', 'style'] });
-window.addEventListener('hashchange', () => window.setTimeout(syncContextControls, 50));
-window.addEventListener('focus', () => {
-  restoreVisibleAppAfterReturn();
-  window.setTimeout(syncContextControls, 50);
+navigationLayerObserver.observe(document.body || document.documentElement, {
+  childList: true,
+  subtree: true,
+  attributes: true,
+  attributeFilter: ['class', 'aria-hidden'],
 });
+
+window.addEventListener('hashchange', () => window.requestAnimationFrame(syncContextControls));
 window.addEventListener('pageshow', restoreVisibleAppAfterReturn);
 document.addEventListener('visibilitychange', restoreVisibleAppAfterReturn);
-window.addEventListener('resize', syncMobileMenuScrollLock);
-window.setInterval(syncContextControls, 1000);
+window.addEventListener('resize', syncMobileMenuScrollLock, { passive: true });
 syncContextControls();
 softenPremiumGate();
 restoreVisibleAppAfterReturn();
