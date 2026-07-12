@@ -19,8 +19,12 @@ function closeMobileSidebar() {
   document.body.classList.remove('domnai-mobile-menu-open');
 }
 
-function removeTemporaryLogoutButtons() {
-  document.querySelectorAll('.domnai-context-logout, .domnai-plan-logout, .global-exit-button').forEach((button) => button.remove());
+function hideTemporaryLogoutButtons() {
+  document.querySelectorAll('.domnai-context-logout, .domnai-plan-logout, .global-exit-button').forEach((button) => {
+    button.classList.add('domnai-hidden-exit');
+    button.setAttribute('aria-hidden', 'true');
+    button.setAttribute('tabindex', '-1');
+  });
 }
 
 function detectMobileMenuState() {
@@ -49,7 +53,7 @@ function enforceExclusiveLayers() {
   document.body.classList.toggle('domnai-checklist-exclusive', checklistOpen);
 
   if (profileOpen || checklistOpen) closeMobileSidebar();
-  removeTemporaryLogoutButtons();
+  hideTemporaryLogoutButtons();
   syncMobileMenuScrollLock();
 }
 
