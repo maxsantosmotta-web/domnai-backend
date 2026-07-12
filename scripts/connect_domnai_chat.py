@@ -211,7 +211,6 @@ source, count = re.subn(
 if count != 1 and "async function sendMessage(event)" not in source:
     raise RuntimeError('Não foi possível localizar sendMessage em Dashboard.jsx.')
 
-old_render_pattern = r"\{visibleMessages\.map\(\(message\) => <article className=\{`chat-message \$\{message\.role\}[^}]*\}`\} key=\{message\.id\}>.*?</article>\)\}"
 operation_render = '''{visibleMessages.map((message) => message.role === 'operation' ? (
                 <div className="chat-operation-divider" key={message.id} data-operation-id={message.operationId || ''}>
                   <span>Nova operação</span>
@@ -225,15 +224,12 @@ operation_render = '''{visibleMessages.map((message) => message.role === 'operat
                 </article>
               ))}'''
 
-source, render_count = re.subn(
-    old_render_pattern,
-    operation_render,
-    source,
-    count=1,
-    flags=re.S,
-)
-if render_count != 1:
+render_start = source.find("{visibleMessages.map((message) =>")
+render_end_marker = "            </div>\n            <form className=\"chat-composer simplified-composer composer-with-plus\" onSubmit={sendMessage}>"
+render_end = source.find(render_end_marker, render_start)
+if render_start == -1 or render_end == -1:
     raise RuntimeError('Não foi possível localizar a renderização das mensagens.')
+source = source[:render_start] + operation_render + "\n" + source[render_end:]
 
 analyzing = "              {responding ? <article className=\"chat-message assistant analyzing\"><span className=\"message-author\">DomnAI</span><p>DomnAI está analisando...</p></article> : null}"
 if analyzing not in source:
