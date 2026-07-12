@@ -2,6 +2,11 @@ function navText(button) {
   return String(button?.textContent || '').replace(/\s+/g, ' ').trim();
 }
 
+function activeNavigationLabel() {
+  const active = [...document.querySelectorAll('.sidebar-navigation button.is-active, .sidebar-system-group button.is-active')][0];
+  return navText(active);
+}
+
 function closeMobileSidebar() {
   const sidebar = document.querySelector('.domnai-sidebar');
   if (!sidebar) return;
@@ -46,11 +51,17 @@ function syncMobileMenuScrollLock() {
   document.body.classList.toggle('domnai-mobile-menu-open', detectMobileMenuState());
 }
 
-function enforceExclusiveLayers() {
+function syncContextControls() {
   const profileOpen = Boolean(document.querySelector('[data-domnai-profile-page]'));
   const checklistOpen = Boolean(document.querySelector('.profile-checklist-overlay'));
+  const label = activeNavigationLabel();
+  const systemPage = ['Faturamento', 'Biblioteca', 'Lixeira'].some((name) => label.includes(name));
+  const chatContext = !profileOpen && !checklistOpen && !systemPage;
+
   document.body.classList.toggle('domnai-profile-exclusive', profileOpen);
   document.body.classList.toggle('domnai-checklist-exclusive', checklistOpen);
+  document.body.classList.toggle('domnai-chat-context', chatContext);
+  document.body.classList.toggle('domnai-system-context', systemPage);
 
   if (profileOpen || checklistOpen) closeMobileSidebar();
   hideTemporaryLogoutButtons();
@@ -87,7 +98,28 @@ function softenPremiumGate() {
   if (buttons[1]) buttons[1].textContent = 'Ver PREMIUM';
 }
 
+function keepDashboardOpenWhenAlreadyActive(event) {
+  const dashboardButton = event.target.closest('.sidebar-navigation button');
+  if (!dashboardButton) return false;
+  if (!navText(dashboardButton).includes('Dashboard')) return false;
+  if (!dashboardButton.classList.contains('is-active')) return false;
+
+  event.preventDefault();
+  event.stopPropagation();
+  event.stopImmediatePropagation();
+  return true;
+}
+
+function restoreVisibleAppAfterReturn() {
+  if (document.visibilityState && document.visibilityState !== 'visible') return;
+  if (document.documentElement.classList.contains('domnai-plan-selection-required')) return;
+  if (!document.querySelector('.domnai-app-shell')) return;
+  document.documentElement.classList.remove('domnai-gate-pending');
+}
+
 function handleNavigationClick(event) {
+  if (keepDashboardOpenWhenAlreadyActive(event)) return;
+
   const menuButton = event.target.closest('.mobile-menu-button');
   if (menuButton) {
     window.setTimeout(syncMobileMenuScrollLock, 20);
@@ -103,7 +135,7 @@ function handleNavigationClick(event) {
   if (profile) {
     window.setTimeout(() => {
       closeMobileSidebar();
-      enforceExclusiveLayers();
+      syncContextControls();
     }, 0);
     return;
   }
@@ -112,7 +144,7 @@ function handleNavigationClick(event) {
   if (!navigationButton) return;
   window.setTimeout(() => {
     closeMobileSidebar();
-    enforceExclusiveLayers();
+    syncContextControls();
   }, 0);
 }
 
@@ -120,15 +152,21 @@ document.addEventListener('click', handleNavigationClick, true);
 
 const navigationLayerObserver = new MutationObserver(() => {
   window.requestAnimationFrame(() => {
-    enforceExclusiveLayers();
+    syncContextControls();
     softenPremiumGate();
   });
 });
 
 navigationLayerObserver.observe(document.documentElement, { childList: true, subtree: true, characterData: true, attributes: true, attributeFilter: ['class', 'aria-hidden', 'style'] });
-window.addEventListener('hashchange', () => window.setTimeout(enforceExclusiveLayers, 50));
-window.addEventListener('focus', () => window.setTimeout(enforceExclusiveLayers, 50));
+window.addEventListener('hashchange', () => window.setTimeout(syncContextControls, 50));
+window.addEventListener('focus', () => {
+  restoreVisibleAppAfterReturn();
+  window.setTimeout(syncContextControls, 50);
+});
+window.addEventListener('pageshow', restoreVisibleAppAfterReturn);
+document.addEventListener('visibilitychange', restoreVisibleAppAfterReturn);
 window.addEventListener('resize', syncMobileMenuScrollLock);
-window.setInterval(enforceExclusiveLayers, 1000);
-enforceExclusiveLayers();
+window.setInterval(syncContextControls, 1000);
+syncContextControls();
 softenPremiumGate();
+restoreVisibleAppAfterReturn();
