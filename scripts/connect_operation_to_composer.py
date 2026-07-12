@@ -36,12 +36,11 @@ scroll_helper = '''
 
 '''
 
-marker = "  function selectOperation(item) {"
 if "function moveUserToChatComposer()" not in source:
-    index = source.find(marker)
-    if index == -1:
+    match = re.search(r"  (?:async )?function selectOperation\(item\) \{", source)
+    if not match:
         raise RuntimeError('Não foi possível localizar a seleção de operação.')
-    source = source[:index] + scroll_helper + source[index:]
+    source = source[:match.start()] + scroll_helper + source[match.start():]
 
 replacement = '''  function selectOperation(item) {
     if (responding) return;
@@ -71,7 +70,7 @@ replacement = '''  function selectOperation(item) {
 '''
 
 source, count = re.subn(
-    r"  function selectOperation\(item\) \{.*?\n  \}",
+    r"  (?:async )?function selectOperation\(item\) \{.*?\n  \}",
     replacement.rstrip(),
     source,
     count=1,
