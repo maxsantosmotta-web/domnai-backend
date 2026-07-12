@@ -4,16 +4,16 @@ function requestChatComposerScroll() {
   }, 40);
 }
 
-function clickDashboardNow() {
+function clickDashboardNow({ scrollToChat = true } = {}) {
   const dashboardButton = [...document.querySelectorAll('.sidebar-navigation button')]
     .find((button) => button.textContent.trim().includes('Dashboard'));
   if (dashboardButton) {
     dashboardButton.click();
-    requestChatComposerScroll();
+    if (scrollToChat) requestChatComposerScroll();
     return true;
   }
   window.location.hash = '#/';
-  requestChatComposerScroll();
+  if (scrollToChat) requestChatComposerScroll();
   return false;
 }
 
@@ -81,6 +81,7 @@ function applyModuleBackButtons() {
       originalDashboardButton.textContent = 'Voltar ao Dashboard';
       originalDashboardButton.classList.remove('module-back-button');
       originalDashboardButton.setAttribute('aria-label', 'Voltar ao Dashboard');
+      originalDashboardButton.dataset.profileDestination = 'dashboard';
     }
     ensureCompactBackButton(profilePage, 'Perfil');
   }
@@ -96,15 +97,14 @@ document.addEventListener('click', (event) => {
 
   const profilePage = button.closest('[data-domnai-profile-page]');
   if (profilePage) {
-    const originalDashboardButton = profilePage.querySelector('.domnai-profile-close');
-    if (originalDashboardButton) {
-      originalDashboardButton.click();
-      requestChatComposerScroll();
-      return;
-    }
+    document.body.classList.remove('domnai-profile-exclusive', 'domnai-mobile-menu-open');
+    document.querySelector('.domnai-main-area')?.classList.remove('profile-page-open');
+    profilePage.remove();
+    clickDashboardNow({ scrollToChat: true });
+    return;
   }
 
-  clickDashboardNow();
+  clickDashboardNow({ scrollToChat: true });
 }, true);
 
 const moduleBackObserver = new MutationObserver(() => window.requestAnimationFrame(applyModuleBackButtons));
