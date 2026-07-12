@@ -98,6 +98,12 @@ function restoreVisibleAppAfterReturn() {
   document.documentElement.classList.remove('domnai-gate-pending');
 }
 
+function authenticatedInstitutionalBackGuard() {
+  const institutionalRoute = /^#\/(sobre|privacidade|termos|ajuda)(?:\/|$)/i.test(window.location.hash || '');
+  if (!institutionalRoute || !window.Clerk?.session) return;
+  window.location.replace('#/');
+}
+
 function handleNavigationClick(event) {
   const freeButton = event.target.closest('[data-billing-action="free"]');
   if (freeButton) {
@@ -141,6 +147,7 @@ const navigationLayerObserver = new MutationObserver(() => {
     navigationFrame = 0;
     syncContextControls();
     softenPremiumGate();
+    authenticatedInstitutionalBackGuard();
   });
 });
 
@@ -151,10 +158,18 @@ navigationLayerObserver.observe(document.body || document.documentElement, {
   attributeFilter: ['class', 'aria-hidden'],
 });
 
-window.addEventListener('hashchange', () => window.requestAnimationFrame(syncContextControls));
-window.addEventListener('pageshow', restoreVisibleAppAfterReturn);
+window.addEventListener('hashchange', () => {
+  authenticatedInstitutionalBackGuard();
+  window.requestAnimationFrame(syncContextControls);
+});
+window.addEventListener('popstate', authenticatedInstitutionalBackGuard);
+window.addEventListener('pageshow', () => {
+  authenticatedInstitutionalBackGuard();
+  restoreVisibleAppAfterReturn();
+});
 document.addEventListener('visibilitychange', restoreVisibleAppAfterReturn);
 window.addEventListener('resize', syncMobileMenuScrollLock, { passive: true });
+window.setTimeout(authenticatedInstitutionalBackGuard, 250);
 syncContextControls();
 softenPremiumGate();
 restoreVisibleAppAfterReturn();
