@@ -12,7 +12,7 @@ source = source.replace(
 
 source = source.replace(
     "  const fileInputRef = useRef(null);",
-    "  const fileInputRef = useRef(null);\n  const longPressTimerRef = useRef(null);",
+    "  const fileInputRef = useRef(null);\n  const longPressTimerRef = useRef(null);\n  const longPressActionRef = useRef(null);",
     1,
 )
 
@@ -46,15 +46,25 @@ helpers = '''
   function startLongPress(action, event) {
     if (event.target.closest('button')) return;
     window.clearTimeout(longPressTimerRef.current);
+    longPressActionRef.current = null;
     longPressTimerRef.current = window.setTimeout(() => {
       longPressTimerRef.current = null;
-      action();
+      longPressActionRef.current = action;
     }, 650);
+  }
+
+  function finishLongPress() {
+    window.clearTimeout(longPressTimerRef.current);
+    longPressTimerRef.current = null;
+    const action = longPressActionRef.current;
+    longPressActionRef.current = null;
+    if (action) window.setTimeout(action, 0);
   }
 
   function cancelLongPress() {
     window.clearTimeout(longPressTimerRef.current);
     longPressTimerRef.current = null;
+    longPressActionRef.current = null;
   }
 
 '''
@@ -94,10 +104,11 @@ article_new = '''<article
                   key={message.id}
                   style={{ WebkitTouchCallout: 'none', userSelect: 'none' }}
                   onPointerDown={(event) => startLongPress(() => confirmDeleteMessage(message.id), event)}
-                  onPointerUp={cancelLongPress}
+                  onPointerUp={finishLongPress}
                   onPointerCancel={cancelLongPress}
                   onPointerMove={cancelLongPress}
-                  onContextMenu={(event) => { event.preventDefault(); cancelLongPress(); }}
+                  onPointerLeave={cancelLongPress}
+                  onContextMenu={(event) => { event.preventDefault(); }}
                 >'''
 if article_old not in source:
     raise RuntimeError('Não foi possível ativar a exclusão unitária nas mensagens.')
@@ -109,10 +120,11 @@ image_new = '''<figure
                           key={item.id}
                           style={{ WebkitTouchCallout: 'none', userSelect: 'none' }}
                           onPointerDown={(event) => { event.stopPropagation(); startLongPress(() => confirmDeleteAttachment(item), event); }}
-                          onPointerUp={(event) => { event.stopPropagation(); cancelLongPress(); }}
+                          onPointerUp={(event) => { event.stopPropagation(); finishLongPress(); }}
                           onPointerCancel={cancelLongPress}
                           onPointerMove={cancelLongPress}
-                          onContextMenu={(event) => { event.preventDefault(); event.stopPropagation(); cancelLongPress(); }}
+                          onPointerLeave={cancelLongPress}
+                          onContextMenu={(event) => { event.preventDefault(); event.stopPropagation(); }}
                         >'''
 if image_old not in source:
     raise RuntimeError('Não foi possível ativar a exclusão unitária nas imagens.')
@@ -124,10 +136,11 @@ file_new = '''<div
                           key={item.id}
                           style={{ WebkitTouchCallout: 'none', userSelect: 'none' }}
                           onPointerDown={(event) => { event.stopPropagation(); startLongPress(() => confirmDeleteAttachment(item), event); }}
-                          onPointerUp={(event) => { event.stopPropagation(); cancelLongPress(); }}
+                          onPointerUp={(event) => { event.stopPropagation(); finishLongPress(); }}
                           onPointerCancel={cancelLongPress}
                           onPointerMove={cancelLongPress}
-                          onContextMenu={(event) => { event.preventDefault(); event.stopPropagation(); cancelLongPress(); }}
+                          onPointerLeave={cancelLongPress}
+                          onContextMenu={(event) => { event.preventDefault(); event.stopPropagation(); }}
                         >'''
 if file_old not in source:
     raise RuntimeError('Não foi possível ativar a exclusão unitária nos arquivos.')
