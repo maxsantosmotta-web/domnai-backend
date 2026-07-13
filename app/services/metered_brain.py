@@ -9,6 +9,11 @@ from app.services.domnai_brain import (
     _post_json,
     build_system_prompt,
 )
+from app.services.reliability import (
+    build_review_input,
+    needs_independent_review,
+    reviewer_instructions,
+)
 
 
 @dataclass(frozen=True)
@@ -26,6 +31,19 @@ def _as_int(value) -> int:
         return max(0, int(value or 0))
     except (TypeError, ValueError):
         return 0
+
+
+def _extract_response_text(data: dict) -> str:
+    text = str(data.get("output_text", "")).strip()
+    if text:
+        return text
+
+    parts = []
+    for output in data.get("output", []):
+        for content in output.get("content", []):
+            if content.get("type") == "output_text" and content.get("text"):
+                parts.append(str(content["text"]).strip())
+    return "\n".join(part for part in parts if part).strip()
 
 
 def _gateway_response(message: str, history: list[dict], operation: str | None, attachments: list[dict]) -> MeteredBrainResult:
@@ -48,8 +66,8 @@ def _gateway_response(message: str, history: list[dict], operation: str | None, 
         {
             "model": model,
             "messages": messages,
-            "temperature": 0.35,
-            "max_tokens": 1800,
+            "temperature": 0.1,
+            "max_tokens": 2200,
         },
     )
 
@@ -92,6 +110,18 @@ def _attachment_content(attachment: dict) -> dict:
     }
 
 
+def _openai_request(api_key: str, payload: dict) -> tuple[str, dict]:
+    data = _post_json(
+        "https://api.openai.com/v1/responses",
+        {"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"},
+        payload,
+    )
+    text = _extract_response_text(data)
+    if not text:
+        raise RuntimeError("O provedor não retornou uma resposta em texto.")
+    return text, data.get("usage") or {}
+
+
 def _openai_response(message: str, history: list[dict], operation: str | None, attachments: list[dict]) -> MeteredBrainResult:
     api_key = os.getenv("OPENAI_API_KEY", "").strip()
     if not api_key:
@@ -104,38 +134,49 @@ def _openai_response(message: str, history: list[dict], operation: str | None, a
     user_content.extend(_attachment_content(attachment) for attachment in attachments)
     input_messages.append({"role": "user", "content": user_content})
 
-    data = _post_json(
-        "https://api.openai.com/v1/responses",
-        {"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"},
+    draft_text, draft_usage = _openai_request(
+        api_key,
         {
             "model": model,
             "instructions": build_system_prompt(operation),
             "input": input_messages,
-            "temperature": 0.35,
-            "max_output_tokens": 1800,
+            "temperature": 0.1,
+            "max_output_tokens": 2400,
         },
     )
 
-    text = str(data.get("output_text", "")).strip()
-    if not text:
-        parts = []
-        for output in data.get("output", []):
-            for content in output.get("content", []):
-                if content.get("type") == "output_text" and content.get("text"):
-                    parts.append(content["text"])
-        text = "\n".join(parts).strip()
-    if not text:
-        raise RuntimeError("O provedor não retornou uma resposta em texto.")
+    final_text = draft_text
+    review_usage: dict = {}
+    reviewed = needs_independent_review(operation, message, attachments)
 
-    usage = data.get("usage") or {}
-    input_details = usage.get("input_tokens_details") or {}
+    if reviewed:
+        review_model = os.getenv("DOMNAI_REVIEW_MODEL", model).strip() or model
+        final_text, review_usage = _openai_request(
+            api_key,
+            {
+                "model": review_model,
+                "instructions": reviewer_instructions(operation),
+                "input": [{
+                    "role": "user",
+                    "content": [{
+                        "type": "input_text",
+                        "text": build_review_input(message, draft_text),
+                    }],
+                }],
+                "temperature": 0.0,
+                "max_output_tokens": 2400,
+            },
+        )
+
+    draft_input_details = draft_usage.get("input_tokens_details") or {}
+    review_input_details = review_usage.get("input_tokens_details") or {}
     return MeteredBrainResult(
-        text=text,
-        provider="openai",
+        text=final_text,
+        provider="openai-reviewed" if reviewed else "openai",
         model=model,
-        input_tokens=_as_int(usage.get("input_tokens")),
-        output_tokens=_as_int(usage.get("output_tokens")),
-        cached_input_tokens=_as_int(input_details.get("cached_tokens")),
+        input_tokens=_as_int(draft_usage.get("input_tokens")) + _as_int(review_usage.get("input_tokens")),
+        output_tokens=_as_int(draft_usage.get("output_tokens")) + _as_int(review_usage.get("output_tokens")),
+        cached_input_tokens=_as_int(draft_input_details.get("cached_tokens")) + _as_int(review_input_details.get("cached_tokens")),
     )
 
 
