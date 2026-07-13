@@ -2,6 +2,11 @@ import base64
 import os
 from dataclasses import dataclass
 
+from app.services.calculation_audit import (
+    audit_manifest,
+    format_audit_for_reviewer,
+    parse_calculation_manifest,
+)
 from app.services.domnai_brain import (
     _integration_api_key,
     _integration_base_url,
@@ -11,6 +16,8 @@ from app.services.domnai_brain import (
 )
 from app.services.reliability import (
     build_review_input,
+    calculation_extractor_instructions,
+    message_has_calculation,
     needs_independent_review,
     needs_preflight,
     preflight_instructions,
@@ -39,7 +46,6 @@ def _extract_response_text(data: dict) -> str:
     text = str(data.get("output_text", "")).strip()
     if text:
         return text
-
     parts = []
     for output in data.get("output", []):
         for content in output.get("content", []):
@@ -65,12 +71,7 @@ def _gateway_response(message: str, history: list[dict], operation: str | None, 
     data = _post_json(
         f"{base_url}/chat/completions",
         {"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"},
-        {
-            "model": model,
-            "messages": messages,
-            "temperature": 0.1,
-            "max_tokens": 2200,
-        },
+        {"model": model, "messages": messages, "temperature": 0.1, "max_tokens": 2200},
     )
 
     choices = data.get("choices") or []
@@ -97,19 +98,9 @@ def _attachment_content(attachment: dict) -> dict:
     filename = str(attachment.get("name") or "arquivo")[:255]
     encoded = base64.b64encode(attachment.get("content") or b"").decode("ascii")
     data_url = f"data:{mime_type};base64,{encoded}"
-
     if mime_type.startswith("image/"):
-        return {
-            "type": "input_image",
-            "image_url": data_url,
-            "detail": "auto",
-        }
-
-    return {
-        "type": "input_file",
-        "filename": filename,
-        "file_data": data_url,
-    }
+        return {"type": "input_image", "image_url": data_url, "detail": "auto"}
+    return {"type": "input_file", "filename": filename, "file_data": data_url}
 
 
 def _openai_request(api_key: str, payload: dict) -> tuple[str, dict]:
@@ -125,9 +116,7 @@ def _openai_request(api_key: str, payload: dict) -> tuple[str, dict]:
 
 
 def _usage_totals(*usages: dict) -> tuple[int, int, int]:
-    input_tokens = 0
-    output_tokens = 0
-    cached_tokens = 0
+    input_tokens = output_tokens = cached_tokens = 0
     for usage in usages:
         details = (usage or {}).get("input_tokens_details") or {}
         input_tokens += _as_int((usage or {}).get("input_tokens"))
@@ -136,16 +125,9 @@ def _usage_totals(*usages: dict) -> tuple[int, int, int]:
     return input_tokens, output_tokens, cached_tokens
 
 
-def _preflight_response(
-    api_key: str,
-    model: str,
-    message: str,
-    history: list[dict],
-    operation: str | None,
-) -> tuple[str | None, dict]:
+def _preflight_response(api_key: str, model: str, message: str, history: list[dict], operation: str | None) -> tuple[str | None, dict]:
     if not needs_preflight(operation):
         return None, {}
-
     preflight_input = _normalized_history(history)
     preflight_input.append({"role": "user", "content": message})
     text, usage = _openai_request(
@@ -158,7 +140,6 @@ def _preflight_response(
             "max_output_tokens": 500,
         },
     )
-
     normalized = text.strip()
     if normalized == "READY":
         return None, usage
@@ -169,15 +150,47 @@ def _preflight_response(
     return None, usage
 
 
+def _calculation_audit(api_key: str, model: str, message: str, draft_text: str, operation: str | None) -> tuple[str, dict]:
+    if not message_has_calculation(message) and operation not in {
+        "Cálculo de Rescisão Trabalhista",
+        "Gestão Financeira Empresarial",
+        "Precificação Estratégica",
+        "Análise de Viabilidade",
+        "Análise de Dívidas e Renegociação",
+        "Análise de Investimentos",
+        "Análise Imobiliária",
+        "Organização Financeira Pessoal",
+    }:
+        return "", {}
+
+    extraction_text, usage = _openai_request(
+        api_key,
+        {
+            "model": os.getenv("DOMNAI_CALC_AUDIT_MODEL", model).strip() or model,
+            "instructions": calculation_extractor_instructions(),
+            "input": [{
+                "role": "user",
+                "content": [{
+                    "type": "input_text",
+                    "text": f"PEDIDO:\n{message}\n\nRESPOSTA PRELIMINAR:\n{draft_text}",
+                }],
+            }],
+            "temperature": 0.0,
+            "max_output_tokens": 900,
+        },
+    )
+    manifest = parse_calculation_manifest(extraction_text)
+    audited = audit_manifest(manifest)
+    return format_audit_for_reviewer(audited), usage
+
+
 def _openai_response(message: str, history: list[dict], operation: str | None, attachments: list[dict]) -> MeteredBrainResult:
     api_key = os.getenv("OPENAI_API_KEY", "").strip()
     if not api_key:
         raise RuntimeError("OPENAI_API_KEY não configurada.")
 
     model = os.getenv("DOMNAI_OPENAI_MODEL", "gpt-4.1-mini").strip()
-
-    preflight_text: str | None = None
-    preflight_usage: dict = {}
+    preflight_text, preflight_usage = (None, {})
     if not attachments:
         preflight_text, preflight_usage = _preflight_response(api_key, model, message, history, operation)
 
@@ -208,6 +221,7 @@ def _openai_response(message: str, history: list[dict], operation: str | None, a
         },
     )
 
+    calculation_report, calculation_usage = _calculation_audit(api_key, model, message, draft_text, operation)
     final_text = draft_text
     review_usage: dict = {}
     reviewed = needs_independent_review(operation, message, attachments)
@@ -223,7 +237,7 @@ def _openai_response(message: str, history: list[dict], operation: str | None, a
                     "role": "user",
                     "content": [{
                         "type": "input_text",
-                        "text": build_review_input(message, draft_text),
+                        "text": build_review_input(message, draft_text, calculation_report),
                     }],
                 }],
                 "temperature": 0.0,
@@ -231,10 +245,15 @@ def _openai_response(message: str, history: list[dict], operation: str | None, a
             },
         )
 
-    input_tokens, output_tokens, cached_tokens = _usage_totals(preflight_usage, draft_usage, review_usage)
+    input_tokens, output_tokens, cached_tokens = _usage_totals(
+        preflight_usage,
+        draft_usage,
+        calculation_usage,
+        review_usage,
+    )
     return MeteredBrainResult(
         text=final_text,
-        provider="openai-reviewed" if reviewed else "openai",
+        provider="openai-reviewed-calculated" if calculation_report else "openai-reviewed" if reviewed else "openai",
         model=model,
         input_tokens=input_tokens,
         output_tokens=output_tokens,
@@ -250,7 +269,6 @@ def generate_metered_response(
 ) -> MeteredBrainResult:
     provider = os.getenv("DOMNAI_AI_PROVIDER", "auto").strip().lower()
     safe_attachments = attachments or []
-
     if provider == "gateway":
         return _gateway_response(message, history, operation, safe_attachments)
     if provider in {"openai", "", "auto"}:
