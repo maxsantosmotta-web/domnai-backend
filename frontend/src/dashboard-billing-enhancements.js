@@ -261,30 +261,6 @@ async function ensureProfileThen(status, action, actionLabel) {
   return openProfileChecklist(action, actionLabel);
 }
 
-function updateBillingPeriod(section, selectedPeriod) {
-  const premiumCard = section.querySelector('.billing-premium-card');
-  if (!premiumCard) return;
-
-  const annual = selectedPeriod === 'yearly';
-  const monthlyButton = premiumCard.querySelector('[data-billing-period="monthly"]');
-  const yearlyButton = premiumCard.querySelector('[data-billing-period="yearly"]');
-  const periodCopy = premiumCard.querySelector('.billing-period-copy');
-  const price = periodCopy?.previousElementSibling;
-  const checkout = premiumCard.querySelector('[data-billing-product]');
-
-  monthlyButton?.classList.toggle('is-active', !annual);
-  yearlyButton?.classList.toggle('is-active', annual);
-  if (yearlyButton) yearlyButton.innerHTML = annual ? 'Anual<span>Economize 17%</span>' : 'Anual';
-  if (price) price.innerHTML = annual ? 'R$ 599,00 <small>/ano</small>' : 'R$ 59,90 <small>/mês</small>';
-  if (periodCopy) {
-    periodCopy.textContent = annual
-      ? 'Cobrança anual com 500 créditos renovados mensalmente.'
-      : 'Cobrança mensal com 500 créditos por ciclo.';
-  }
-  if (checkout) checkout.dataset.billingProduct = annual ? BILLING_PRODUCTS.yearly : BILLING_PRODUCTS.monthly;
-  section.dataset.billingPeriod = selectedPeriod;
-}
-
 function renderBilling(section, status, transactions, selectedPeriod = 'monthly') {
   const premium = Boolean(status.premiumActive);
   const freeSelected = status.plan === 'free';
@@ -298,7 +274,6 @@ function renderBilling(section, status, transactions, selectedPeriod = 'monthly'
     ? `Status: ${statusBadge(status.subscriptionStatus)}${status.currentPeriodEnd ? ` · válido até ${moneyDate(status.currentPeriodEnd)}` : ''}`
     : freeSelected ? 'Navegação e visualização da plataforma.' : 'Escolha uma opção abaixo para continuar.';
 
-  section.dataset.billingPeriod = selectedPeriod;
   section.innerHTML = `
     <header class="billing-page-header">
       <div><span>Faturamento</span><h1>Plano e créditos</h1><p>Acompanhe seu saldo, assinatura e pacotes adicionais.</p></div>
@@ -348,9 +323,7 @@ function renderBilling(section, status, transactions, selectedPeriod = 'monthly'
     window.location.hash = '#/';
   });
 
-  section.querySelectorAll('[data-billing-period]').forEach((button) => {
-    button.addEventListener('click', () => updateBillingPeriod(section, button.dataset.billingPeriod));
-  });
+  section.querySelectorAll('[data-billing-period]').forEach((button) => button.addEventListener('click', () => renderBilling(section, status, transactions, button.dataset.billingPeriod)));
 
   section.querySelectorAll('[data-billing-product]').forEach((button) => {
     button.addEventListener('click', async () => {
@@ -376,7 +349,7 @@ function renderBilling(section, status, transactions, selectedPeriod = 'monthly'
   section.querySelector('[data-billing-action="free"]:not([disabled])')?.addEventListener('click', () => {
     const activateFree = async () => {
       const updatedStatus = await billingFetch('/api/billing/select-free', { method: 'POST', body: '{}' });
-      renderBilling(section, updatedStatus, transactions, section.dataset.billingPeriod || selectedPeriod);
+      renderBilling(section, updatedStatus, transactions, selectedPeriod);
       window.dispatchEvent(new CustomEvent('domnai:billing-updated', { detail: updatedStatus }));
       return updatedStatus;
     };
@@ -407,7 +380,7 @@ async function enhanceBillingScreen() {
   section.innerHTML = '<div class="billing-loading-state">Carregando informações financeiras...</div>';
   try {
     const [status, transactionPayload] = await Promise.all([billingFetch('/api/billing/status'), billingFetch('/api/billing/transactions')]);
-    renderBilling(section, status, transactionPayload.items || [], section.dataset.billingPeriod || 'monthly');
+    renderBilling(section, status, transactionPayload.items || []);
   } catch (error) {
     section.dataset.billingConnected = 'false';
     section.innerHTML = `<div class="billing-error-state"><strong>Não foi possível carregar o faturamento.</strong><p>${error.message}</p><button type="button">Tentar novamente</button></div>`;
