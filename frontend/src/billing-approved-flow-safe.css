@@ -1,21 +1,28 @@
 .billing-back-to-chat.billing-approved-back {
   min-width: auto !important;
   width: auto !important;
-  min-height: 40px !important;
-  height: 40px !important;
-  padding: 0 16px !important;
+  min-height: auto !important;
+  height: auto !important;
+  padding: 0 !important;
   gap: 0 !important;
-  border: 1px solid #ffffff !important;
-  border-radius: 12px !important;
-  background: #ffffff !important;
-  color: #111111 !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+  color: #ffffff !important;
   box-shadow: none !important;
   font-weight: 800 !important;
+  text-decoration: none !important;
+}
+
+.billing-back-to-chat.billing-approved-back:hover,
+.billing-back-to-chat.billing-approved-back:focus-visible {
+  background: transparent !important;
+  color: #e7c35e !important;
 }
 
 .profile-checklist-card > header {
   position: relative;
-  padding-right: 132px;
+  padding-right: 150px;
 }
 
 .profile-checklist-top-cancel {
@@ -36,12 +43,12 @@
   .billing-back-to-chat.billing-approved-back {
     min-width: auto !important;
     width: auto !important;
-    height: 40px !important;
-    padding: 0 14px !important;
+    height: auto !important;
+    padding: 0 !important;
   }
 
   .profile-checklist-card > header {
-    padding-right: 112px;
+    padding-right: 132px;
   }
 
   .profile-checklist-top-cancel {
