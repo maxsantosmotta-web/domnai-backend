@@ -9,6 +9,7 @@ from app.services.labor_termination import (
     OPERATION,
     calculate,
     extraction_instructions,
+    missing_data_prompt_instructions,
     parse_extracted_data,
     render_instructions,
 )
@@ -56,8 +57,26 @@ def generate_labor_response(
     calculation = calculate(extracted)
 
     if not calculation.ready:
-        questions = "Para calcular sem presumir dados, preciso confirmar:\n\n" + "\n".join(
-            f"{index}. {question}" for index, question in enumerate(calculation.questions, start=1)
+        context_payload = {
+            "missing_fields": calculation.missing_fields,
+            "known_data": extracted,
+            "current_message": message,
+        }
+        questions, question_usage = _openai_request(
+            api_key,
+            {
+                "model": os.getenv("DOMNAI_LABOR_QUESTION_MODEL", model).strip() or model,
+                "instructions": missing_data_prompt_instructions(),
+                "input": [{
+                    "role": "user",
+                    "content": [{
+                        "type": "input_text",
+                        "text": json.dumps(context_payload, ensure_ascii=False),
+                    }],
+                }],
+                "temperature": 0.1,
+                "max_output_tokens": 500,
+            },
         )
         updated_state, memory_usage = _update_diagnosis_memory(
             api_key,
@@ -68,10 +87,14 @@ def generate_labor_response(
             questions,
             attachments,
         )
-        input_tokens, output_tokens, cached_tokens = _usage_totals(extraction_usage, memory_usage)
+        input_tokens, output_tokens, cached_tokens = _usage_totals(
+            extraction_usage,
+            question_usage,
+            memory_usage,
+        )
         return MeteredBrainResult(
             text=questions,
-            provider="openai-labor-preflight-deterministic",
+            provider="openai-labor-adaptive-preflight-deterministic",
             model=model,
             input_tokens=input_tokens,
             output_tokens=output_tokens,
