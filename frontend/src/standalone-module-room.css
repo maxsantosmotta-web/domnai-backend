@@ -14,6 +14,32 @@ body.domnai-standalone-room-open {
   -webkit-overflow-scrolling: touch;
 }
 
+.domnai-standalone-room-controls {
+  position: fixed;
+  top: 18px;
+  right: 22px;
+  z-index: 3010;
+  display: flex;
+  align-items: center;
+  gap: 18px;
+}
+
+.domnai-standalone-room-controls button {
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: #ffffff;
+  font: inherit;
+  font-size: 0.84rem;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.domnai-standalone-room-controls button:hover,
+.domnai-standalone-room-controls button:focus-visible {
+  color: #e7c35e;
+}
+
 .domnai-standalone-room-main {
   min-height: 100vh;
   display: flex;
@@ -24,4 +50,18 @@ body.domnai-standalone-room-open {
 .domnai-standalone-room-main > [data-domnai-profile-page] {
   width: 100%;
   flex: 1 0 auto;
+}
+
+@media (max-width: 620px) {
+  .domnai-standalone-room-controls {
+    top: 18px;
+    right: 16px;
+    left: 76px;
+    justify-content: flex-end;
+    gap: 14px;
+  }
+
+  .domnai-standalone-room-controls button {
+    font-size: 0.76rem;
+  }
 }
