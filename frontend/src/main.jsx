@@ -41,6 +41,7 @@ import './dashboard-navigation-layer-fixes.js';
 import './dashboard-profile-back-fix.js';
 import './dashboard-sidebar-cleanup.js';
 import './auth-enhancements.js';
+import './dashboard-flow-stability-fixes.js';
 
 const rootElement = document.getElementById('root');
 
