@@ -35,18 +35,19 @@ new = '''function ProtectedDashboard() {
       try {
         setBillingError('');
         const token = await getToken();
+        if (!token) throw new Error('Sessão não encontrada.');
         const response = await fetch('/api/billing/status', {
           headers: { Authorization: `Bearer ${token}` },
           cache: 'no-store',
           signal: controller.signal,
         });
-        if (!response.ok) throw new Error('Não foi possível validar seu plano.');
+        if (!response.ok) throw new Error('Não foi possível validar seu cadastro e plano.');
         const status = await response.json();
         if (active) setBillingStatus(status);
       } catch (error) {
         if (active) setBillingError(error?.name === 'AbortError'
-          ? 'A validação do plano demorou mais que o esperado.'
-          : error?.message || 'Não foi possível validar seu plano.');
+          ? 'A validação do acesso demorou mais que o esperado.'
+          : error?.message || 'Não foi possível validar seu acesso.');
       } finally {
         window.clearTimeout(timeout);
       }
@@ -76,13 +77,15 @@ new = '''function ProtectedDashboard() {
   const planSelected = Boolean(
     billingStatus?.plan && !['unselected', 'free_demo'].includes(billingStatus.plan),
   );
+  const profileCompleted = Boolean(billingStatus?.profileCompleted);
+  const accessReady = planSelected && profileCompleted;
 
   useEffect(() => {
     if (!billingStatus) return;
     window.__domnaiBillingStatus = billingStatus;
     window.dispatchEvent(new CustomEvent('domnai:billing-updated', { detail: billingStatus }));
-    if (!planSelected) setPlanScreenReady(false);
-  }, [billingStatus, planSelected]);
+    if (!accessReady) setPlanScreenReady(false);
+  }, [billingStatus, accessReady]);
 
   if (billingError) {
     return (
@@ -108,15 +111,15 @@ new = '''function ProtectedDashboard() {
     );
   }
 
-  if (!planSelected) {
+  if (!accessReady) {
     return (
       <div className="react-plan-gate-wrapper">
         <Dashboard />
         {!planScreenReady ? (
           <div className="react-plan-gate-overlay" aria-busy="true">
             <section className="react-plan-gate-card">
-              <h1>Preparando a escolha do plano...</h1>
-              <p>Seu acesso só será liberado depois que você escolher FREE ou PREMIUM.</p>
+              <h1>Preparando seu acesso...</h1>
+              <p>O Dashboard só será liberado depois que você completar o cadastro e escolher FREE ou PREMIUM.</p>
             </section>
           </div>
         ) : null}
