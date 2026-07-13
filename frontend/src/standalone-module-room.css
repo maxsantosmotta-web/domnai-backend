@@ -1,0 +1,27 @@
+html.domnai-standalone-room-open,
+body.domnai-standalone-room-open {
+  overflow: hidden !important;
+}
+
+.domnai-standalone-room {
+  position: fixed;
+  inset: 0;
+  z-index: 3000;
+  overflow-y: auto;
+  background: #050505;
+  color: #f7f7f7;
+  isolation: isolate;
+  -webkit-overflow-scrolling: touch;
+}
+
+.domnai-standalone-room-main {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+.domnai-standalone-room-main > .internal-section,
+.domnai-standalone-room-main > [data-domnai-profile-page] {
+  width: 100%;
+  flex: 1 0 auto;
+}
