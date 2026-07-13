@@ -11,6 +11,8 @@ async function flowAuthToken() {
 
 async function refreshBillingStatusAndNotify() {
   if (flowStabilityBusy) return window.__domnaiBillingStatus || null;
+  if (document.querySelector('.profile-checklist-overlay')) return window.__domnaiBillingStatus || null;
+
   flowStabilityBusy = true;
   try {
     const token = await flowAuthToken();
@@ -81,23 +83,6 @@ function enhanceBillingFailureState() {
   }
 }
 
-function stabilizeBillingBackButton() {
-  document.querySelectorAll('[data-billing-action="back-to-chat"]:not([data-flow-fixed])').forEach((button) => {
-    button.dataset.flowFixed = 'true';
-    button.addEventListener('click', (event) => {
-      event.preventDefault();
-      event.stopImmediatePropagation();
-      if (!planIsSelected()) return;
-      openDashboardSafely();
-    }, true);
-
-    if (!planIsSelected()) {
-      button.hidden = true;
-      button.setAttribute('aria-hidden', 'true');
-    }
-  });
-}
-
 function stabilizeProfileBackButton() {
   document.querySelectorAll('.domnai-profile-close:not([data-flow-fixed]), .domnai-profile-cancel:not([data-flow-fixed])').forEach((button) => {
     button.dataset.flowFixed = 'true';
@@ -110,7 +95,6 @@ function stabilizeProfileBackButton() {
 }
 
 function applyFlowStabilityFixes() {
-  stabilizeBillingBackButton();
   stabilizeProfileBackButton();
   enhanceBillingFailureState();
 }
