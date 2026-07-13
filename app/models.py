@@ -118,3 +118,12 @@ class ActiveChatState(Base):
     messages_json: Mapped[str] = mapped_column(Text, nullable=False, default="[]")
     active_operation: Mapped[str | None] = mapped_column(String(120), nullable=True)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc), nullable=False)
+
+
+class DiagnosisState(Base):
+    __tablename__ = "diagnosis_states"
+
+    user_id: Mapped[str] = mapped_column(String(128), primary_key=True)
+    operation: Mapped[str | None] = mapped_column(String(180), nullable=True)
+    state_json: Mapped[str] = mapped_column(Text, nullable=False, default="{}")
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc), nullable=False)
