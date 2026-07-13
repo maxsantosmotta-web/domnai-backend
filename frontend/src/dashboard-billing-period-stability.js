@@ -33,6 +33,22 @@ function applySelectedBillingPeriod() {
   lastBillingCard = premiumCard;
 }
 
+// Impede o gate de reabrir a seção de faturamento enquanto o cadastro obrigatório está aberto.
+// O observador do onboarding dispara cliques programáticos no menu a cada mutação do formulário;
+// este bloqueio evita o ciclo visual sem interferir no envio ou fechamento do cadastro.
+document.addEventListener('click', (event) => {
+  const profileOverlay = document.querySelector('.profile-checklist-overlay');
+  if (!profileOverlay) return;
+
+  const navigationButton = event.target.closest?.('.sidebar-navigation button');
+  if (!navigationButton) return;
+  if (!navigationButton.textContent.trim().includes('Faturamento')) return;
+
+  event.preventDefault();
+  event.stopPropagation();
+  event.stopImmediatePropagation();
+}, true);
+
 // Captura somente o seletor Mensal/Anual. Não interfere em FREE, cadastro ou outros botões.
 document.addEventListener('click', (event) => {
   const button = event.target.closest?.('[data-billing-period]');
