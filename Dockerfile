@@ -11,7 +11,6 @@ COPY scripts/connect_billing_back_label.py /tmp/connect_billing_back_label.py
 COPY scripts/hide_billing_history.py /tmp/hide_billing_history.py
 COPY scripts/connect_pdf_report.py /tmp/connect_pdf_report.py
 COPY scripts/connect_react_plan_gate.py /tmp/connect_react_plan_gate.py
-COPY scripts/connect_gate_runtime_events.py /tmp/connect_gate_runtime_events.py
 RUN apk add --no-cache python3 \
     && python3 /tmp/connect_domnai_chat.py \
     && python3 /tmp/connect_operation_to_composer.py \
@@ -21,7 +20,6 @@ RUN apk add --no-cache python3 \
     && python3 /tmp/hide_billing_history.py \
     && python3 /tmp/connect_pdf_report.py \
     && python3 /tmp/connect_react_plan_gate.py \
-    && python3 /tmp/connect_gate_runtime_events.py \
     && npm run build
 
 FROM python:3.13-slim AS runtime
