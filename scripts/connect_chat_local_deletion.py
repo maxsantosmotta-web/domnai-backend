@@ -50,7 +50,7 @@ helpers = '''
   }
 
   function startLongPress(action, event) {
-    if (event.target.closest('button, p')) return;
+    if (event.target.closest('button, .message-text-selectable')) return;
     window.clearTimeout(longPressTimerRef.current);
     longPressActionRef.current = action;
     longPressStartRef.current = { x: event.clientX, y: event.clientY };
@@ -120,30 +120,23 @@ article_old = '<article className={`chat-message ${message.role}${message.isErro
 article_new = '''<article
                   className={`chat-message ${message.role}${message.isError ? ' error' : ''}`}
                   key={message.id}
-                  style={{ WebkitTouchCallout: 'default', userSelect: 'text' }}
+                  style={{ WebkitTouchCallout: 'default', userSelect: 'none' }}
+                  onPointerDown={(event) => startLongPress(() => confirmDeleteMessage(message.id), event)}
+                  onPointerUp={finishLongPress}
+                  onPointerCancel={cancelLongPress}
+                  onPointerMove={moveLongPress}
+                  onContextMenu={(event) => {
+                    if (!event.target.closest('.message-text-selectable')) event.preventDefault();
+                  }}
                 >'''
 if article_old not in source:
     raise RuntimeError('Não foi possível localizar as mensagens do chat.')
 source = source.replace(article_old, article_new, 1)
 
-author_old = '<span className="message-author">{message.role === \'assistant\' ? \'DomnAI\' : \'Você\'}</span>'
-author_new = '''<span
-                    className="message-author"
-                    style={{ display: 'block', width: '100%', minHeight: '28px', touchAction: 'none', userSelect: 'none', WebkitTouchCallout: 'none' }}
-                    onPointerDown={(event) => { event.stopPropagation(); startLongPress(() => confirmDeleteMessage(message.id), event); }}
-                    onPointerUp={(event) => { event.stopPropagation(); finishLongPress(); }}
-                    onPointerCancel={cancelLongPress}
-                    onPointerMove={moveLongPress}
-                    onContextMenu={(event) => { event.preventDefault(); event.stopPropagation(); }}
-                  >{message.role === 'assistant' ? 'DomnAI' : 'Você'}</span>'''
-if author_old not in source:
-    raise RuntimeError('Não foi possível localizar o cabeçalho das mensagens.')
-source = source.replace(author_old, author_new, 1)
-
 text_old = "{message.text ? <p>{message.text}</p> : null}"
-text_new = "{message.text ? <p style={{ WebkitTouchCallout: 'default', userSelect: 'text' }}>{message.text}</p> : null}"
+text_new = "{message.text ? <p style={{ userSelect: 'none' }}><span className=\"message-text-selectable\" style={{ WebkitTouchCallout: 'default', userSelect: 'text' }}>{message.text}</span></p> : null}"
 if text_old not in source:
-    raise RuntimeError('Não foi possível liberar a seleção nativa das mensagens.')
+    raise RuntimeError('Não foi possível separar texto selecionável da área de exclusão.')
 source = source.replace(text_old, text_new, 1)
 
 image_old = '<figure className="chat-image-native" key={item.id}>'
