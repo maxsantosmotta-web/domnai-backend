@@ -159,10 +159,6 @@ function profileFormHtml(profile = {}, actionLabel = 'Continuar') {
 }
 
 async function openProfileChecklist(onComplete, actionLabel) {
-  if (document.querySelector('.profile-checklist-overlay')) return;
-
-  window.dispatchEvent(new CustomEvent('domnai:onboarding-profile-opened'));
-
   let profile = {};
   try {
     const payload = await billingFetch('/api/profile');
@@ -171,6 +167,7 @@ async function openProfileChecklist(onComplete, actionLabel) {
     profile = {};
   }
 
+  document.querySelector('.profile-checklist-overlay')?.remove();
   document.body.insertAdjacentHTML('beforeend', profileFormHtml(profile, actionLabel));
   const overlay = document.querySelector('.profile-checklist-overlay');
   const form = overlay.querySelector('form');
@@ -188,11 +185,7 @@ async function openProfileChecklist(onComplete, actionLabel) {
   cep.addEventListener('input', () => { cep.value = formatCep(cep.value); });
   form.elements.state.addEventListener('input', (event) => { event.target.value = event.target.value.toUpperCase().replace(/[^A-Z]/g, '').slice(0, 2); });
 
-  overlay.querySelector('.profile-checklist-cancel').addEventListener('click', () => {
-    overlay.remove();
-    window.dispatchEvent(new CustomEvent('domnai:onboarding-profile-cancelled'));
-  });
-
+  overlay.querySelector('.profile-checklist-cancel').addEventListener('click', () => overlay.remove());
   form.addEventListener('submit', async (event) => {
     event.preventDefault();
     errorBox.hidden = true;
@@ -246,8 +239,8 @@ async function openProfileChecklist(onComplete, actionLabel) {
 
     try {
       await billingFetch('/api/profile', { method: 'PUT', body: JSON.stringify(body) });
-      await onComplete();
       overlay.remove();
+      await onComplete();
     } catch (error) {
       errorBox.textContent = error.message;
       errorBox.hidden = false;
@@ -260,28 +253,6 @@ async function openProfileChecklist(onComplete, actionLabel) {
 async function ensureProfileThen(status, action, actionLabel) {
   if (status.profileCompleted) return action();
   return openProfileChecklist(action, actionLabel);
-}
-
-function updateBillingPeriod(section, selectedPeriod) {
-  const premiumCard = section.querySelector('.billing-premium-card');
-  if (!premiumCard) return;
-
-  const annual = selectedPeriod === 'yearly';
-  const monthlyButton = premiumCard.querySelector('[data-billing-period="monthly"]');
-  const yearlyButton = premiumCard.querySelector('[data-billing-period="yearly"]');
-  const price = premiumCard.querySelector(':scope > strong');
-  const copy = premiumCard.querySelector('.billing-period-copy');
-  const checkout = premiumCard.querySelector('[data-billing-product]');
-
-  monthlyButton?.classList.toggle('is-active', !annual);
-  yearlyButton?.classList.toggle('is-active', annual);
-  if (yearlyButton) yearlyButton.innerHTML = annual ? 'Anual<span>Economize 17%</span>' : 'Anual';
-  if (price) price.innerHTML = annual ? 'R$ 599,00 <small>/ano</small>' : 'R$ 59,90 <small>/mês</small>';
-  if (copy) copy.textContent = annual
-    ? 'Cobrança anual com 500 créditos renovados mensalmente.'
-    : 'Cobrança mensal com 500 créditos por ciclo.';
-  if (checkout) checkout.dataset.billingProduct = annual ? BILLING_PRODUCTS.yearly : BILLING_PRODUCTS.monthly;
-  section.dataset.billingPeriod = selectedPeriod;
 }
 
 function renderBilling(section, status, transactions, selectedPeriod = 'monthly') {
@@ -297,7 +268,6 @@ function renderBilling(section, status, transactions, selectedPeriod = 'monthly'
     ? `Status: ${statusBadge(status.subscriptionStatus)}${status.currentPeriodEnd ? ` · válido até ${moneyDate(status.currentPeriodEnd)}` : ''}`
     : freeSelected ? 'Navegação e visualização da plataforma.' : 'Escolha uma opção abaixo para continuar.';
 
-  section.dataset.billingPeriod = selectedPeriod;
   section.innerHTML = `
     <header class="billing-page-header">
       <div><span>Faturamento</span><h1>Plano e créditos</h1><p>Acompanhe seu saldo, assinatura e pacotes adicionais.</p></div>
@@ -347,9 +317,7 @@ function renderBilling(section, status, transactions, selectedPeriod = 'monthly'
     window.location.hash = '#/';
   });
 
-  section.querySelectorAll('[data-billing-period]').forEach((button) => {
-    button.addEventListener('click', () => updateBillingPeriod(section, button.dataset.billingPeriod));
-  });
+  section.querySelectorAll('[data-billing-period]').forEach((button) => button.addEventListener('click', () => renderBilling(section, status, transactions, button.dataset.billingPeriod)));
 
   section.querySelectorAll('[data-billing-product]').forEach((button) => {
     button.addEventListener('click', async () => {
@@ -359,13 +327,12 @@ function renderBilling(section, status, transactions, selectedPeriod = 'monthly'
         button.disabled = true;
         button.textContent = 'Abrindo checkout...';
         try {
-          const result = await billingFetch('/api/billing/checkout', { method: 'POST', body: JSON.stringify({ product: button.dataset.billingProduct }) });
+          const result = await billingFetch('/api/billing/checkout', { method: 'POST', body: JSON.stringify({ product }) });
           window.location.assign(result.url);
         } catch (error) {
           window.alert(error.message);
           button.disabled = false;
           button.textContent = original;
-          throw error;
         }
       };
       if (product === BILLING_PRODUCTS.credits) return checkoutAction();
@@ -376,9 +343,7 @@ function renderBilling(section, status, transactions, selectedPeriod = 'monthly'
   section.querySelector('[data-billing-action="free"]:not([disabled])')?.addEventListener('click', () => {
     const activateFree = async () => {
       const updatedStatus = await billingFetch('/api/billing/select-free', { method: 'POST', body: '{}' });
-      renderBilling(section, updatedStatus, transactions, section.dataset.billingPeriod || selectedPeriod);
-      window.dispatchEvent(new CustomEvent('domnai:billing-updated', { detail: updatedStatus }));
-      return updatedStatus;
+      renderBilling(section, updatedStatus, transactions, selectedPeriod);
     };
     ensureProfileThen(status, activateFree, 'Ativar plano FREE').catch((error) => window.alert(error.message));
   });
@@ -407,7 +372,7 @@ async function enhanceBillingScreen() {
   section.innerHTML = '<div class="billing-loading-state">Carregando informações financeiras...</div>';
   try {
     const [status, transactionPayload] = await Promise.all([billingFetch('/api/billing/status'), billingFetch('/api/billing/transactions')]);
-    renderBilling(section, status, transactionPayload.items || [], section.dataset.billingPeriod || 'monthly');
+    renderBilling(section, status, transactionPayload.items || []);
   } catch (error) {
     section.dataset.billingConnected = 'false';
     section.innerHTML = `<div class="billing-error-state"><strong>Não foi possível carregar o faturamento.</strong><p>${error.message}</p><button type="button">Tentar novamente</button></div>`;
