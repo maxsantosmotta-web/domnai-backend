@@ -55,13 +55,17 @@ CALCULATION_MARKERS = (
 )
 
 
+def message_has_calculation(message: str) -> bool:
+    normalized = (message or "").casefold()
+    return any(marker in normalized for marker in CALCULATION_MARKERS)
+
+
 def needs_independent_review(operation: str | None, message: str, attachments: list[dict] | None = None) -> bool:
     if operation in HIGH_RISK_OPERATIONS:
         return True
     if attachments:
         return True
-    normalized = (message or "").casefold()
-    return any(marker in normalized for marker in CALCULATION_MARKERS)
+    return message_has_calculation(message)
 
 
 def needs_preflight(operation: str | None, attachments: list[dict] | None = None) -> bool:
@@ -100,6 +104,24 @@ DADOS ESSENCIAIS POR CONTEXTO
 """.strip()
 
 
+def calculation_extractor_instructions() -> str:
+    return """
+Você é um extrator técnico de cálculos. Analise a resposta preliminar e identifique somente as contas aritméticas explícitas ou implícitas que sustentam valores apresentados.
+
+Retorne exclusivamente JSON válido neste formato:
+{"calculations":[{"label":"nome curto","expression":"expressão usando apenas números, +, -, *, /, parênteses e **","stated_value":"valor informado na resposta"}]}
+
+REGRAS
+- Use ponto como separador decimal.
+- Converta percentuais para divisão por 100. Exemplo: 10% de 500 = 500*(10/100).
+- Não inclua datas, leis, regras qualitativas ou fórmulas que dependam de variável desconhecida.
+- Não invente números ausentes.
+- Para somas de parcelas, crie também um item para o total.
+- Se não houver conta verificável, retorne {"calculations":[]}.
+- Não use markdown nem comentários.
+""".strip()
+
+
 def reviewer_instructions(operation: str | None) -> str:
     operation_label = operation or "operação não selecionada"
     return f"""
@@ -112,24 +134,26 @@ AUDITORIA OBRIGATÓRIA
 2. Procure contradições, omissões, datas incompatíveis, unidades erradas, percentuais incorretos e conclusões não sustentadas.
 3. Refaça silenciosamente toda soma, subtração, multiplicação, divisão, proporcionalidade, contagem de períodos e arredondamento.
 4. Em cálculo financeiro, trabalhista ou comercial, confira cada parcela e o total por um caminho independente.
-5. Não aceite total fechado quando faltar dado indispensável. Nesse caso, substitua o total por cenários ou faça perguntas objetivas.
-6. Diferencie fato confirmado, declaração do usuário, hipótese, estimativa e recomendação.
-7. Em jurídico, saúde, finanças e investimentos, elimine certeza indevida, promessas e orientação perigosa.
-8. Em documentos, não afirme que uma cláusula existe sem apoio no conteúdo analisado. Informe página ou seção quando essa informação estiver disponível.
-9. Preserve a linguagem natural e direta. Não mencione revisão, auditoria, modelo, prompt ou processo interno.
-10. Entregue somente a versão final corrigida, pronta para o usuário. Não explique o que você alterou.
+5. Quando receber uma auditoria matemática determinística, trate os valores calculados pelo backend como fonte obrigatória para as contas aritméticas.
+6. Não aceite total fechado quando faltar dado indispensável. Nesse caso, substitua o total por cenários ou faça perguntas objetivas.
+7. Diferencie fato confirmado, declaração do usuário, hipótese, estimativa e recomendação.
+8. Em jurídico, saúde, finanças e investimentos, elimine certeza indevida, promessas e orientação perigosa.
+9. Em documentos, não afirme que uma cláusula existe sem apoio no conteúdo analisado. Informe página ou seção quando essa informação estiver disponível.
+10. Preserve a linguagem natural e direta. Não mencione revisão, auditoria, modelo, prompt ou processo interno.
+11. Entregue somente a versão final corrigida, pronta para o usuário. Não explique o que você alterou.
 
 Se a resposta preliminar estiver correta, apenas a refine para máxima clareza e precisão, sem acrescentar fatos novos.
 """.strip()
 
 
-def build_review_input(user_message: str, draft_answer: str) -> str:
+def build_review_input(user_message: str, draft_answer: str, calculation_audit: str = "") -> str:
+    audit_block = f"\n\n{calculation_audit.strip()}" if calculation_audit.strip() else ""
     return f"""
 PEDIDO DO USUÁRIO:
 {user_message}
 
 RESPOSTA PRELIMINAR A SER AUDITADA:
-{draft_answer}
+{draft_answer}{audit_block}
 
 Produza agora somente a resposta final corrigida e segura.
 """.strip()
