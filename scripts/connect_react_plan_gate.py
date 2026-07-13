@@ -189,4 +189,12 @@ if css_import not in main_source:
     if anchor not in main_source:
         raise RuntimeError('Importação de onboarding não encontrada em main.jsx.')
     main_source = main_source.replace(anchor, anchor + '\n' + css_import, 1)
+
+flow_import = "import './billing-approved-flow-safe.js';"
+if flow_import not in main_source:
+    anchor = "import './auth-enhancements.js';"
+    if anchor not in main_source:
+        raise RuntimeError('Importação de autenticação não encontrada em main.jsx.')
+    main_source = main_source.replace(anchor, anchor + '\n' + flow_import, 1)
+
 main_path.write_text(main_source, encoding='utf-8')
