@@ -126,7 +126,9 @@ function hasCompletedAccess(status) {
 }
 
 function stateFromStatus(status) {
-  if (onboardingState === ONBOARDING_STATES.PROFILE_REQUIRED) return ONBOARDING_STATES.PROFILE_REQUIRED;
+  if (onboardingState === ONBOARDING_STATES.PROFILE_REQUIRED && !hasCompletedAccess(status)) {
+    return ONBOARDING_STATES.PROFILE_REQUIRED;
+  }
   if (needsPlanSelection(status)) return ONBOARDING_STATES.PLAN_REQUIRED;
   if (!status?.profileCompleted) return ONBOARDING_STATES.PROFILE_REQUIRED;
   return ONBOARDING_STATES.RELEASED;
@@ -435,7 +437,6 @@ window.addEventListener('domnai:billing-updated', (event) => {
   const status = event.detail;
   if (status && currentOnboardingUserId) {
     cacheOnboardingStatus(currentOnboardingUserId, status);
-    setOnboardingState(stateFromStatus(status));
     applyPlanGate(status);
   } else {
     setOnboardingState(ONBOARDING_STATES.CHECKING);
