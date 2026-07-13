@@ -100,6 +100,11 @@ if 'function ProtectedDashboard()' not in source:
     let attempts = 0;
     const interval = window.setInterval(() => {
       attempts += 1;
+
+      const billingButton = [...document.querySelectorAll('.sidebar-navigation button')]
+        .find((button) => button.textContent.trim().includes('Faturamento'));
+      if (billingButton && !billingButton.classList.contains('is-active')) billingButton.click();
+
       const ready = Boolean(document.querySelector('.billing-plans-section'));
       if (ready || attempts >= 80) {
         setPlanScreenReady(ready);
