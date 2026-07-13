@@ -28,7 +28,6 @@ import './dashboard-link-enhancements.js';
 import './dashboard-operation-groups.js';
 import './dashboard-extra-icons.js';
 import './dashboard-billing-enhancements.js';
-import './dashboard-onboarding-enhancements.js';
 import './dashboard-admin-access-sync.js';
 import './dashboard-profile-enhancements.js';
 import './dashboard-profile-avatar-sync.js';
@@ -41,7 +40,6 @@ import './dashboard-navigation-layer-fixes.js';
 import './dashboard-profile-back-fix.js';
 import './dashboard-sidebar-cleanup.js';
 import './auth-enhancements.js';
-import './dashboard-flow-stability-fixes.js';
 
 const rootElement = document.getElementById('root');
 
