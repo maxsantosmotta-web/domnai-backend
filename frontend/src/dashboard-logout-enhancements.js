@@ -1,3 +1,23 @@
+function clearDomnAISessionState() {
+  try {
+    Object.keys(sessionStorage).forEach((key) => {
+      if (key.startsWith('domnai:')) sessionStorage.removeItem(key);
+    });
+  } catch {
+    // O logout continua mesmo quando o armazenamento está indisponível.
+  }
+
+  document.documentElement.classList.remove(
+    'domnai-gate-pending',
+    'domnai-plan-selection-required',
+  );
+  document.body.classList.remove(
+    'domnai-profile-exclusive',
+    'domnai-mobile-menu-open',
+  );
+  window.dispatchEvent(new CustomEvent('domnai:signed-out'));
+}
+
 async function domnaiSignOut(button) {
   if (button) {
     button.disabled = true;
@@ -6,7 +26,10 @@ async function domnaiSignOut(button) {
 
   try {
     if (!window.Clerk?.signOut) throw new Error('Sessão não encontrada.');
-    await window.Clerk.signOut({ redirectUrl: `${window.location.origin}/#/` });
+    clearDomnAISessionState();
+    await window.Clerk.signOut();
+    window.location.replace(`${window.location.origin}/#/`);
+    window.setTimeout(() => window.location.reload(), 30);
   } catch (error) {
     if (button) {
       button.disabled = false;
@@ -15,6 +38,8 @@ async function domnaiSignOut(button) {
     window.alert(error?.message || 'Não foi possível sair da conta.');
   }
 }
+
+window.domnaiSafeSignOut = () => domnaiSignOut(null);
 
 function installProfileLogout() {
   const header = document.querySelector('[data-domnai-profile-page] .domnai-profile-header');
