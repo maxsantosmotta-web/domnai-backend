@@ -48,29 +48,45 @@ function normalizeApiError(detail) {
   return String(detail);
 }
 
-async function getAuthToken() {
+function waitForBilling(delay) {
+  return new Promise((resolve) => window.setTimeout(resolve, delay));
+}
+
+async function getAuthToken(skipCache = false) {
   for (let attempt = 0; attempt < 40; attempt += 1) {
-    const clerk = window.Clerk;
-    if (clerk?.session) return clerk.session.getToken();
-    await new Promise((resolve) => window.setTimeout(resolve, 150));
+    const session = window.Clerk?.session;
+    if (session) {
+      const token = await session.getToken({ skipCache: skipCache || attempt > 0 }).catch(() => null);
+      if (token) return token;
+    }
+    await waitForBilling(150);
   }
-  throw new Error('Sessão não encontrada. Atualize a página e tente novamente.');
+  throw new Error('Sessão não confirmada. Entre novamente.');
 }
 
 async function billingFetch(url, options = {}) {
-  const token = await getAuthToken();
-  const response = await fetch(url, {
-    ...options,
-    headers: {
-      'Content-Type': 'application/json',
-      ...(options.headers || {}),
-      Authorization: `Bearer ${token}`,
-    },
-  });
-  if (!response.ok) {
-    const payload = await response.json().catch(() => ({}));
+  let response = null;
+
+  for (let attempt = 0; attempt < 6; attempt += 1) {
+    const token = await getAuthToken(attempt > 0);
+    response = await fetch(url, {
+      ...options,
+      headers: {
+        'Content-Type': 'application/json',
+        ...(options.headers || {}),
+        Authorization: `Bearer ${token}`,
+      },
+    });
+
+    if (response.status !== 401 && response.status !== 403) break;
+    await waitForBilling(200 + (attempt * 150));
+  }
+
+  if (!response?.ok) {
+    const payload = await response?.json().catch(() => ({})) || {};
     throw new Error(normalizeApiError(payload.detail || payload.message));
   }
+
   return response.status === 204 ? null : response.json();
 }
 
@@ -160,7 +176,6 @@ function profileFormHtml(profile = {}, actionLabel = 'Continuar') {
 
 async function openProfileChecklist(onComplete, actionLabel) {
   if (document.querySelector('.profile-checklist-overlay')) return;
-  window.dispatchEvent(new CustomEvent('domnai:onboarding-profile-opened'));
 
   let profile = {};
   try {
@@ -189,7 +204,6 @@ async function openProfileChecklist(onComplete, actionLabel) {
 
   overlay.querySelector('.profile-checklist-cancel').addEventListener('click', () => {
     overlay.remove();
-    window.dispatchEvent(new CustomEvent('domnai:onboarding-profile-cancelled'));
   });
 
   form.addEventListener('submit', async (event) => {
@@ -345,7 +359,9 @@ function renderBilling(section, status, transactions, selectedPeriod = 'monthly'
   });
 
   section.querySelectorAll('[data-billing-period]').forEach((button) => {
-    button.addEventListener('click', () => {
+    button.addEventListener('click', (event) => {
+      event.preventDefault();
+      event.stopPropagation();
       selectedPeriod = button.dataset.billingPeriod;
       updateBillingPeriod(section, selectedPeriod);
     });
@@ -372,7 +388,9 @@ function renderBilling(section, status, transactions, selectedPeriod = 'monthly'
     });
   });
 
-  section.querySelector('[data-billing-action="free"]:not([disabled])')?.addEventListener('click', () => {
+  section.querySelector('[data-billing-action="free"]:not([disabled])')?.addEventListener('click', (event) => {
+    event.preventDefault();
+    event.stopPropagation();
     const activateFree = async () => {
       const updatedStatus = await billingFetch('/api/billing/select-free', { method: 'POST', body: '{}' });
       renderBilling(section, updatedStatus, transactions, selectedPeriod);
