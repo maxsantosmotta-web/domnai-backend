@@ -64,9 +64,14 @@ function addProfileTopSignOut() {
   header.appendChild(logoutButton);
 }
 
+function removeProfileLowerBack() {
+  document.querySelector('.profile-checklist-overlay .profile-checklist-cancel')?.remove();
+}
+
 function applyApprovedDetails() {
   decorateBillingSignOutButton();
   addProfileTopSignOut();
+  removeProfileLowerBack();
   keepBillingSelected();
 }
 
