@@ -106,6 +106,8 @@ def generate_labor_response(
     history: list[dict],
     attachments: list[dict],
     diagnosis_state: dict | None,
+    orchestration_plan: dict | None = None,
+    orchestration_usage: dict | None = None,
 ) -> MeteredBrainResult:
     api_key = os.getenv("OPENAI_API_KEY", "").strip()
     if not api_key:
@@ -114,14 +116,18 @@ def generate_labor_response(
     model = os.getenv("DOMNAI_OPENAI_MODEL", "gpt-4.1-mini").strip()
     extractor_model = os.getenv("DOMNAI_LABOR_EXTRACTOR_MODEL", model).strip() or model
 
-    plan, plan_usage = _orchestration_plan(
-        api_key,
-        model,
-        message,
-        history,
-        attachments,
-        diagnosis_state,
-    )
+    if orchestration_plan is None:
+        plan, plan_usage = _orchestration_plan(
+            api_key,
+            model,
+            message,
+            history,
+            attachments,
+            diagnosis_state,
+        )
+    else:
+        plan = orchestration_plan
+        plan_usage = orchestration_usage or {}
 
     extraction_text, extraction_usage = _openai_request(
         api_key,
