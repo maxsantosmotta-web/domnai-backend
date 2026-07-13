@@ -21,6 +21,25 @@ _DEFAULT_PLAN = {
     "chart_opportunities": [],
 }
 
+PDF_OFFER_MARKERS = (
+    "arquivo pdf",
+    "relatório em pdf",
+    "relatorio em pdf",
+    "versão em pdf",
+    "versao em pdf",
+    "pdf profissional",
+    "pdf detalhado",
+)
+
+PDF_DECISION_MARKERS = (
+    "quero o pdf",
+    "pode gerar o pdf",
+    "gere o pdf",
+    "não quero o pdf",
+    "nao quero o pdf",
+    "sem pdf",
+)
+
 
 def _strip_code_fence(text: str) -> str:
     value = str(text or "").strip()
@@ -40,6 +59,22 @@ def _clean_list(value: Any, limit: int = 12) -> list[str]:
         if text and text not in result:
             result.append(text)
     return result
+
+
+def _history_text(history: list[dict]) -> str:
+    chunks: list[str] = []
+    for item in history[-24:]:
+        if not isinstance(item, dict):
+            continue
+        text = str(item.get("content") or item.get("text") or "").strip().casefold()
+        if text:
+            chunks.append(text)
+    return "\n".join(chunks)
+
+
+def pdf_offer_already_handled(history: list[dict]) -> bool:
+    text = _history_text(history)
+    return any(marker in text for marker in (*PDF_OFFER_MARKERS, *PDF_DECISION_MARKERS))
 
 
 def parse_plan(raw_text: str) -> dict[str, Any]:
@@ -102,7 +137,8 @@ REGRAS
 - Considere dados já presentes na memória e no histórico para não repetir perguntas.
 - Use motor especializado quando existir; a inteligência não deve substituir cálculos ou validações determinísticas.
 - Marque operation_complete somente quando a análise, diagnóstico, comparação ou cálculo solicitado estiver efetivamente concluído.
-- offer_pdf só pode ser true quando operation_complete for true e não houver dado essencial pendente.
+- offer_pdf só pode ser true quando operation_complete for true, não houver dado essencial pendente e pdf_offer_already_handled for false.
+- A oferta é apenas um convite opcional. Nunca determine geração automática, nunca trate o PDF como obrigatório e nunca condicione a resposta à criação do arquivo.
 - Não ofereça PDF novamente quando o histórico mostrar que ele já foi oferecido, aceito ou recusado para a mesma operação.
 - Só indique gráficos quando houver números ou séries que realmente permitam visualização útil; nunca prometa gráfico decorativo ou inventado.
 """.strip()
@@ -123,9 +159,10 @@ REGRAS ABSOLUTAS
 8. Não mencione orquestrador, revisão, backend, JSON, prompt, modelo ou processo interno.
 9. Entregue somente a resposta final pronta ao usuário.
 10. Quando o plano trouxer offer_pdf=true, encerre com uma única pergunta curta e personalizada oferecendo organizar o resultado em um PDF profissional e detalhado.
-11. A oferta pode mencionar métricas, tabelas, conclusões, riscos, próximos passos e gráficos somente quando o plano indicar que esses elementos são sustentados pelos dados.
-12. Não use frase fixa, não exagere a promessa e não repita a oferta quando ela já tiver aparecido na conversa.
-13. Quando offer_pdf=false, não faça nenhuma oferta de PDF.
+11. A oferta deve ser claramente opcional. Nunca diga que o arquivo já foi criado, nunca comece a gerar sem confirmação explícita e nunca pressione o usuário.
+12. A oferta pode mencionar métricas, tabelas, conclusões, riscos, próximos passos e gráficos somente quando o plano indicar que esses elementos são sustentados pelos dados.
+13. Não use frase fixa, não exagere a promessa e não repita a oferta quando ela já tiver aparecido na conversa.
+14. Quando offer_pdf=false, não faça nenhuma oferta de PDF.
 """.strip()
 
 
@@ -144,6 +181,7 @@ def build_plan_input(
             "recent_history": recent_history,
             "structured_memory": memory_context,
             "attachments": attachment_names,
+            "pdf_offer_already_handled": pdf_offer_already_handled(history),
         },
         ensure_ascii=False,
     )
