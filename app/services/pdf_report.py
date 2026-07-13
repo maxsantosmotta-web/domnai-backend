@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from html import escape
 from io import BytesIO
 from typing import Any
 
@@ -31,6 +32,10 @@ class GeneratedPdf:
 def _safe_text(value: Any, limit: int = 10000) -> str:
     text = str(value or "").strip()
     return text[:limit]
+
+
+def _paragraph_text(value: Any, limit: int = 10000) -> str:
+    return escape(_safe_text(value, limit)).replace("\n", "<br/>")
 
 
 def _filename(title: str) -> str:
@@ -111,7 +116,10 @@ def _metric_table(metrics: list[dict[str, Any]], styles: dict) -> Table | None:
         label = _safe_text(item.get("label"), 120)
         value = _safe_text(item.get("value"), 180)
         if label and value:
-            rows.append([Paragraph(label, styles["small"]), Paragraph(value, styles["body"])])
+            rows.append([
+                Paragraph(_paragraph_text(label, 120), styles["small"]),
+                Paragraph(_paragraph_text(value, 180), styles["body"]),
+            ])
     if not rows:
         return None
     table = Table(rows, colWidths=[58 * mm, 112 * mm], hAlign="LEFT")
@@ -132,13 +140,13 @@ def _data_table(payload: dict[str, Any], styles: dict) -> Table | None:
     raw_rows = payload.get("rows", [])[:100]
     if not headers or not isinstance(raw_rows, list):
         return None
-    data = [[Paragraph(header, styles["small"]) for header in headers]]
+    data = [[Paragraph(_paragraph_text(header, 100), styles["small"]) for header in headers]]
     for raw_row in raw_rows:
         if not isinstance(raw_row, list):
             continue
         cells = [_safe_text(item, 500) for item in raw_row[: len(headers)]]
         cells += [""] * (len(headers) - len(cells))
-        data.append([Paragraph(cell, styles["small"]) for cell in cells])
+        data.append([Paragraph(_paragraph_text(cell, 500), styles["small"]) for cell in cells])
     if len(data) == 1:
         return None
     width = 170 * mm / len(headers)
@@ -212,14 +220,17 @@ def generate_pdf_report(payload: dict[str, Any]) -> GeneratedPdf:
     )
     styles = _styles()
     story = [
-        Paragraph(title, styles["title"]),
-        Paragraph(operation or "Relatório personalizado de apoio à decisão", styles["subtitle"]),
+        Paragraph(_paragraph_text(title, 180), styles["title"]),
+        Paragraph(
+            _paragraph_text(operation or "Relatório personalizado de apoio à decisão", 180),
+            styles["subtitle"],
+        ),
     ]
 
     if summary:
         story.extend([
             Paragraph("Resumo", styles["heading"]),
-            Paragraph(summary.replace("\n", "<br/>"), styles["body"]),
+            Paragraph(_paragraph_text(summary, 20000), styles["body"]),
         ])
 
     metric_table = _metric_table(metrics, styles)
@@ -233,14 +244,16 @@ def generate_pdf_report(payload: dict[str, Any]) -> GeneratedPdf:
         body = _safe_text(section.get("content"), 30000)
         if not heading and not body:
             continue
-        block = []
+        if heading and body and len(body) < 1800:
+            story.append(KeepTogether([
+                Paragraph(_paragraph_text(heading, 180), styles["heading"]),
+                Paragraph(_paragraph_text(body, 30000), styles["body"]),
+            ]))
+            continue
         if heading:
-            block.append(Paragraph(heading, styles["heading"]))
+            story.append(Paragraph(_paragraph_text(heading, 180), styles["heading"]))
         if body:
-            block.append(Paragraph(body.replace("\n", "<br/>"), styles["body"]))
-        story.append(KeepTogether(block) if len(body) < 1800 else block[0] if len(block) == 1 else block[0])
-        if len(body) >= 1800 and body:
-            story.append(Paragraph(body.replace("\n", "<br/>"), styles["body"]))
+            story.append(Paragraph(_paragraph_text(body, 30000), styles["body"]))
 
     for table_payload in tables[:12]:
         if not isinstance(table_payload, dict):
@@ -250,7 +263,7 @@ def generate_pdf_report(payload: dict[str, Any]) -> GeneratedPdf:
             continue
         label = _safe_text(table_payload.get("title"), 180)
         if label:
-            story.append(Paragraph(label, styles["heading"]))
+            story.append(Paragraph(_paragraph_text(label, 180), styles["heading"]))
         story.append(table)
         story.append(Spacer(1, 4 * mm))
 
@@ -267,7 +280,7 @@ def generate_pdf_report(payload: dict[str, Any]) -> GeneratedPdf:
         for chart_payload, chart in valid_charts:
             label = _safe_text(chart_payload.get("title"), 180)
             if label:
-                story.append(Paragraph(label, styles["body"]))
+                story.append(Paragraph(_paragraph_text(label, 180), styles["body"]))
             story.append(chart)
             story.append(Spacer(1, 5 * mm))
 
