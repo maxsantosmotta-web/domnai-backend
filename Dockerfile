@@ -1,3 +1,4 @@
+# Recovery deployment marker: last working frontend build
 FROM node:20-alpine AS frontend-builder
 WORKDIR /frontend
 COPY frontend/package*.json ./
