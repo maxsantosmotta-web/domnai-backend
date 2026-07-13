@@ -6,6 +6,7 @@ from pydantic import BaseModel, Field
 from app.auth import require_authenticated_user
 from app.database import session_scope
 from app.models import ActiveChatState
+from app.services.diagnosis_memory import clear_diagnosis_state
 
 
 router = APIRouter(prefix="/api/chat-state", tags=["chat-state"])
@@ -102,4 +103,9 @@ def clear_chat_state(session: dict = Depends(require_authenticated_user)):
         state = db.get(ActiveChatState, user_id)
         if state is not None:
             db.delete(state)
+    try:
+        clear_diagnosis_state(user_id)
+    except Exception:
+        # Limpar a conversa não deve falhar por indisponibilidade da memória auxiliar.
+        pass
     return Response(status_code=204)
