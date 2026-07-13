@@ -261,6 +261,27 @@ async function ensureProfileThen(status, action, actionLabel) {
   return openProfileChecklist(action, actionLabel);
 }
 
+function updateBillingPeriod(section, selectedPeriod) {
+  const premiumCard = section.querySelector('.billing-premium-card');
+  if (!premiumCard) return;
+
+  const annual = selectedPeriod === 'yearly';
+  const monthlyButton = premiumCard.querySelector('[data-billing-period="monthly"]');
+  const yearlyButton = premiumCard.querySelector('[data-billing-period="yearly"]');
+  const price = premiumCard.querySelector('.billing-period-copy')?.previousElementSibling;
+  const periodCopy = premiumCard.querySelector('.billing-period-copy');
+  const checkout = premiumCard.querySelector('[data-billing-product]');
+
+  monthlyButton?.classList.toggle('is-active', !annual);
+  yearlyButton?.classList.toggle('is-active', annual);
+  if (yearlyButton) yearlyButton.innerHTML = annual ? 'Anual<span>Economize 17%</span>' : 'Anual';
+  if (price) price.innerHTML = annual ? 'R$ 599,00 <small>/ano</small>' : 'R$ 59,90 <small>/mês</small>';
+  if (periodCopy) periodCopy.textContent = annual
+    ? 'Cobrança anual com 500 créditos renovados mensalmente.'
+    : 'Cobrança mensal com 500 créditos por ciclo.';
+  if (checkout) checkout.dataset.billingProduct = annual ? BILLING_PRODUCTS.yearly : BILLING_PRODUCTS.monthly;
+}
+
 function renderBilling(section, status, transactions, selectedPeriod = 'monthly') {
   const premium = Boolean(status.premiumActive);
   const freeSelected = status.plan === 'free';
@@ -323,7 +344,12 @@ function renderBilling(section, status, transactions, selectedPeriod = 'monthly'
     window.location.hash = '#/';
   });
 
-  section.querySelectorAll('[data-billing-period]').forEach((button) => button.addEventListener('click', () => renderBilling(section, status, transactions, button.dataset.billingPeriod)));
+  section.querySelectorAll('[data-billing-period]').forEach((button) => {
+    button.addEventListener('click', () => {
+      selectedPeriod = button.dataset.billingPeriod;
+      updateBillingPeriod(section, selectedPeriod);
+    });
+  });
 
   section.querySelectorAll('[data-billing-product]').forEach((button) => {
     button.addEventListener('click', async () => {
@@ -333,7 +359,7 @@ function renderBilling(section, status, transactions, selectedPeriod = 'monthly'
         button.disabled = true;
         button.textContent = 'Abrindo checkout...';
         try {
-          const result = await billingFetch('/api/billing/checkout', { method: 'POST', body: JSON.stringify({ product }) });
+          const result = await billingFetch('/api/billing/checkout', { method: 'POST', body: JSON.stringify({ product: button.dataset.billingProduct }) });
           window.location.assign(result.url);
         } catch (error) {
           window.alert(error.message);
