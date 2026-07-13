@@ -3,6 +3,13 @@ const LEGACY_ONBOARDING_CACHE_KEY = 'domnai:onboarding-status:v1';
 const ONBOARDING_CACHE_MAX_AGE = 60 * 1000;
 const ONBOARDING_REFRESH_AGE = 15 * 1000;
 
+const ONBOARDING_STATES = Object.freeze({
+  CHECKING: 'checking',
+  PLAN_REQUIRED: 'plan_required',
+  PROFILE_REQUIRED: 'profile_required',
+  RELEASED: 'released',
+});
+
 let currentOnboardingUserId = null;
 let lastOnboardingStatus = null;
 let lastOnboardingCheckedAt = 0;
@@ -10,6 +17,8 @@ let gateRunning = false;
 let retryTimer = null;
 let revealTimer = null;
 let onboardingFrame = 0;
+let onboardingState = ONBOARDING_STATES.CHECKING;
+let appliedOnboardingState = null;
 
 function onboardingCacheKey(userId) {
   return `${ONBOARDING_CACHE_PREFIX}${userId}`;
@@ -23,6 +32,11 @@ function clearLegacyOnboardingCache() {
   }
 }
 
+function setOnboardingState(nextState) {
+  onboardingState = nextState;
+  document.documentElement.dataset.onboardingState = nextState;
+}
+
 function clearOnboardingState() {
   window.clearTimeout(retryTimer);
   window.clearTimeout(revealTimer);
@@ -32,9 +46,12 @@ function clearOnboardingState() {
   currentOnboardingUserId = null;
   lastOnboardingStatus = null;
   lastOnboardingCheckedAt = 0;
+  appliedOnboardingState = null;
+  setOnboardingState(ONBOARDING_STATES.CHECKING);
   document.documentElement.classList.remove(
     'domnai-gate-pending',
     'domnai-plan-selection-required',
+    'domnai-profile-modal-open',
   );
   const shell = document.querySelector('.domnai-app-shell');
   shell?.classList.remove('onboarding-plan-mode');
@@ -95,12 +112,24 @@ function billingButton() {
 }
 
 function openBillingSection() {
+  if (onboardingState !== ONBOARDING_STATES.PLAN_REQUIRED) return;
   const button = billingButton();
   if (button && !button.classList.contains('is-active')) button.click();
 }
 
 function needsPlanSelection(status) {
   return status?.plan === 'unselected' || status?.plan === 'free_demo' || !status?.plan;
+}
+
+function hasCompletedAccess(status) {
+  return !needsPlanSelection(status) && Boolean(status?.profileCompleted);
+}
+
+function stateFromStatus(status) {
+  if (onboardingState === ONBOARDING_STATES.PROFILE_REQUIRED) return ONBOARDING_STATES.PROFILE_REQUIRED;
+  if (needsPlanSelection(status)) return ONBOARDING_STATES.PLAN_REQUIRED;
+  if (!status?.profileCompleted) return ONBOARDING_STATES.PROFILE_REQUIRED;
+  return ONBOARDING_STATES.RELEASED;
 }
 
 function showCancelOverlay() {
@@ -160,6 +189,8 @@ function installGateCancelButton() {
 
 function revealPlanScreenWhenReady(attempt = 0) {
   window.clearTimeout(revealTimer);
+  if (onboardingState !== ONBOARDING_STATES.PLAN_REQUIRED) return;
+
   const billingHeader = document.querySelector('.billing-page-header');
   const plans = document.querySelector('.billing-plans-section');
   if (billingHeader && plans) {
@@ -177,6 +208,7 @@ function revealPlanScreenWhenReady(attempt = 0) {
 }
 
 function showGateRecovery() {
+  if (onboardingState !== ONBOARDING_STATES.PLAN_REQUIRED) return;
   document.documentElement.classList.remove('domnai-gate-pending');
   const shell = document.querySelector('.domnai-app-shell');
   if (!shell || shell.querySelector('.domnai-gate-recovery')) return;
@@ -195,6 +227,7 @@ function showGateRecovery() {
 }
 
 function lockPlatformForPlanSelection() {
+  if (onboardingState !== ONBOARDING_STATES.PLAN_REQUIRED) return;
   const shell = document.querySelector('.domnai-app-shell');
   if (!shell) {
     scheduleGateRetry(100, false);
@@ -205,15 +238,36 @@ function lockPlatformForPlanSelection() {
   shell.classList.add('onboarding-plan-mode');
   shell.setAttribute('data-plan-gate', 'required');
   installGateCancelButton();
-  openBillingSection();
-  window.requestAnimationFrame(openBillingSection);
-  revealPlanScreenWhenReady();
+
+  if (appliedOnboardingState !== ONBOARDING_STATES.PLAN_REQUIRED) {
+    appliedOnboardingState = ONBOARDING_STATES.PLAN_REQUIRED;
+    openBillingSection();
+    revealPlanScreenWhenReady();
+  }
+}
+
+function holdPlatformForProfile() {
+  window.clearTimeout(revealTimer);
+  document.documentElement.classList.remove('domnai-gate-pending');
+  document.documentElement.classList.add('domnai-plan-selection-required', 'domnai-profile-modal-open');
+  const shell = document.querySelector('.domnai-app-shell');
+  if (!shell) return;
+  shell.querySelector('.domnai-gate-recovery')?.remove();
+  shell.classList.add('onboarding-plan-mode');
+  shell.setAttribute('data-plan-gate', 'profile-required');
+  installGateCancelButton();
+  appliedOnboardingState = ONBOARDING_STATES.PROFILE_REQUIRED;
 }
 
 function releasePlatformAfterPlanSelection() {
   const shell = document.querySelector('.domnai-app-shell');
   window.clearTimeout(revealTimer);
-  document.documentElement.classList.remove('domnai-gate-pending', 'domnai-plan-selection-required');
+  document.documentElement.classList.remove(
+    'domnai-gate-pending',
+    'domnai-plan-selection-required',
+    'domnai-profile-modal-open',
+  );
+  appliedOnboardingState = ONBOARDING_STATES.RELEASED;
   if (!shell) return;
 
   shell.querySelector('.domnai-gate-recovery')?.remove();
@@ -225,13 +279,22 @@ function releasePlatformAfterPlanSelection() {
 
 function applyPlanGate(status) {
   lastOnboardingStatus = status;
-  const needsPlan = needsPlanSelection(status);
-  document.documentElement.classList.toggle('domnai-plan-selection-required', needsPlan);
+  const nextState = stateFromStatus(status);
+  setOnboardingState(nextState);
 
-  if (needsPlan) {
-    document.documentElement.classList.add('domnai-gate-pending');
+  if (nextState === ONBOARDING_STATES.PLAN_REQUIRED) {
+    document.documentElement.classList.add('domnai-plan-selection-required', 'domnai-gate-pending');
+    document.documentElement.classList.remove('domnai-profile-modal-open');
     lockPlatformForPlanSelection();
-  } else {
+    return;
+  }
+
+  if (nextState === ONBOARDING_STATES.PROFILE_REQUIRED) {
+    holdPlatformForProfile();
+    return;
+  }
+
+  if (nextState === ONBOARDING_STATES.RELEASED && hasCompletedAccess(status)) {
     releasePlatformAfterPlanSelection();
   }
 }
@@ -242,7 +305,7 @@ function scheduleGateRetry(delay = 600, force = false) {
 }
 
 async function enforcePlanGate(force = false) {
-  if (gateRunning) return;
+  if (gateRunning || onboardingState === ONBOARDING_STATES.PROFILE_REQUIRED) return;
   gateRunning = true;
 
   try {
@@ -257,6 +320,8 @@ async function enforcePlanGate(force = false) {
       currentOnboardingUserId = userId;
       lastOnboardingStatus = null;
       lastOnboardingCheckedAt = 0;
+      appliedOnboardingState = null;
+      setOnboardingState(ONBOARDING_STATES.CHECKING);
       clearLegacyOnboardingCache();
     }
 
@@ -273,7 +338,9 @@ async function enforcePlanGate(force = false) {
       }
     }
 
-    document.documentElement.classList.add('domnai-gate-pending');
+    if (onboardingState === ONBOARDING_STATES.CHECKING) {
+      document.documentElement.classList.add('domnai-gate-pending');
+    }
     const status = await onboardingStatus(session);
     cacheOnboardingStatus(userId, status);
     applyPlanGate(status);
@@ -283,6 +350,7 @@ async function enforcePlanGate(force = false) {
     if (lastOnboardingStatus) {
       applyPlanGate(lastOnboardingStatus);
     } else {
+      setOnboardingState(ONBOARDING_STATES.PLAN_REQUIRED);
       document.documentElement.classList.add('domnai-plan-selection-required');
       lockPlatformForPlanSelection();
       showGateRecovery();
@@ -339,32 +407,44 @@ const onboardingObserver = new MutationObserver((mutations) => {
     const addedRoot = mutations.flatMap((mutation) => [...mutation.addedNodes])
       .find((node) => node.nodeType === Node.ELEMENT_NODE) || document;
     enhanceBirthDate(addedRoot);
-    if (lastOnboardingStatus && needsPlanSelection(lastOnboardingStatus)) {
-      openBillingSection();
-      installGateCancelButton();
-    }
   });
 });
 
 onboardingObserver.observe(document.body || document.documentElement, { childList: true, subtree: true });
 window.addEventListener('hashchange', () => {
-  if (lastOnboardingStatus && needsPlanSelection(lastOnboardingStatus)) window.requestAnimationFrame(openBillingSection);
+  if (onboardingState === ONBOARDING_STATES.PLAN_REQUIRED) window.requestAnimationFrame(openBillingSection);
 });
 window.addEventListener('pageshow', () => enforcePlanGate(true));
 document.addEventListener('visibilitychange', () => {
-  if (document.visibilityState === 'visible' && Date.now() - lastOnboardingCheckedAt > ONBOARDING_REFRESH_AGE) enforcePlanGate(true);
+  if (
+    document.visibilityState === 'visible'
+    && onboardingState !== ONBOARDING_STATES.PROFILE_REQUIRED
+    && Date.now() - lastOnboardingCheckedAt > ONBOARDING_REFRESH_AGE
+  ) enforcePlanGate(true);
+});
+window.addEventListener('domnai:onboarding-profile-opened', () => {
+  setOnboardingState(ONBOARDING_STATES.PROFILE_REQUIRED);
+  holdPlatformForProfile();
+});
+window.addEventListener('domnai:onboarding-profile-cancelled', () => {
+  setOnboardingState(ONBOARDING_STATES.PLAN_REQUIRED);
+  appliedOnboardingState = null;
+  applyPlanGate(lastOnboardingStatus || { plan: 'unselected', profileCompleted: false });
 });
 window.addEventListener('domnai:billing-updated', (event) => {
   const status = event.detail;
   if (status && currentOnboardingUserId) {
     cacheOnboardingStatus(currentOnboardingUserId, status);
+    setOnboardingState(stateFromStatus(status));
     applyPlanGate(status);
   } else {
+    setOnboardingState(ONBOARDING_STATES.CHECKING);
     enforcePlanGate(true);
   }
 });
 window.addEventListener('domnai:signed-out', clearOnboardingState);
 
 clearLegacyOnboardingCache();
+setOnboardingState(ONBOARDING_STATES.CHECKING);
 enhanceBirthDate();
 window.setTimeout(() => enforcePlanGate(true), 100);
