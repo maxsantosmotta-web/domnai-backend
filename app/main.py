@@ -14,6 +14,7 @@ from app.api.decisions import router as decisions_router
 from app.api.health import router as health_router
 from app.api.library import router as library_router
 from app.api.profile import router as profile_router
+from app.api.reports import router as reports_router
 from app.api.trash import router as trash_router
 from app.config import settings
 from app.database import Base, get_engine, is_database_configured
@@ -57,6 +58,7 @@ app.include_router(chat_state_router)
 app.include_router(decisions_router)
 app.include_router(database_router)
 app.include_router(library_router)
+app.include_router(reports_router)
 app.include_router(trash_router)
 app.include_router(profile_router)
 app.include_router(billing_router)
