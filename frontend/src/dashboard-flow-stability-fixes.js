@@ -99,6 +99,24 @@ function applyFlowStabilityFixes() {
   enhanceBillingFailureState();
 }
 
+document.addEventListener('click', (event) => {
+  const button = event.target.closest?.('.profile-checklist-cancel');
+  if (!button || button.dataset.stableBackTransition === 'running') return;
+
+  const overlay = button.closest('.profile-checklist-overlay');
+  if (!overlay) return;
+
+  event.preventDefault();
+  event.stopPropagation();
+  event.stopImmediatePropagation();
+  button.dataset.stableBackTransition = 'running';
+
+  window.dispatchEvent(new CustomEvent('domnai:onboarding-profile-cancelled'));
+  window.requestAnimationFrame(() => {
+    overlay.remove();
+  });
+}, true);
+
 const flowStabilityObserver = new MutationObserver(() => window.requestAnimationFrame(applyFlowStabilityFixes));
 flowStabilityObserver.observe(document.documentElement, { childList: true, subtree: true });
 window.addEventListener('pageshow', () => refreshBillingStatusAndNotify());
