@@ -20,6 +20,9 @@ if 'function ProtectedDashboard()' not in source:
   const [billingStatus, setBillingStatus] = useState(null);
   const [billingError, setBillingError] = useState('');
   const [planScreenReady, setPlanScreenReady] = useState(false);
+  const [profileOpen, setProfileOpen] = useState(
+    () => Boolean(document.querySelector('.profile-checklist-overlay')),
+  );
 
   useEffect(() => {
     let active = true;
@@ -38,7 +41,10 @@ if 'function ProtectedDashboard()' not in source:
         });
         if (!response.ok) throw new Error('Não foi possível validar seu cadastro e plano.');
         const status = await response.json();
-        if (active) setBillingStatus(status);
+        if (active) {
+          window.__domnaiBillingStatus = status;
+          setBillingStatus(status);
+        }
       } catch (error) {
         if (active) setBillingError(error?.name === 'AbortError'
           ? 'A validação do acesso demorou mais que o esperado.'
@@ -58,10 +64,27 @@ if 'function ProtectedDashboard()' not in source:
 
   useEffect(() => {
     const handleBillingUpdate = (event) => {
-      if (event.detail) setBillingStatus(event.detail);
+      if (!event.detail) return;
+      window.__domnaiBillingStatus = event.detail;
+      setBillingStatus(event.detail);
     };
+    const handleProfileOpened = () => {
+      setProfileOpen(true);
+      setPlanScreenReady(true);
+    };
+    const handleProfileCancelled = () => {
+      setProfileOpen(false);
+      setPlanScreenReady(true);
+    };
+
     window.addEventListener('domnai:billing-updated', handleBillingUpdate);
-    return () => window.removeEventListener('domnai:billing-updated', handleBillingUpdate);
+    window.addEventListener('domnai:onboarding-profile-opened', handleProfileOpened);
+    window.addEventListener('domnai:onboarding-profile-cancelled', handleProfileCancelled);
+    return () => {
+      window.removeEventListener('domnai:billing-updated', handleBillingUpdate);
+      window.removeEventListener('domnai:onboarding-profile-opened', handleProfileOpened);
+      window.removeEventListener('domnai:onboarding-profile-cancelled', handleProfileCancelled);
+    };
   }, []);
 
   const planSelected = Boolean(
@@ -71,9 +94,7 @@ if 'function ProtectedDashboard()' not in source:
   const accessReady = planSelected && profileCompleted;
 
   useEffect(() => {
-    if (!billingStatus) return undefined;
-    window.__domnaiBillingStatus = billingStatus;
-    if (accessReady) return undefined;
+    if (!billingStatus || accessReady || profileOpen) return undefined;
 
     setPlanScreenReady(false);
     let attempts = 0;
@@ -86,7 +107,7 @@ if 'function ProtectedDashboard()' not in source:
       }
     }, 100);
     return () => window.clearInterval(interval);
-  }, [billingStatus, accessReady]);
+  }, [billingStatus, accessReady, profileOpen]);
 
   if (billingError) {
     return (
@@ -116,7 +137,7 @@ if 'function ProtectedDashboard()' not in source:
     return (
       <div className="react-plan-gate-wrapper">
         <Dashboard />
-        {!planScreenReady ? (
+        {!profileOpen && !planScreenReady ? (
           <div className="react-plan-gate-overlay" aria-busy="true">
             <section className="react-plan-gate-card">
               <h1>Preparando seu acesso...</h1>
@@ -132,27 +153,9 @@ if 'function ProtectedDashboard()' not in source:
 }
 
 function Home() {
-  const { isLoaded, isSignedIn, sessionId } = useAuth();
-  const [sessionReady, setSessionReady] = useState(false);
+  const { isLoaded, isSignedIn } = useAuth();
 
-  useEffect(() => {
-    if (!isLoaded || !isSignedIn || !sessionId) {
-      setSessionReady(false);
-      return;
-    }
-
-    const key = `domnai:session-ready:${sessionId}`;
-    if (sessionStorage.getItem(key) === 'true') {
-      setSessionReady(true);
-      return;
-    }
-
-    sessionStorage.setItem(key, 'true');
-    window.location.replace(`${window.location.origin}${window.location.pathname}#/`);
-    window.location.reload();
-  }, [isLoaded, isSignedIn, sessionId]);
-
-  if (!isLoaded || (isSignedIn && !sessionReady)) {
+  if (!isLoaded) {
     return (
       <main className="react-plan-gate-page" aria-busy="true">
         <section className="react-plan-gate-card"><h1>Carregando...</h1></section>
