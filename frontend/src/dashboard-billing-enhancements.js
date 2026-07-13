@@ -48,25 +48,52 @@ function normalizeApiError(detail) {
   return String(detail);
 }
 
+let billingTokenPromise = null;
+
 async function getAuthToken() {
-  for (let attempt = 0; attempt < 40; attempt += 1) {
-    const clerk = window.Clerk;
-    if (clerk?.session) return clerk.session.getToken();
-    await new Promise((resolve) => window.setTimeout(resolve, 150));
+  if (billingTokenPromise) return billingTokenPromise;
+
+  billingTokenPromise = (async () => {
+    for (let attempt = 0; attempt < 40; attempt += 1) {
+      const clerk = window.Clerk;
+      if (clerk?.session) {
+        try {
+          const token = await clerk.session.getToken();
+          if (typeof token === 'string' && token.trim()) return token;
+        } catch {
+          // A sessão pode existir alguns instantes antes de o token ficar disponível.
+        }
+      }
+      await new Promise((resolve) => window.setTimeout(resolve, 150));
+    }
+    throw new Error('Sessão não encontrada. Atualize a página e tente novamente.');
+  })();
+
+  try {
+    return await billingTokenPromise;
+  } finally {
+    billingTokenPromise = null;
   }
-  throw new Error('Sessão não encontrada. Atualize a página e tente novamente.');
 }
 
 async function billingFetch(url, options = {}) {
-  const token = await getAuthToken();
-  const response = await fetch(url, {
-    ...options,
-    headers: {
-      'Content-Type': 'application/json',
-      ...(options.headers || {}),
-      Authorization: `Bearer ${token}`,
-    },
-  });
+  let response = null;
+
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    const token = await getAuthToken();
+    response = await fetch(url, {
+      ...options,
+      headers: {
+        'Content-Type': 'application/json',
+        ...(options.headers || {}),
+        Authorization: `Bearer ${token}`,
+      },
+    });
+
+    if (response.status !== 401) break;
+    await new Promise((resolve) => window.setTimeout(resolve, 350 * (attempt + 1)));
+  }
+
   if (!response.ok) {
     const payload = await response.json().catch(() => ({}));
     throw new Error(normalizeApiError(payload.detail || payload.message));
