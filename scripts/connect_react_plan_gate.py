@@ -132,9 +132,27 @@ if 'function ProtectedDashboard()' not in source:
 }
 
 function Home() {
-  const { isLoaded, isSignedIn } = useAuth();
+  const { isLoaded, isSignedIn, sessionId } = useAuth();
+  const [sessionReady, setSessionReady] = useState(false);
 
-  if (!isLoaded) {
+  useEffect(() => {
+    if (!isLoaded || !isSignedIn || !sessionId) {
+      setSessionReady(false);
+      return;
+    }
+
+    const key = `domnai:session-ready:${sessionId}`;
+    if (sessionStorage.getItem(key) === 'true') {
+      setSessionReady(true);
+      return;
+    }
+
+    sessionStorage.setItem(key, 'true');
+    window.location.replace(`${window.location.origin}${window.location.pathname}#/`);
+    window.location.reload();
+  }, [isLoaded, isSignedIn, sessionId]);
+
+  if (!isLoaded || (isSignedIn && !sessionReady)) {
     return (
       <main className="react-plan-gate-page" aria-busy="true">
         <section className="react-plan-gate-card"><h1>Carregando...</h1></section>
