@@ -10,6 +10,7 @@ COPY scripts/connect_chat_local_deletion.py /tmp/connect_chat_local_deletion.py
 COPY scripts/connect_billing_back_label.py /tmp/connect_billing_back_label.py
 COPY scripts/connect_auth_blank_refresh.py /tmp/connect_auth_blank_refresh.py
 COPY scripts/hide_billing_history.py /tmp/hide_billing_history.py
+COPY scripts/connect_pdf_report.py /tmp/connect_pdf_report.py
 RUN apk add --no-cache python3 \
     && python3 /tmp/connect_domnai_chat.py \
     && python3 /tmp/connect_operation_to_composer.py \
@@ -18,6 +19,7 @@ RUN apk add --no-cache python3 \
     && python3 /tmp/connect_billing_back_label.py \
     && python3 /tmp/connect_auth_blank_refresh.py \
     && python3 /tmp/hide_billing_history.py \
+    && python3 /tmp/connect_pdf_report.py \
     && npm run build
 
 FROM python:3.13-slim AS runtime
@@ -26,7 +28,9 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1
 COPY requirements.txt ./
 RUN pip install --no-cache-dir -r requirements.txt
+COPY alembic.ini ./
+COPY migrations ./migrations
 COPY app ./app
 COPY --from=frontend-builder /frontend/dist ./frontend/dist
 EXPOSE 8080
-CMD ["sh", "-c", "uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-8080}"]
+CMD ["sh", "-c", "alembic upgrade head && uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-8080}"]
