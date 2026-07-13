@@ -15,6 +15,10 @@ _DEFAULT_PLAN = {
     "answer_focus": [],
     "material_risks": [],
     "style": "natural, direto e preciso",
+    "operation_complete": False,
+    "offer_pdf": False,
+    "pdf_sections": [],
+    "chart_opportunities": [],
 }
 
 
@@ -48,16 +52,23 @@ def parse_plan(raw_text: str) -> dict[str, Any]:
 
     allowed_modes = {"direct_answer", "analysis", "clarification", "comparison", "document_review", "calculation"}
     allowed_confidence = {"normal", "high", "critical"}
+    operation_complete = bool(payload.get("operation_complete"))
+    requires_clarification = bool(payload.get("requires_clarification"))
+    offer_pdf = bool(payload.get("offer_pdf")) and operation_complete and not requires_clarification
     return {
         "intent": str(payload.get("intent") or _DEFAULT_PLAN["intent"]).strip()[:500],
         "response_mode": payload.get("response_mode") if payload.get("response_mode") in allowed_modes else "analysis",
         "confidence_required": payload.get("confidence_required") if payload.get("confidence_required") in allowed_confidence else "normal",
-        "requires_clarification": bool(payload.get("requires_clarification")),
+        "requires_clarification": requires_clarification,
         "essential_missing": _clean_list(payload.get("essential_missing")),
         "specialized_engine": str(payload.get("specialized_engine") or "").strip()[:120] or None,
         "answer_focus": _clean_list(payload.get("answer_focus")),
         "material_risks": _clean_list(payload.get("material_risks")),
         "style": str(payload.get("style") or _DEFAULT_PLAN["style"]).strip()[:300],
+        "operation_complete": operation_complete,
+        "offer_pdf": offer_pdf,
+        "pdf_sections": _clean_list(payload.get("pdf_sections"), limit=10),
+        "chart_opportunities": _clean_list(payload.get("chart_opportunities"), limit=8),
     }
 
 
@@ -75,7 +86,11 @@ Retorne exclusivamente JSON válido:
   "specialized_engine":"nome do motor necessário ou null",
   "answer_focus":["pontos que a resposta precisa resolver"],
   "material_risks":["riscos de erro ou decisão"],
-  "style":"como responder de modo natural"
+  "style":"como responder de modo natural",
+  "operation_complete":true|false,
+  "offer_pdf":true|false,
+  "pdf_sections":["seções úteis para o relatório"],
+  "chart_opportunities":["gráficos realmente sustentados pelos dados disponíveis"]
 }
 
 REGRAS
@@ -86,6 +101,10 @@ REGRAS
 - Não invente fatos nem conclua o mérito; apenas planeje o tratamento da resposta.
 - Considere dados já presentes na memória e no histórico para não repetir perguntas.
 - Use motor especializado quando existir; a inteligência não deve substituir cálculos ou validações determinísticas.
+- Marque operation_complete somente quando a análise, diagnóstico, comparação ou cálculo solicitado estiver efetivamente concluído.
+- offer_pdf só pode ser true quando operation_complete for true e não houver dado essencial pendente.
+- Não ofereça PDF novamente quando o histórico mostrar que ele já foi oferecido, aceito ou recusado para a mesma operação.
+- Só indique gráficos quando houver números ou séries que realmente permitam visualização útil; nunca prometa gráfico decorativo ou inventado.
 """.strip()
 
 
@@ -103,6 +122,10 @@ REGRAS ABSOLUTAS
 7. Em tema crítico, não transforme estimativa em certeza e não esconda limitações materiais.
 8. Não mencione orquestrador, revisão, backend, JSON, prompt, modelo ou processo interno.
 9. Entregue somente a resposta final pronta ao usuário.
+10. Quando o plano trouxer offer_pdf=true, encerre com uma única pergunta curta e personalizada oferecendo organizar o resultado em um PDF profissional e detalhado.
+11. A oferta pode mencionar métricas, tabelas, conclusões, riscos, próximos passos e gráficos somente quando o plano indicar que esses elementos são sustentados pelos dados.
+12. Não use frase fixa, não exagere a promessa e não repita a oferta quando ela já tiver aparecido na conversa.
+13. Quando offer_pdf=false, não faça nenhuma oferta de PDF.
 """.strip()
 
 
