@@ -9,7 +9,7 @@ from app.services.credit_meter import charge_usage, ensure_minimum_credit
 from app.services.diagnosis_memory import load_diagnosis_state, save_diagnosis_state
 from app.services.labor_pipeline import generate_labor_response
 from app.services.labor_termination import OPERATION as LABOR_TERMINATION_OPERATION
-from app.services.metered_brain import generate_metered_response
+from app.services.orchestrated_brain import generate_orchestrated_response
 
 
 router = APIRouter(prefix="/api/chat", tags=["chat"])
@@ -90,7 +90,7 @@ def respond(payload: ChatRequest, session: dict = Depends(require_authenticated_
                 diagnosis_state=diagnosis_state,
             )
         else:
-            result = generate_metered_response(
+            result = generate_orchestrated_response(
                 message=message,
                 operation=operation,
                 history=history,
