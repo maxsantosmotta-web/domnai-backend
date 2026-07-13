@@ -8,7 +8,7 @@ export default function StandaloneModuleRoom({ room, children }) {
     document.body.classList.add('domnai-standalone-room-open');
 
     return () => {
-      if (!document.querySelector('[data-domnai-standalone-room]')) {
+      if (!document.querySelector('[data-domnai-profile-room]')) {
         document.documentElement.classList.remove('domnai-standalone-room-open');
         document.body.classList.remove('domnai-standalone-room-open');
       }
