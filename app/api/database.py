@@ -1,5 +1,6 @@
-from fastapi import APIRouter
+from fastapi import APIRouter, Depends
 
+from app.auth import require_authenticated_user
 from app.config import settings
 from app.database import Base, get_database_url, get_engine, is_database_configured
 from app.services import count_saved_analyses
@@ -29,7 +30,7 @@ def run_database_initialization():
 
 
 @router.get("/env-check")
-def database_env_check():
+def database_env_check(_session: dict = Depends(require_authenticated_user)):
     return {
         "status": "ok",
         "appName": settings.app_name,
@@ -39,7 +40,7 @@ def database_env_check():
 
 
 @router.get("/status")
-def database_status():
+def database_status(_session: dict = Depends(require_authenticated_user)):
     configured = is_database_configured()
 
     return {
@@ -50,6 +51,6 @@ def database_status():
     }
 
 
-@router.api_route("/init", methods=["GET", "POST"])
-def initialize_database():
+@router.post("/init")
+def initialize_database(_session: dict = Depends(require_authenticated_user)):
     return run_database_initialization()
