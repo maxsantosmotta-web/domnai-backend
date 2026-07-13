@@ -17,6 +17,11 @@ function clickDashboardNow({ scrollToChat = true } = {}) {
   return false;
 }
 
+function planIsReady() {
+  const status = window.__domnaiBillingStatus;
+  return Boolean(status?.plan && !['unselected', 'free_demo'].includes(status.plan));
+}
+
 function ensureCompactBackButton(section, label) {
   if (!section) return;
   const header = section.querySelector(':scope > header');
@@ -25,9 +30,10 @@ function ensureCompactBackButton(section, label) {
   if (label === 'Faturamento') {
     const billingButton = header.querySelector('.billing-back-to-chat');
     if (billingButton) {
-      billingButton.textContent = 'Voltar';
-      billingButton.classList.add('module-back-button');
-      billingButton.hidden = false;
+      if (billingButton.textContent.trim() !== 'Voltar') billingButton.textContent = 'Voltar';
+      if (!billingButton.classList.contains('module-back-button')) {
+        billingButton.classList.add('module-back-button');
+      }
       return;
     }
   }
@@ -62,7 +68,7 @@ function renderImmediateBillingShell(section) {
 
 function applyModuleBackButtons() {
   const globalButton = document.querySelector('.global-exit-button');
-  if (globalButton) globalButton.style.display = 'none';
+  if (globalButton && globalButton.style.display !== 'none') globalButton.style.display = 'none';
 
   document.querySelectorAll('.internal-section').forEach((section) => {
     let label = section.querySelector(':scope > header span')?.textContent.trim();
@@ -78,7 +84,9 @@ function applyModuleBackButtons() {
   if (profilePage) {
     const originalDashboardButton = profilePage.querySelector('.domnai-profile-close');
     if (originalDashboardButton) {
-      originalDashboardButton.textContent = 'Voltar ao Dashboard';
+      if (originalDashboardButton.textContent.trim() !== 'Voltar ao Dashboard') {
+        originalDashboardButton.textContent = 'Voltar ao Dashboard';
+      }
       originalDashboardButton.classList.remove('module-back-button');
       originalDashboardButton.setAttribute('aria-label', 'Voltar ao Dashboard');
       originalDashboardButton.dataset.profileDestination = 'dashboard';
@@ -95,6 +103,13 @@ document.addEventListener('click', (event) => {
   event.stopPropagation();
   event.stopImmediatePropagation();
 
+  const checklistOverlay = document.querySelector('.profile-checklist-overlay');
+  if (checklistOverlay) {
+    const checklistBack = checklistOverlay.querySelector('.profile-checklist-cancel');
+    if (checklistBack) checklistBack.click();
+    return;
+  }
+
   const profilePage = button.closest('[data-domnai-profile-page]');
   if (profilePage) {
     document.body.classList.remove('domnai-profile-exclusive', 'domnai-mobile-menu-open');
@@ -104,6 +119,7 @@ document.addEventListener('click', (event) => {
     return;
   }
 
+  if (button.closest('.billing-page-header') && !planIsReady()) return;
   clickDashboardNow({ scrollToChat: true });
 }, true);
 
