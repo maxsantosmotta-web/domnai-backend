@@ -148,3 +148,14 @@ if old not in source:
 
 source = source.replace(old, new, 1)
 path.write_text(source, encoding='utf-8')
+
+main_path = Path('/frontend/src/main.jsx')
+main_source = main_path.read_text(encoding='utf-8')
+css_import = "import './react-plan-gate.css';"
+if css_import not in main_source:
+    main_source = main_source.replace(
+        "import './dashboard-onboarding-enhancements.css';",
+        "import './dashboard-onboarding-enhancements.css';\n" + css_import,
+        1,
+    )
+main_path.write_text(main_source, encoding='utf-8')
