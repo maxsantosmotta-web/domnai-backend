@@ -109,27 +109,10 @@ function stabilizeProfileBackButton() {
   });
 }
 
-function watchPlanSelection() {
-  document.querySelectorAll('[data-billing-action="free"]:not([data-status-watch])').forEach((button) => {
-    button.dataset.statusWatch = 'true';
-    button.addEventListener('click', () => {
-      let attempts = 0;
-      const poll = async () => {
-        attempts += 1;
-        const status = await refreshBillingStatusAndNotify();
-        if (planIsSelected(status) || attempts >= 8) return;
-        window.setTimeout(poll, 500);
-      };
-      window.setTimeout(poll, 350);
-    });
-  });
-}
-
 function applyFlowStabilityFixes() {
   stabilizeBillingBackButton();
   stabilizeProfileBackButton();
   enhanceBillingFailureState();
-  watchPlanSelection();
 }
 
 const flowStabilityObserver = new MutationObserver(() => window.requestAnimationFrame(applyFlowStabilityFixes));
