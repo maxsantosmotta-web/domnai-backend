@@ -1,5 +1,6 @@
 let selectedBillingPeriod = 'monthly';
 let lastBillingCard = null;
+let profileModalOpen = false;
 
 function applySelectedBillingPeriod() {
   const premiumCard = document.querySelector('.billing-premium-card');
@@ -33,12 +34,26 @@ function applySelectedBillingPeriod() {
   lastBillingCard = premiumCard;
 }
 
+function syncProfileModalState() {
+  const overlay = document.querySelector('.profile-checklist-overlay');
+  const isOpen = Boolean(overlay);
+
+  if (isOpen) {
+    profileModalOpen = true;
+    document.documentElement.classList.remove('domnai-gate-pending');
+    document.documentElement.classList.add('domnai-profile-modal-open');
+    return;
+  }
+
+  if (profileModalOpen) {
+    profileModalOpen = false;
+    document.documentElement.classList.remove('domnai-profile-modal-open');
+  }
+}
+
 // Impede o gate de reabrir a seção de faturamento enquanto o cadastro obrigatório está aberto.
-// O observador do onboarding dispara cliques programáticos no menu a cada mutação do formulário;
-// este bloqueio evita o ciclo visual sem interferir no envio ou fechamento do cadastro.
 document.addEventListener('click', (event) => {
-  const profileOverlay = document.querySelector('.profile-checklist-overlay');
-  if (!profileOverlay) return;
+  if (!document.querySelector('.profile-checklist-overlay')) return;
 
   const navigationButton = event.target.closest?.('.sidebar-navigation button');
   if (!navigationButton) return;
@@ -49,7 +64,7 @@ document.addEventListener('click', (event) => {
   event.stopImmediatePropagation();
 }, true);
 
-// Captura somente o seletor Mensal/Anual. Não interfere em FREE, cadastro ou outros botões.
+// Captura somente o seletor Mensal/Anual.
 document.addEventListener('click', (event) => {
   const button = event.target.closest?.('[data-billing-period]');
   if (!button) return;
@@ -64,13 +79,18 @@ document.addEventListener('click', (event) => {
   applySelectedBillingPeriod();
 }, true);
 
-// Reaplica apenas quando o card PREMIUM inteiro for realmente substituído.
-// Alterações em modais, formulários e demais áreas não acionam atualização visual.
 const billingPeriodObserver = new MutationObserver(() => {
+  syncProfileModalState();
+
   const currentCard = document.querySelector('.billing-premium-card');
   if (!currentCard || currentCard === lastBillingCard) return;
   window.requestAnimationFrame(applySelectedBillingPeriod);
 });
 
-billingPeriodObserver.observe(document.documentElement, { childList: true, subtree: true });
+billingPeriodObserver.observe(document.documentElement, {
+  childList: true,
+  subtree: true,
+});
+
+syncProfileModalState();
 window.requestAnimationFrame(applySelectedBillingPeriod);
