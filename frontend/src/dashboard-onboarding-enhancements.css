@@ -106,6 +106,55 @@ html.domnai-plan-selection-required body {
   margin-left: auto;
 }
 
+.domnai-gate-recovery {
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background: #050505;
+}
+
+.domnai-gate-recovery > div {
+  width: min(100%, 430px);
+  padding: 28px;
+  border: 1px solid rgba(216,170,52,.34);
+  border-radius: 22px;
+  background: #0d0d0d;
+  text-align: center;
+}
+
+.domnai-gate-recovery strong {
+  display: block;
+  margin-bottom: 10px;
+  color: #fff;
+  font-size: 1.25rem;
+}
+
+.domnai-gate-recovery p {
+  margin-bottom: 20px;
+  color: #aaa;
+}
+
+.domnai-gate-recovery button,
+.billing-recovery-back,
+.billing-recovery-logout {
+  min-height: 44px;
+  margin: 6px;
+  padding: 0 18px;
+  border: 1px solid rgba(216,170,52,.34);
+  border-radius: 12px;
+  background: #d8aa34;
+  color: #080808;
+  font-weight: 800;
+}
+
+.billing-recovery-logout {
+  background: transparent;
+  color: #e7c35e;
+}
+
 .birth-date-split {
   grid-column: span 1;
   display: grid;
