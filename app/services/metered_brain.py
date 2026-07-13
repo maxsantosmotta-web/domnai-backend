@@ -12,6 +12,8 @@ from app.services.domnai_brain import (
 from app.services.reliability import (
     build_review_input,
     needs_independent_review,
+    needs_preflight,
+    preflight_instructions,
     reviewer_instructions,
 )
 
@@ -122,14 +124,75 @@ def _openai_request(api_key: str, payload: dict) -> tuple[str, dict]:
     return text, data.get("usage") or {}
 
 
+def _usage_totals(*usages: dict) -> tuple[int, int, int]:
+    input_tokens = 0
+    output_tokens = 0
+    cached_tokens = 0
+    for usage in usages:
+        details = (usage or {}).get("input_tokens_details") or {}
+        input_tokens += _as_int((usage or {}).get("input_tokens"))
+        output_tokens += _as_int((usage or {}).get("output_tokens"))
+        cached_tokens += _as_int(details.get("cached_tokens"))
+    return input_tokens, output_tokens, cached_tokens
+
+
+def _preflight_response(
+    api_key: str,
+    model: str,
+    message: str,
+    history: list[dict],
+    operation: str | None,
+) -> tuple[str | None, dict]:
+    if not needs_preflight(operation):
+        return None, {}
+
+    preflight_input = _normalized_history(history)
+    preflight_input.append({"role": "user", "content": message})
+    text, usage = _openai_request(
+        api_key,
+        {
+            "model": os.getenv("DOMNAI_PREFLIGHT_MODEL", model).strip() or model,
+            "instructions": preflight_instructions(operation),
+            "input": preflight_input,
+            "temperature": 0.0,
+            "max_output_tokens": 500,
+        },
+    )
+
+    normalized = text.strip()
+    if normalized == "READY":
+        return None, usage
+    if normalized.startswith("ASK:"):
+        questions = normalized[4:].strip()
+        if questions:
+            return questions, usage
+    return None, usage
+
+
 def _openai_response(message: str, history: list[dict], operation: str | None, attachments: list[dict]) -> MeteredBrainResult:
     api_key = os.getenv("OPENAI_API_KEY", "").strip()
     if not api_key:
         raise RuntimeError("OPENAI_API_KEY não configurada.")
 
     model = os.getenv("DOMNAI_OPENAI_MODEL", "gpt-4.1-mini").strip()
-    input_messages = _normalized_history(history)
 
+    preflight_text: str | None = None
+    preflight_usage: dict = {}
+    if not attachments:
+        preflight_text, preflight_usage = _preflight_response(api_key, model, message, history, operation)
+
+    if preflight_text:
+        input_tokens, output_tokens, cached_tokens = _usage_totals(preflight_usage)
+        return MeteredBrainResult(
+            text=preflight_text,
+            provider="openai-preflight",
+            model=model,
+            input_tokens=input_tokens,
+            output_tokens=output_tokens,
+            cached_input_tokens=cached_tokens,
+        )
+
+    input_messages = _normalized_history(history)
     user_content = [{"type": "input_text", "text": message}]
     user_content.extend(_attachment_content(attachment) for attachment in attachments)
     input_messages.append({"role": "user", "content": user_content})
@@ -168,15 +231,14 @@ def _openai_response(message: str, history: list[dict], operation: str | None, a
             },
         )
 
-    draft_input_details = draft_usage.get("input_tokens_details") or {}
-    review_input_details = review_usage.get("input_tokens_details") or {}
+    input_tokens, output_tokens, cached_tokens = _usage_totals(preflight_usage, draft_usage, review_usage)
     return MeteredBrainResult(
         text=final_text,
         provider="openai-reviewed" if reviewed else "openai",
         model=model,
-        input_tokens=_as_int(draft_usage.get("input_tokens")) + _as_int(review_usage.get("input_tokens")),
-        output_tokens=_as_int(draft_usage.get("output_tokens")) + _as_int(review_usage.get("output_tokens")),
-        cached_input_tokens=_as_int(draft_input_details.get("cached_tokens")) + _as_int(review_input_details.get("cached_tokens")),
+        input_tokens=input_tokens,
+        output_tokens=output_tokens,
+        cached_input_tokens=cached_tokens,
     )
 
 
