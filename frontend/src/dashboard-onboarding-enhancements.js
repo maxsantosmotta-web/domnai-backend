@@ -103,23 +103,40 @@ function needsPlanSelection(status) {
   return status?.plan === 'unselected' || status?.plan === 'free_demo' || !status?.plan;
 }
 
+function showCancelOverlay() {
+  if (document.querySelector('.domnai-cancel-overlay')) return;
+  document.body.insertAdjacentHTML('beforeend', `
+    <section class="domnai-cancel-overlay" aria-live="polite" aria-busy="true">
+      <div>
+        <strong>Encerrando acesso...</strong>
+        <p>Aguarde um instante.</p>
+      </div>
+    </section>
+  `);
+}
+
 async function cancelPlanSelection(button) {
   if (button) {
     button.disabled = true;
     button.textContent = 'Saindo...';
   }
 
+  showCancelOverlay();
+
   try {
-    if (window.domnaiSafeSignOut) {
-      await window.domnaiSafeSignOut();
-      return;
-    }
     if (!window.Clerk?.signOut) throw new Error('Sessão não encontrada.');
-    clearOnboardingState();
+    try {
+      Object.keys(sessionStorage).forEach((key) => {
+        if (key.startsWith('domnai:')) sessionStorage.removeItem(key);
+      });
+    } catch {
+      // O encerramento continua mesmo sem acesso ao armazenamento.
+    }
     await window.Clerk.signOut();
     window.location.replace(`${window.location.origin}${window.location.pathname}#/`);
-    window.location.reload();
+    window.setTimeout(() => window.location.reload(), 50);
   } catch (error) {
+    document.querySelector('.domnai-cancel-overlay')?.remove();
     if (button) {
       button.disabled = false;
       button.textContent = 'Cancelar';
