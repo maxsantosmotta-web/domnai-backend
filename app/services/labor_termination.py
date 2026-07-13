@@ -14,7 +14,7 @@ CENT = Decimal("0.01")
 @dataclass(frozen=True)
 class LaborCalculationResult:
     ready: bool
-    questions: list[str]
+    missing_fields: list[str]
     report: dict[str, Any] | None = None
 
 
@@ -78,11 +78,11 @@ def _days_in_month_under_contract(start: date, end: date, year: int, month: int)
 
 def thirteenth_months(admission: date, projected_end: date) -> int:
     year = projected_end.year
-    count = 0
-    for month in range(1, 13):
-        if _days_in_month_under_contract(admission, projected_end, year, month) >= 15:
-            count += 1
-    return count
+    return sum(
+        1
+        for month in range(1, 13)
+        if _days_in_month_under_contract(admission, projected_end, year, month) >= 15
+    )
 
 
 def vacation_position(admission: date, projected_end: date) -> tuple[int, int, date]:
@@ -131,6 +131,17 @@ Não invente dados. Use null quando não estiver confirmado. O salário base par
 """.strip()
 
 
+def missing_data_prompt_instructions() -> str:
+    return """
+Você é o DomnAI conduzindo uma análise real de rescisão trabalhista.
+Formule uma resposta natural, curta e contextual para obter somente os dados realmente faltantes indicados pelo backend.
+Não siga roteiro fixo, não repita pergunta já respondida, não transforme a conversa em formulário e não enumere campos técnicos.
+Explique em uma frase por que a informação é necessária quando isso ajudar o usuário.
+Faça no máximo três perguntas objetivas, combinando dados relacionados quando fizer sentido.
+Não calcule ainda e não invente nenhum dado.
+""".strip()
+
+
 def parse_extracted_data(raw_text: str) -> dict[str, Any]:
     text = str(raw_text or "").strip()
     if text.startswith("```"):
@@ -152,23 +163,23 @@ def calculate(data: dict[str, Any]) -> LaborCalculationResult:
     reason = str(data.get("termination_reason") or "").strip()
     notice_type = str(data.get("notice_type") or "").strip()
 
-    questions: list[str] = []
+    missing_fields: list[str] = []
     if admission is None:
-        questions.append("Qual foi a data de admissão?")
+        missing_fields.append("admission_date")
     if communication is None:
-        questions.append("Qual foi a data em que o desligamento foi comunicado?")
+        missing_fields.append("termination_communication_date")
     if salary is None or salary <= 0:
-        questions.append("Qual era o salário mensal bruto usado na rescisão?")
+        missing_fields.append("monthly_salary")
     if not reason:
-        questions.append("Qual foi o motivo da rescisão?")
+        missing_fields.append("termination_reason")
     if not notice_type:
-        questions.append("O aviso prévio foi trabalhado, indenizado ou dispensado?")
-    if questions:
-        return LaborCalculationResult(False, questions[:3])
+        missing_fields.append("notice_type")
+    if missing_fields:
+        return LaborCalculationResult(False, missing_fields[:5])
 
     assert admission is not None and communication is not None and salary is not None
     if communication < admission:
-        return LaborCalculationResult(False, ["A data do desligamento não pode ser anterior à admissão. Confirme as datas."])
+        return LaborCalculationResult(False, ["invalid_date_order"])
 
     base = salary + variable + additions
     notice_days_value = data.get("notice_days")
