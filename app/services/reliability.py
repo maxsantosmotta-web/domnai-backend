@@ -21,6 +21,17 @@ HIGH_RISK_OPERATIONS = {
     "Preparação Física para Esportes",
 }
 
+PREFLIGHT_OPERATIONS = {
+    "Cálculo de Rescisão Trabalhista",
+    "Gestão Financeira Empresarial",
+    "Precificação Estratégica",
+    "Análise de Viabilidade",
+    "Análise de Dívidas e Renegociação",
+    "Análise de Investimentos",
+    "Análise Imobiliária",
+    "Organização Financeira Pessoal",
+}
+
 CALCULATION_MARKERS = (
     "calcule",
     "cálculo",
@@ -51,6 +62,42 @@ def needs_independent_review(operation: str | None, message: str, attachments: l
         return True
     normalized = (message or "").casefold()
     return any(marker in normalized for marker in CALCULATION_MARKERS)
+
+
+def needs_preflight(operation: str | None, attachments: list[dict] | None = None) -> bool:
+    if attachments:
+        return False
+    return operation in PREFLIGHT_OPERATIONS
+
+
+def preflight_instructions(operation: str | None) -> str:
+    operation_label = operation or "operação não selecionada"
+    return f"""
+Você é o Validador Prévio do DomnAI. Verifique se já existem dados suficientes na conversa para responder com segurança à operação: {operation_label}.
+
+REGRAS
+1. Considere toda a conversa recebida, sem repetir perguntas já respondidas.
+2. Só bloqueie a análise quando faltar informação realmente indispensável para evitar erro material.
+3. Não exija detalhes opcionais antes de oferecer orientação inicial útil.
+4. Quando faltarem dados essenciais, faça no máximo três perguntas curtas, reunindo campos relacionados na mesma pergunta.
+5. Não calcule, não analise e não dê recomendação nesta etapa.
+6. Responda exatamente em um dos formatos abaixo:
+
+READY
+
+ou
+
+ASK:
+<perguntas objetivas em português do Brasil>
+
+DADOS ESSENCIAIS POR CONTEXTO
+- Rescisão: datas de admissão e desligamento, salário/base remuneratória, motivo da saída, aviso prévio, férias/13º já pagos e adicionais relevantes.
+- Precificação/viabilidade: custos fixos e variáveis, taxas/impostos, volume esperado, preço ou margem pretendida e período analisado.
+- Dívidas: saldo, juros, parcelas/prazos, renda ou capacidade de pagamento e propostas disponíveis.
+- Investimentos: objetivo, prazo, liquidez necessária, tolerância a risco, valor e custos.
+- Imóveis: preço, entrada/financiamento, custos adicionais, renda/objetivo, localização e condição documental quando relevantes.
+- Organização financeira: renda líquida, despesas, dívidas, reservas e objetivo.
+""".strip()
 
 
 def reviewer_instructions(operation: str | None) -> str:
