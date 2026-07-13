@@ -7,6 +7,8 @@ from app.database import session_scope
 from app.models import LibraryAsset
 from app.services.credit_meter import charge_usage, ensure_minimum_credit
 from app.services.diagnosis_memory import load_diagnosis_state, save_diagnosis_state
+from app.services.labor_pipeline import generate_labor_response
+from app.services.labor_termination import OPERATION as LABOR_TERMINATION_OPERATION
 from app.services.metered_brain import generate_metered_response
 
 
@@ -75,17 +77,26 @@ def respond(payload: ChatRequest, session: dict = Depends(require_authenticated_
         [item.library_id for item in payload.attachments],
     )
     diagnosis_state = load_diagnosis_state(user_id, operation)
+    history = [item.model_dump() for item in payload.history]
 
     ensure_minimum_credit(user_id)
 
     try:
-        result = generate_metered_response(
-            message=message,
-            operation=operation,
-            history=[item.model_dump() for item in payload.history],
-            attachments=attachments,
-            diagnosis_state=diagnosis_state,
-        )
+        if operation == LABOR_TERMINATION_OPERATION:
+            result = generate_labor_response(
+                message=message,
+                history=history,
+                attachments=attachments,
+                diagnosis_state=diagnosis_state,
+            )
+        else:
+            result = generate_metered_response(
+                message=message,
+                operation=operation,
+                history=history,
+                attachments=attachments,
+                diagnosis_state=diagnosis_state,
+            )
     except RuntimeError as exc:
         raise HTTPException(status_code=503, detail=str(exc)) from exc
 
