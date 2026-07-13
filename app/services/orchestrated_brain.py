@@ -50,7 +50,6 @@ def _specialized_engine(plan: dict, operation: str | None, message: str) -> str 
     if any(marker in engine_text for marker in ("labor_termination", "rescisao", "trabalhista", "labor")):
         return "labor_termination"
 
-    # Proteção para pedidos naturais quando o frontend não envia a operação.
     labor_markers = (
         "calcular minha rescisao",
         "calculo de rescisao",
@@ -84,30 +83,37 @@ def generate_orchestrated_response(
 
     model = os.getenv("DOMNAI_OPENAI_MODEL", "gpt-4.1-mini").strip()
     safe_attachments = attachments or []
+    plan: dict = {}
+    plan_usage: dict = {}
 
-    raw_plan, plan_usage = _openai_request(
-        api_key,
-        {
-            "model": os.getenv("DOMNAI_ORCHESTRATOR_MODEL", model).strip() or model,
-            "instructions": planning_instructions(),
-            "input": [{
-                "role": "user",
-                "content": [{
-                    "type": "input_text",
-                    "text": build_plan_input(
-                        message=message,
-                        history=_normalized_history(history),
-                        operation=operation,
-                        memory_context=diagnosis_context(diagnosis_state),
-                        attachment_names=[str(item.get("name") or "arquivo") for item in safe_attachments],
-                    ),
+    try:
+        raw_plan, plan_usage = _openai_request(
+            api_key,
+            {
+                "model": os.getenv("DOMNAI_ORCHESTRATOR_MODEL", model).strip() or model,
+                "instructions": planning_instructions(),
+                "input": [{
+                    "role": "user",
+                    "content": [{
+                        "type": "input_text",
+                        "text": build_plan_input(
+                            message=message,
+                            history=_normalized_history(history),
+                            operation=operation,
+                            memory_context=diagnosis_context(diagnosis_state),
+                            attachment_names=[str(item.get("name") or "arquivo") for item in safe_attachments],
+                        ),
+                    }],
                 }],
-            }],
-            "temperature": 0.0,
-            "max_output_tokens": 700,
-        },
-    )
-    plan = parse_plan(raw_plan)
+                "temperature": 0.0,
+                "max_output_tokens": 700,
+            },
+        )
+        plan = parse_plan(raw_plan)
+    except Exception:
+        # O Orquestrador melhora a decisão, mas nunca pode impedir a resposta.
+        plan = {}
+        plan_usage = {}
 
     engine = _specialized_engine(plan, operation, message)
     if engine == "labor_termination":
@@ -118,7 +124,7 @@ def generate_orchestrated_response(
             history=history,
             attachments=safe_attachments,
             diagnosis_state=diagnosis_state,
-            orchestration_plan=plan,
+            orchestration_plan=plan or None,
             orchestration_usage=plan_usage,
         )
 
@@ -130,40 +136,51 @@ def generate_orchestrated_response(
         diagnosis_state=diagnosis_state,
     )
 
-    final_text, refinement_usage = _openai_request(
-        api_key,
-        {
-            "model": os.getenv("DOMNAI_REFINER_MODEL", model).strip() or model,
-            "instructions": refinement_instructions(),
-            "input": [{
-                "role": "user",
-                "content": [{
-                    "type": "input_text",
-                    "text": build_refinement_input(
-                        user_message=message,
-                        candidate_answer=base_result.text,
-                        plan=plan,
-                        immutable_evidence=(
-                            "Preserve sem alteração todos os números, datas, percentuais, referências documentais "
-                            "e resultados explícitos da resposta candidata. Não recalcule nem introduza valores novos."
+    final_text = base_result.text
+    refinement_usage: dict = {}
+    try:
+        final_text, refinement_usage = _openai_request(
+            api_key,
+            {
+                "model": os.getenv("DOMNAI_REFINER_MODEL", model).strip() or model,
+                "instructions": refinement_instructions(),
+                "input": [{
+                    "role": "user",
+                    "content": [{
+                        "type": "input_text",
+                        "text": build_refinement_input(
+                            user_message=message,
+                            candidate_answer=base_result.text,
+                            plan=plan,
+                            immutable_evidence=(
+                                "Preserve sem alteração todos os números, datas, percentuais, referências documentais "
+                                "e resultados explícitos da resposta candidata. Não recalcule nem introduza valores novos."
+                            ),
                         ),
-                    ),
+                    }],
                 }],
-            }],
-            "temperature": 0.0,
-            "max_output_tokens": 2400,
-        },
-    )
+                "temperature": 0.0,
+                "max_output_tokens": 2400,
+            },
+        )
+    except Exception:
+        # Se o Refinador falhar, entrega a resposta-base em vez de retornar 503.
+        final_text = base_result.text
+        refinement_usage = {}
 
-    updated_state, memory_usage = _update_diagnosis_memory(
-        api_key,
-        model,
-        operation,
-        base_result.diagnosis_state or diagnosis_state,
-        message,
-        final_text,
-        safe_attachments,
-    )
+    try:
+        updated_state, memory_usage = _update_diagnosis_memory(
+            api_key,
+            model,
+            operation,
+            base_result.diagnosis_state or diagnosis_state,
+            message,
+            final_text,
+            safe_attachments,
+        )
+    except Exception:
+        updated_state = base_result.diagnosis_state or diagnosis_state
+        memory_usage = {}
 
     extra_input = _usage_value(plan_usage, "input_tokens") + _usage_value(refinement_usage, "input_tokens") + _usage_value(memory_usage, "input_tokens")
     extra_output = _usage_value(plan_usage, "output_tokens") + _usage_value(refinement_usage, "output_tokens") + _usage_value(memory_usage, "output_tokens")
@@ -171,7 +188,7 @@ def generate_orchestrated_response(
 
     return MeteredBrainResult(
         text=final_text,
-        provider=f"orchestrated-refined:{base_result.provider}",
+        provider=f"orchestrated-refined:{base_result.provider}" if refinement_usage else f"orchestrated-fallback:{base_result.provider}",
         model=base_result.model,
         input_tokens=base_result.input_tokens + extra_input,
         output_tokens=base_result.output_tokens + extra_output,
