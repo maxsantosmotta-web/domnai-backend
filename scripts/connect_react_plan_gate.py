@@ -9,18 +9,13 @@ source = source.replace(
     1,
 )
 
-old = '''function Home() {
-  const { isLoaded, isSignedIn } = useAuth();
+if 'function ProtectedDashboard()' not in source:
+    start = source.find('function Home() {')
+    end = source.find('\nconst institutionalContent = {', start)
+    if start == -1 or end == -1:
+        raise RuntimeError('Não foi possível localizar o bloco Home em App.jsx.')
 
-  if (isLoaded && isSignedIn) {
-    return <Dashboard />;
-  }
-
-  return <Landing />;
-}
-'''
-
-new = '''function ProtectedDashboard() {
+    replacement = '''function ProtectedDashboard() {
   const { getToken, userId } = useAuth();
   const [billingStatus, setBillingStatus] = useState(null);
   const [billingError, setBillingError] = useState('');
@@ -65,13 +60,8 @@ new = '''function ProtectedDashboard() {
     const handleBillingUpdate = (event) => {
       if (event.detail) setBillingStatus(event.detail);
     };
-    const handlePlanReady = () => setPlanScreenReady(true);
     window.addEventListener('domnai:billing-updated', handleBillingUpdate);
-    window.addEventListener('domnai:plan-screen-ready', handlePlanReady);
-    return () => {
-      window.removeEventListener('domnai:billing-updated', handleBillingUpdate);
-      window.removeEventListener('domnai:plan-screen-ready', handlePlanReady);
-    };
+    return () => window.removeEventListener('domnai:billing-updated', handleBillingUpdate);
   }, []);
 
   const planSelected = Boolean(
@@ -81,10 +71,21 @@ new = '''function ProtectedDashboard() {
   const accessReady = planSelected && profileCompleted;
 
   useEffect(() => {
-    if (!billingStatus) return;
+    if (!billingStatus) return undefined;
     window.__domnaiBillingStatus = billingStatus;
-    window.dispatchEvent(new CustomEvent('domnai:billing-updated', { detail: billingStatus }));
-    if (!accessReady) setPlanScreenReady(false);
+    if (accessReady) return undefined;
+
+    setPlanScreenReady(false);
+    let attempts = 0;
+    const interval = window.setInterval(() => {
+      attempts += 1;
+      const ready = Boolean(document.querySelector('.billing-plans-section'));
+      if (ready || attempts >= 80) {
+        setPlanScreenReady(ready);
+        window.clearInterval(interval);
+      }
+    }, 100);
+    return () => window.clearInterval(interval);
   }, [billingStatus, accessReady]);
 
   if (billingError) {
@@ -146,19 +147,16 @@ function Home() {
 }
 '''
 
-if old not in source:
-    raise RuntimeError('Home original não encontrado para instalar o gate React.')
+    source = source[:start] + replacement + source[end:]
 
-source = source.replace(old, new, 1)
 path.write_text(source, encoding='utf-8')
 
 main_path = Path('/frontend/src/main.jsx')
 main_source = main_path.read_text(encoding='utf-8')
 css_import = "import './react-plan-gate.css';"
 if css_import not in main_source:
-    main_source = main_source.replace(
-        "import './dashboard-onboarding-enhancements.css';",
-        "import './dashboard-onboarding-enhancements.css';\n" + css_import,
-        1,
-    )
+    anchor = "import './dashboard-onboarding-enhancements.css';"
+    if anchor not in main_source:
+        raise RuntimeError('Importação de onboarding não encontrada em main.jsx.')
+    main_source = main_source.replace(anchor, anchor + '\n' + css_import, 1)
 main_path.write_text(main_source, encoding='utf-8')
