@@ -159,6 +159,9 @@ function profileFormHtml(profile = {}, actionLabel = 'Continuar') {
 }
 
 async function openProfileChecklist(onComplete, actionLabel) {
+  if (document.querySelector('.profile-checklist-overlay')) return;
+  window.dispatchEvent(new CustomEvent('domnai:onboarding-profile-opened'));
+
   let profile = {};
   try {
     const payload = await billingFetch('/api/profile');
@@ -167,7 +170,6 @@ async function openProfileChecklist(onComplete, actionLabel) {
     profile = {};
   }
 
-  document.querySelector('.profile-checklist-overlay')?.remove();
   document.body.insertAdjacentHTML('beforeend', profileFormHtml(profile, actionLabel));
   const overlay = document.querySelector('.profile-checklist-overlay');
   const form = overlay.querySelector('form');
@@ -185,7 +187,11 @@ async function openProfileChecklist(onComplete, actionLabel) {
   cep.addEventListener('input', () => { cep.value = formatCep(cep.value); });
   form.elements.state.addEventListener('input', (event) => { event.target.value = event.target.value.toUpperCase().replace(/[^A-Z]/g, '').slice(0, 2); });
 
-  overlay.querySelector('.profile-checklist-cancel').addEventListener('click', () => overlay.remove());
+  overlay.querySelector('.profile-checklist-cancel').addEventListener('click', () => {
+    overlay.remove();
+    window.dispatchEvent(new CustomEvent('domnai:onboarding-profile-cancelled'));
+  });
+
   form.addEventListener('submit', async (event) => {
     event.preventDefault();
     errorBox.hidden = true;
@@ -239,8 +245,8 @@ async function openProfileChecklist(onComplete, actionLabel) {
 
     try {
       await billingFetch('/api/profile', { method: 'PUT', body: JSON.stringify(body) });
-      overlay.remove();
       await onComplete();
+      overlay.remove();
     } catch (error) {
       errorBox.textContent = error.message;
       errorBox.hidden = false;
@@ -344,6 +350,8 @@ function renderBilling(section, status, transactions, selectedPeriod = 'monthly'
     const activateFree = async () => {
       const updatedStatus = await billingFetch('/api/billing/select-free', { method: 'POST', body: '{}' });
       renderBilling(section, updatedStatus, transactions, selectedPeriod);
+      window.dispatchEvent(new CustomEvent('domnai:billing-updated', { detail: updatedStatus }));
+      return updatedStatus;
     };
     ensureProfileThen(status, activateFree, 'Ativar plano FREE').catch((error) => window.alert(error.message));
   });
