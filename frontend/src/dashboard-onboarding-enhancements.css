@@ -84,6 +84,26 @@ html.domnai-plan-selection-required body {
   text-transform: uppercase;
 }
 
+.domnai-app-shell.onboarding-plan-mode .billing-page-header > div {
+  display: block !important;
+  width: 100% !important;
+  max-width: none !important;
+  margin: 0 auto !important;
+  padding: 0 !important;
+  text-align: center !important;
+  transform: none !important;
+}
+
+.domnai-app-shell.onboarding-plan-mode .billing-page-header > div > span,
+.domnai-app-shell.onboarding-plan-mode .billing-page-header > div > h1,
+.domnai-app-shell.onboarding-plan-mode .billing-page-header > div > p {
+  display: block;
+  width: 100%;
+  margin-right: auto !important;
+  margin-left: auto !important;
+  text-align: center !important;
+}
+
 .domnai-app-shell.onboarding-plan-mode .billing-page-header h1 {
   margin-top: 4px;
 }
@@ -114,7 +134,17 @@ html.domnai-plan-selection-required body {
 }
 
 .domnai-app-shell.onboarding-plan-mode .billing-section-title {
-  text-align: center;
+  width: 100% !important;
+  margin-right: auto !important;
+  margin-left: auto !important;
+  text-align: center !important;
+}
+
+.domnai-app-shell.onboarding-plan-mode .billing-section-title > small,
+.domnai-app-shell.onboarding-plan-mode .billing-section-title > h2 {
+  display: block;
+  width: 100%;
+  text-align: center !important;
 }
 
 .domnai-app-shell.onboarding-plan-mode .billing-plan-grid-two {
