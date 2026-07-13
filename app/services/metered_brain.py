@@ -7,6 +7,13 @@ from app.services.calculation_audit import (
     format_audit_for_reviewer,
     parse_calculation_manifest,
 )
+from app.services.diagnosis_memory import (
+    build_diagnosis_update_input,
+    diagnosis_context,
+    diagnosis_extractor_instructions,
+    parse_diagnosis_state,
+    sanitize_diagnosis_state,
+)
 from app.services.domnai_brain import (
     _integration_api_key,
     _integration_base_url,
@@ -33,6 +40,7 @@ class MeteredBrainResult:
     input_tokens: int
     output_tokens: int
     cached_input_tokens: int = 0
+    diagnosis_state: dict | None = None
 
 
 def _as_int(value) -> int:
@@ -54,7 +62,13 @@ def _extract_response_text(data: dict) -> str:
     return "\n".join(part for part in parts if part).strip()
 
 
-def _gateway_response(message: str, history: list[dict], operation: str | None, attachments: list[dict]) -> MeteredBrainResult:
+def _gateway_response(
+    message: str,
+    history: list[dict],
+    operation: str | None,
+    attachments: list[dict],
+    diagnosis_state: dict | None,
+) -> MeteredBrainResult:
     if attachments:
         raise RuntimeError("A leitura de arquivos exige o provedor OpenAI configurado no DomnAI.")
 
@@ -64,7 +78,12 @@ def _gateway_response(message: str, history: list[dict], operation: str | None, 
         raise RuntimeError("Integração OpenAI do gateway não configurada.")
 
     model = os.getenv("DOMNAI_GATEWAY_MODEL", "gpt-4o-mini").strip()
-    messages = [{"role": "system", "content": build_system_prompt(operation)}]
+    system_prompt = build_system_prompt(operation)
+    memory_context = diagnosis_context(diagnosis_state)
+    if memory_context:
+        system_prompt = f"{system_prompt}\n\n{memory_context}"
+
+    messages = [{"role": "system", "content": system_prompt}]
     messages.extend(_normalized_history(history))
     messages.append({"role": "user", "content": message})
 
@@ -90,6 +109,7 @@ def _gateway_response(message: str, history: list[dict], operation: str | None, 
         input_tokens=_as_int(usage.get("prompt_tokens")),
         output_tokens=_as_int(usage.get("completion_tokens")),
         cached_input_tokens=_as_int(prompt_details.get("cached_tokens")),
+        diagnosis_state=sanitize_diagnosis_state(diagnosis_state or {}, operation),
     )
 
 
@@ -125,16 +145,27 @@ def _usage_totals(*usages: dict) -> tuple[int, int, int]:
     return input_tokens, output_tokens, cached_tokens
 
 
-def _preflight_response(api_key: str, model: str, message: str, history: list[dict], operation: str | None) -> tuple[str | None, dict]:
+def _preflight_response(
+    api_key: str,
+    model: str,
+    message: str,
+    history: list[dict],
+    operation: str | None,
+    diagnosis_state: dict | None,
+) -> tuple[str | None, dict]:
     if not needs_preflight(operation):
         return None, {}
+    instructions = preflight_instructions(operation)
+    memory_context = diagnosis_context(diagnosis_state)
+    if memory_context:
+        instructions = f"{instructions}\n\n{memory_context}"
     preflight_input = _normalized_history(history)
     preflight_input.append({"role": "user", "content": message})
     text, usage = _openai_request(
         api_key,
         {
             "model": os.getenv("DOMNAI_PREFLIGHT_MODEL", model).strip() or model,
-            "instructions": preflight_instructions(operation),
+            "instructions": instructions,
             "input": preflight_input,
             "temperature": 0.0,
             "max_output_tokens": 500,
@@ -150,7 +181,13 @@ def _preflight_response(api_key: str, model: str, message: str, history: list[di
     return None, usage
 
 
-def _calculation_audit(api_key: str, model: str, message: str, draft_text: str, operation: str | None) -> tuple[str, dict]:
+def _calculation_audit(
+    api_key: str,
+    model: str,
+    message: str,
+    draft_text: str,
+    operation: str | None,
+) -> tuple[str, dict]:
     if not message_has_calculation(message) and operation not in {
         "Cálculo de Rescisão Trabalhista",
         "Gestão Financeira Empresarial",
@@ -184,7 +221,50 @@ def _calculation_audit(api_key: str, model: str, message: str, draft_text: str, 
     return format_audit_for_reviewer(audited), usage
 
 
-def _openai_response(message: str, history: list[dict], operation: str | None, attachments: list[dict]) -> MeteredBrainResult:
+def _update_diagnosis_memory(
+    api_key: str,
+    model: str,
+    operation: str | None,
+    prior_state: dict | None,
+    message: str,
+    final_text: str,
+    attachments: list[dict],
+) -> tuple[dict, dict]:
+    fallback = sanitize_diagnosis_state(prior_state or {}, operation)
+    try:
+        raw_state, usage = _openai_request(
+            api_key,
+            {
+                "model": os.getenv("DOMNAI_MEMORY_MODEL", model).strip() or model,
+                "instructions": diagnosis_extractor_instructions(operation),
+                "input": [{
+                    "role": "user",
+                    "content": [{
+                        "type": "input_text",
+                        "text": build_diagnosis_update_input(
+                            prior_state=fallback,
+                            user_message=message,
+                            final_answer=final_text,
+                            attachment_names=[str(item.get("name") or "arquivo") for item in attachments],
+                        ),
+                    }],
+                }],
+                "temperature": 0.0,
+                "max_output_tokens": 1200,
+            },
+        )
+        return parse_diagnosis_state(raw_state, operation, fallback), usage
+    except Exception:
+        return fallback, {}
+
+
+def _openai_response(
+    message: str,
+    history: list[dict],
+    operation: str | None,
+    attachments: list[dict],
+    diagnosis_state: dict | None,
+) -> MeteredBrainResult:
     api_key = os.getenv("OPENAI_API_KEY", "").strip()
     if not api_key:
         raise RuntimeError("OPENAI_API_KEY não configurada.")
@@ -192,17 +272,34 @@ def _openai_response(message: str, history: list[dict], operation: str | None, a
     model = os.getenv("DOMNAI_OPENAI_MODEL", "gpt-4.1-mini").strip()
     preflight_text, preflight_usage = (None, {})
     if not attachments:
-        preflight_text, preflight_usage = _preflight_response(api_key, model, message, history, operation)
+        preflight_text, preflight_usage = _preflight_response(
+            api_key,
+            model,
+            message,
+            history,
+            operation,
+            diagnosis_state,
+        )
 
     if preflight_text:
-        input_tokens, output_tokens, cached_tokens = _usage_totals(preflight_usage)
+        updated_state, memory_usage = _update_diagnosis_memory(
+            api_key,
+            model,
+            operation,
+            diagnosis_state,
+            message,
+            preflight_text,
+            attachments,
+        )
+        input_tokens, output_tokens, cached_tokens = _usage_totals(preflight_usage, memory_usage)
         return MeteredBrainResult(
             text=preflight_text,
-            provider="openai-preflight",
+            provider="openai-preflight-memory",
             model=model,
             input_tokens=input_tokens,
             output_tokens=output_tokens,
             cached_input_tokens=cached_tokens,
+            diagnosis_state=updated_state,
         )
 
     input_messages = _normalized_history(history)
@@ -210,11 +307,16 @@ def _openai_response(message: str, history: list[dict], operation: str | None, a
     user_content.extend(_attachment_content(attachment) for attachment in attachments)
     input_messages.append({"role": "user", "content": user_content})
 
+    instructions = build_system_prompt(operation)
+    memory_context = diagnosis_context(diagnosis_state)
+    if memory_context:
+        instructions = f"{instructions}\n\n{memory_context}"
+
     draft_text, draft_usage = _openai_request(
         api_key,
         {
             "model": model,
-            "instructions": build_system_prompt(operation),
+            "instructions": instructions,
             "input": input_messages,
             "temperature": 0.1,
             "max_output_tokens": 2400,
@@ -245,19 +347,31 @@ def _openai_response(message: str, history: list[dict], operation: str | None, a
             },
         )
 
+    updated_state, memory_usage = _update_diagnosis_memory(
+        api_key,
+        model,
+        operation,
+        diagnosis_state,
+        message,
+        final_text,
+        attachments,
+    )
+
     input_tokens, output_tokens, cached_tokens = _usage_totals(
         preflight_usage,
         draft_usage,
         calculation_usage,
         review_usage,
+        memory_usage,
     )
     return MeteredBrainResult(
         text=final_text,
-        provider="openai-reviewed-calculated" if calculation_report else "openai-reviewed" if reviewed else "openai",
+        provider="openai-reviewed-calculated-memory" if calculation_report else "openai-reviewed-memory" if reviewed else "openai-memory",
         model=model,
         input_tokens=input_tokens,
         output_tokens=output_tokens,
         cached_input_tokens=cached_tokens,
+        diagnosis_state=updated_state,
     )
 
 
@@ -266,14 +380,15 @@ def generate_metered_response(
     history: list[dict],
     operation: str | None,
     attachments: list[dict] | None = None,
+    diagnosis_state: dict | None = None,
 ) -> MeteredBrainResult:
     provider = os.getenv("DOMNAI_AI_PROVIDER", "auto").strip().lower()
     safe_attachments = attachments or []
     if provider == "gateway":
-        return _gateway_response(message, history, operation, safe_attachments)
+        return _gateway_response(message, history, operation, safe_attachments, diagnosis_state)
     if provider in {"openai", "", "auto"}:
         if os.getenv("OPENAI_API_KEY", "").strip():
-            return _openai_response(message, history, operation, safe_attachments)
+            return _openai_response(message, history, operation, safe_attachments, diagnosis_state)
         raise RuntimeError("OPENAI_API_KEY do DomnAI não configurada.")
     if provider == "anthropic":
         raise RuntimeError("Medição automática de créditos para Anthropic ainda não foi habilitada.")
