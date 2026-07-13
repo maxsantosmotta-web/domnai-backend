@@ -25,8 +25,10 @@ room_lines = {}
 remaining_lines = []
 for line in lines:
     matched = False
+    stripped = line.lstrip()
     for room_name in ('library', 'trash', 'billing'):
-        if f"{{section === '{room_name}' ?" in line:
+        module_prefix = f"{{section === '{room_name}' ? <section className=\"internal-section\""
+        if stripped.startswith(module_prefix):
             if room_name in room_lines:
                 raise RuntimeError(f'O módulo {room_name} apareceu mais de uma vez no Dashboard.')
             room_lines[room_name] = line.replace(
