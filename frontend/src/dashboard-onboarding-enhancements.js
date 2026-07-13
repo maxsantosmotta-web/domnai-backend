@@ -39,6 +39,7 @@ function clearOnboardingState() {
   const shell = document.querySelector('.domnai-app-shell');
   shell?.classList.remove('onboarding-plan-mode');
   shell?.removeAttribute('data-plan-gate');
+  shell?.querySelector('.domnai-gate-cancel')?.remove();
 }
 
 function readCachedOnboardingStatus(userId) {
@@ -102,12 +103,51 @@ function needsPlanSelection(status) {
   return status?.plan === 'unselected' || status?.plan === 'free_demo' || !status?.plan;
 }
 
+async function cancelPlanSelection(button) {
+  if (button) {
+    button.disabled = true;
+    button.textContent = 'Saindo...';
+  }
+
+  try {
+    if (window.domnaiSafeSignOut) {
+      await window.domnaiSafeSignOut();
+      return;
+    }
+    if (!window.Clerk?.signOut) throw new Error('Sessão não encontrada.');
+    clearOnboardingState();
+    await window.Clerk.signOut();
+    window.location.replace(`${window.location.origin}${window.location.pathname}#/`);
+    window.location.reload();
+  } catch (error) {
+    if (button) {
+      button.disabled = false;
+      button.textContent = 'Cancelar';
+    }
+    window.alert(error?.message || 'Não foi possível cancelar agora.');
+  }
+}
+
+function installGateCancelButton() {
+  const shell = document.querySelector('.domnai-app-shell');
+  if (!shell || shell.querySelector('.domnai-gate-cancel')) return;
+
+  const button = document.createElement('button');
+  button.type = 'button';
+  button.className = 'domnai-gate-cancel';
+  button.textContent = 'Cancelar';
+  button.setAttribute('aria-label', 'Cancelar escolha de plano e sair da conta');
+  button.addEventListener('click', () => cancelPlanSelection(button));
+  shell.appendChild(button);
+}
+
 function revealPlanScreenWhenReady(attempt = 0) {
   window.clearTimeout(revealTimer);
   const billingHeader = document.querySelector('.billing-page-header');
   const plans = document.querySelector('.billing-plans-section');
   if (billingHeader && plans) {
     document.documentElement.classList.remove('domnai-gate-pending');
+    installGateCancelButton();
     return;
   }
 
@@ -134,7 +174,7 @@ function showGateRecovery() {
     </section>
   `);
   shell.querySelector('[data-gate-retry]')?.addEventListener('click', () => enforcePlanGate(true));
-  shell.querySelector('[data-gate-logout]')?.addEventListener('click', () => window.domnaiSafeSignOut?.());
+  shell.querySelector('[data-gate-logout]')?.addEventListener('click', () => cancelPlanSelection(shell.querySelector('[data-gate-logout]')));
 }
 
 function lockPlatformForPlanSelection() {
@@ -147,6 +187,7 @@ function lockPlatformForPlanSelection() {
   shell.querySelector('.domnai-gate-recovery')?.remove();
   shell.classList.add('onboarding-plan-mode');
   shell.setAttribute('data-plan-gate', 'required');
+  installGateCancelButton();
   openBillingSection();
   window.requestAnimationFrame(openBillingSection);
   revealPlanScreenWhenReady();
@@ -159,6 +200,7 @@ function releasePlatformAfterPlanSelection() {
   if (!shell) return;
 
   shell.querySelector('.domnai-gate-recovery')?.remove();
+  shell.querySelector('.domnai-gate-cancel')?.remove();
   shell.classList.remove('onboarding-plan-mode');
   shell.setAttribute('data-plan-gate', 'released');
   document.querySelectorAll('.domnai-main-area > [aria-hidden="true"]').forEach((node) => node.removeAttribute('aria-hidden'));
@@ -280,7 +322,10 @@ const onboardingObserver = new MutationObserver((mutations) => {
     const addedRoot = mutations.flatMap((mutation) => [...mutation.addedNodes])
       .find((node) => node.nodeType === Node.ELEMENT_NODE) || document;
     enhanceBirthDate(addedRoot);
-    if (lastOnboardingStatus && needsPlanSelection(lastOnboardingStatus)) openBillingSection();
+    if (lastOnboardingStatus && needsPlanSelection(lastOnboardingStatus)) {
+      openBillingSection();
+      installGateCancelButton();
+    }
   });
 });
 
