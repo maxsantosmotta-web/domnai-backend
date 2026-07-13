@@ -48,39 +48,27 @@ function normalizeApiError(detail) {
   return String(detail);
 }
 
-let billingTokenPromise = null;
+function waitForBilling(delay) {
+  return new Promise((resolve) => window.setTimeout(resolve, delay));
+}
 
-async function getAuthToken() {
-  if (billingTokenPromise) return billingTokenPromise;
-
-  billingTokenPromise = (async () => {
-    for (let attempt = 0; attempt < 40; attempt += 1) {
-      const clerk = window.Clerk;
-      if (clerk?.session) {
-        try {
-          const token = await clerk.session.getToken();
-          if (typeof token === 'string' && token.trim()) return token;
-        } catch {
-          // A sessão pode existir alguns instantes antes de o token ficar disponível.
-        }
-      }
-      await new Promise((resolve) => window.setTimeout(resolve, 150));
+async function getAuthToken(skipCache = false) {
+  for (let attempt = 0; attempt < 40; attempt += 1) {
+    const session = window.Clerk?.session;
+    if (session) {
+      const token = await session.getToken({ skipCache: skipCache || attempt > 0 }).catch(() => null);
+      if (token) return token;
     }
-    throw new Error('Sessão não encontrada. Atualize a página e tente novamente.');
-  })();
-
-  try {
-    return await billingTokenPromise;
-  } finally {
-    billingTokenPromise = null;
+    await waitForBilling(150);
   }
+  throw new Error('Sessão não confirmada. Entre novamente.');
 }
 
 async function billingFetch(url, options = {}) {
   let response = null;
 
-  for (let attempt = 0; attempt < 3; attempt += 1) {
-    const token = await getAuthToken();
+  for (let attempt = 0; attempt < 6; attempt += 1) {
+    const token = await getAuthToken(attempt > 0);
     response = await fetch(url, {
       ...options,
       headers: {
@@ -90,14 +78,15 @@ async function billingFetch(url, options = {}) {
       },
     });
 
-    if (response.status !== 401) break;
-    await new Promise((resolve) => window.setTimeout(resolve, 350 * (attempt + 1)));
+    if (response.status !== 401 && response.status !== 403) break;
+    await waitForBilling(200 + (attempt * 150));
   }
 
-  if (!response.ok) {
-    const payload = await response.json().catch(() => ({}));
+  if (!response?.ok) {
+    const payload = await response?.json().catch(() => ({})) || {};
     throw new Error(normalizeApiError(payload.detail || payload.message));
   }
+
   return response.status === 204 ? null : response.json();
 }
 
@@ -187,7 +176,6 @@ function profileFormHtml(profile = {}, actionLabel = 'Continuar') {
 
 async function openProfileChecklist(onComplete, actionLabel) {
   if (document.querySelector('.profile-checklist-overlay')) return;
-  window.dispatchEvent(new CustomEvent('domnai:onboarding-profile-opened'));
 
   let profile = {};
   try {
@@ -216,7 +204,6 @@ async function openProfileChecklist(onComplete, actionLabel) {
 
   overlay.querySelector('.profile-checklist-cancel').addEventListener('click', () => {
     overlay.remove();
-    window.dispatchEvent(new CustomEvent('domnai:onboarding-profile-cancelled'));
   });
 
   form.addEventListener('submit', async (event) => {
@@ -372,7 +359,9 @@ function renderBilling(section, status, transactions, selectedPeriod = 'monthly'
   });
 
   section.querySelectorAll('[data-billing-period]').forEach((button) => {
-    button.addEventListener('click', () => {
+    button.addEventListener('click', (event) => {
+      event.preventDefault();
+      event.stopPropagation();
       selectedPeriod = button.dataset.billingPeriod;
       updateBillingPeriod(section, selectedPeriod);
     });
@@ -399,7 +388,9 @@ function renderBilling(section, status, transactions, selectedPeriod = 'monthly'
     });
   });
 
-  section.querySelector('[data-billing-action="free"]:not([disabled])')?.addEventListener('click', () => {
+  section.querySelector('[data-billing-action="free"]:not([disabled])')?.addEventListener('click', (event) => {
+    event.preventDefault();
+    event.stopPropagation();
     const activateFree = async () => {
       const updatedStatus = await billingFetch('/api/billing/select-free', { method: 'POST', body: '{}' });
       renderBilling(section, updatedStatus, transactions, selectedPeriod);
