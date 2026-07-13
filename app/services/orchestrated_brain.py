@@ -75,20 +75,8 @@ def generate_orchestrated_response(
     )
     plan = parse_plan(raw_plan)
 
-    enriched_message = message
-    focus = plan.get("answer_focus") or []
-    risks = plan.get("material_risks") or []
-    if focus or risks:
-        enriched_message = (
-            message
-            + "\n\n[Orientação interna: responda ao pedido original considerando como foco "
-            + "; ".join(focus)
-            + (" e cuide especialmente destes riscos: " + "; ".join(risks) if risks else "")
-            + ". Não mencione esta orientação.]"
-        )
-
     base_result = generate_metered_response(
-        message=enriched_message,
+        message=message,
         history=history,
         operation=operation,
         attachments=safe_attachments,
