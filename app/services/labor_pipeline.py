@@ -5,6 +5,13 @@ import os
 
 from app.services.diagnosis_memory import diagnosis_context
 from app.services.domnai_brain import _normalized_history
+from app.services.intelligence_orchestrator import (
+    build_plan_input,
+    build_refinement_input,
+    parse_plan,
+    planning_instructions,
+    refinement_instructions,
+)
 from app.services.labor_termination import (
     OPERATION,
     calculate,
@@ -30,6 +37,70 @@ def _conversation_input(message: str, history: list[dict], diagnosis_state: dict
     return items
 
 
+def _orchestration_plan(
+    api_key: str,
+    model: str,
+    message: str,
+    history: list[dict],
+    attachments: list[dict],
+    diagnosis_state: dict | None,
+) -> tuple[dict, dict]:
+    raw_plan, usage = _openai_request(
+        api_key,
+        {
+            "model": os.getenv("DOMNAI_ORCHESTRATOR_MODEL", model).strip() or model,
+            "instructions": planning_instructions(),
+            "input": [{
+                "role": "user",
+                "content": [{
+                    "type": "input_text",
+                    "text": build_plan_input(
+                        message=message,
+                        history=_normalized_history(history),
+                        operation=OPERATION,
+                        memory_context=diagnosis_context(diagnosis_state),
+                        attachment_names=[str(item.get("name") or "arquivo") for item in attachments],
+                    ),
+                }],
+            }],
+            "temperature": 0.0,
+            "max_output_tokens": 700,
+        },
+    )
+    return parse_plan(raw_plan), usage
+
+
+def _refine(
+    api_key: str,
+    model: str,
+    message: str,
+    candidate: str,
+    plan: dict,
+    immutable_evidence: str = "",
+) -> tuple[str, dict]:
+    return _openai_request(
+        api_key,
+        {
+            "model": os.getenv("DOMNAI_REFINER_MODEL", model).strip() or model,
+            "instructions": refinement_instructions(),
+            "input": [{
+                "role": "user",
+                "content": [{
+                    "type": "input_text",
+                    "text": build_refinement_input(
+                        user_message=message,
+                        candidate_answer=candidate,
+                        plan=plan,
+                        immutable_evidence=immutable_evidence,
+                    ),
+                }],
+            }],
+            "temperature": 0.0,
+            "max_output_tokens": 2400,
+        },
+    )
+
+
 def generate_labor_response(
     message: str,
     history: list[dict],
@@ -42,6 +113,15 @@ def generate_labor_response(
 
     model = os.getenv("DOMNAI_OPENAI_MODEL", "gpt-4.1-mini").strip()
     extractor_model = os.getenv("DOMNAI_LABOR_EXTRACTOR_MODEL", model).strip() or model
+
+    plan, plan_usage = _orchestration_plan(
+        api_key,
+        model,
+        message,
+        history,
+        attachments,
+        diagnosis_state,
+    )
 
     extraction_text, extraction_usage = _openai_request(
         api_key,
@@ -58,11 +138,12 @@ def generate_labor_response(
 
     if not calculation.ready:
         context_payload = {
+            "orchestrator_plan": plan,
             "missing_fields": calculation.missing_fields,
             "known_data": extracted,
             "current_message": message,
         }
-        questions, question_usage = _openai_request(
+        candidate_questions, question_usage = _openai_request(
             api_key,
             {
                 "model": os.getenv("DOMNAI_LABOR_QUESTION_MODEL", model).strip() or model,
@@ -78,6 +159,14 @@ def generate_labor_response(
                 "max_output_tokens": 500,
             },
         )
+        questions, refinement_usage = _refine(
+            api_key,
+            model,
+            message,
+            candidate_questions,
+            plan,
+            immutable_evidence="Campos indispensáveis ainda ausentes: " + ", ".join(calculation.missing_fields),
+        )
         updated_state, memory_usage = _update_diagnosis_memory(
             api_key,
             model,
@@ -88,13 +177,15 @@ def generate_labor_response(
             attachments,
         )
         input_tokens, output_tokens, cached_tokens = _usage_totals(
+            plan_usage,
             extraction_usage,
             question_usage,
+            refinement_usage,
             memory_usage,
         )
         return MeteredBrainResult(
             text=questions,
-            provider="openai-labor-adaptive-preflight-deterministic",
+            provider="openai-orchestrated-labor-adaptive-preflight-deterministic",
             model=model,
             input_tokens=input_tokens,
             output_tokens=output_tokens,
@@ -103,7 +194,7 @@ def generate_labor_response(
         )
 
     report_json = json.dumps(calculation.report, ensure_ascii=False, indent=2)
-    final_text, render_usage = _openai_request(
+    candidate_text, render_usage = _openai_request(
         api_key,
         {
             "model": os.getenv("DOMNAI_LABOR_RENDER_MODEL", model).strip() or model,
@@ -112,12 +203,21 @@ def generate_labor_response(
                 "role": "user",
                 "content": [{
                     "type": "input_text",
-                    "text": f"PEDIDO ATUAL:\n{message}\n\nRELATÓRIO DETERMINÍSTICO OBRIGATÓRIO:\n{report_json}",
+                    "text": f"PLANO DO ORQUESTRADOR:\n{json.dumps(plan, ensure_ascii=False)}\n\nPEDIDO ATUAL:\n{message}\n\nRELATÓRIO DETERMINÍSTICO OBRIGATÓRIO:\n{report_json}",
                 }],
             }],
             "temperature": 0.0,
             "max_output_tokens": 2400,
         },
+    )
+
+    final_text, refinement_usage = _refine(
+        api_key,
+        model,
+        message,
+        candidate_text,
+        plan,
+        immutable_evidence=report_json,
     )
 
     updated_state, memory_usage = _update_diagnosis_memory(
@@ -130,13 +230,15 @@ def generate_labor_response(
         attachments,
     )
     input_tokens, output_tokens, cached_tokens = _usage_totals(
+        plan_usage,
         extraction_usage,
         render_usage,
+        refinement_usage,
         memory_usage,
     )
     return MeteredBrainResult(
         text=final_text,
-        provider="openai-labor-deterministic-memory",
+        provider="openai-orchestrated-labor-deterministic-refined-memory",
         model=model,
         input_tokens=input_tokens,
         output_tokens=output_tokens,
