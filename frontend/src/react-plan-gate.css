@@ -1,0 +1,52 @@
+.react-plan-gate-page,
+.react-plan-gate-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 10000;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background: #050505;
+}
+
+.react-plan-gate-wrapper {
+  min-height: 100vh;
+  background: #050505;
+}
+
+.react-plan-gate-card {
+  width: min(100%, 440px);
+  padding: 28px;
+  border: 1px solid rgba(216, 170, 52, 0.34);
+  border-radius: 22px;
+  background: linear-gradient(180deg, #101010 0%, #080808 100%);
+  color: #fff;
+  text-align: center;
+}
+
+.react-plan-gate-card h1 {
+  margin: 0 0 10px;
+  font-size: 1.35rem;
+}
+
+.react-plan-gate-card p {
+  margin: 0 0 20px;
+  color: #a9a9a9;
+  line-height: 1.5;
+}
+
+.react-plan-gate-card button {
+  min-height: 46px;
+  margin: 6px;
+  padding: 0 18px;
+  border: 1px solid rgba(216, 170, 52, 0.34);
+  border-radius: 12px;
+  background: #d8aa34;
+  color: #080808;
+  font-weight: 800;
+}
+
+.react-plan-gate-card button.secondary {
+  background: transparent;
+  color: #e7c35e;
+}
