@@ -19,46 +19,63 @@ if 'function ProtectedDashboard()' not in source:
   const { getToken, userId } = useAuth();
   const [billingStatus, setBillingStatus] = useState(null);
   const [billingError, setBillingError] = useState('');
-  const [planScreenReady, setPlanScreenReady] = useState(false);
-  const [profileOpen, setProfileOpen] = useState(
-    () => Boolean(document.querySelector('.profile-checklist-overlay')),
-  );
+  const [screenReady, setScreenReady] = useState(false);
 
   useEffect(() => {
     let active = true;
     const controller = new AbortController();
-    const timeout = window.setTimeout(() => controller.abort(), 10000);
+
+    const wait = (delay) => new Promise((resolve) => window.setTimeout(resolve, delay));
 
     async function loadBillingStatus() {
-      try {
-        setBillingError('');
-        const token = await getToken();
-        if (!token) throw new Error('Sessão não encontrada.');
-        const response = await fetch('/api/billing/status', {
-          headers: { Authorization: `Bearer ${token}` },
-          cache: 'no-store',
-          signal: controller.signal,
-        });
-        if (!response.ok) throw new Error('Não foi possível validar seu cadastro e plano.');
-        const status = await response.json();
-        if (active) {
-          window.__domnaiBillingStatus = status;
-          setBillingStatus(status);
+      setBillingError('');
+
+      for (let attempt = 0; attempt < 20; attempt += 1) {
+        try {
+          const token = await getToken({ skipCache: attempt > 0 });
+          if (!token) {
+            await wait(150);
+            continue;
+          }
+
+          const response = await fetch('/api/billing/status', {
+            headers: { Authorization: `Bearer ${token}` },
+            cache: 'no-store',
+            signal: controller.signal,
+          });
+
+          if (response.ok) {
+            const status = await response.json();
+            if (active) {
+              window.__domnaiBillingStatus = status;
+              setBillingStatus(status);
+            }
+            return;
+          }
+
+          if (response.status === 401 || response.status === 403) {
+            await wait(200 + (attempt * 50));
+            continue;
+          }
+
+          throw new Error('Não foi possível validar seu cadastro e plano.');
+        } catch (error) {
+          if (error?.name === 'AbortError') return;
+          if (attempt >= 19) {
+            if (active) setBillingError(error?.message || 'Não foi possível validar seu acesso.');
+            return;
+          }
+          await wait(200 + (attempt * 50));
         }
-      } catch (error) {
-        if (active) setBillingError(error?.name === 'AbortError'
-          ? 'A validação do acesso demorou mais que o esperado.'
-          : error?.message || 'Não foi possível validar seu acesso.');
-      } finally {
-        window.clearTimeout(timeout);
       }
+
+      if (active) setBillingError('Sessão não confirmada. Entre novamente.');
     }
 
     loadBillingStatus();
     return () => {
       active = false;
       controller.abort();
-      window.clearTimeout(timeout);
     };
   }, [getToken, userId]);
 
@@ -68,23 +85,9 @@ if 'function ProtectedDashboard()' not in source:
       window.__domnaiBillingStatus = event.detail;
       setBillingStatus(event.detail);
     };
-    const handleProfileOpened = () => {
-      setProfileOpen(true);
-      setPlanScreenReady(true);
-    };
-    const handleProfileCancelled = () => {
-      setProfileOpen(false);
-      setPlanScreenReady(true);
-    };
 
     window.addEventListener('domnai:billing-updated', handleBillingUpdate);
-    window.addEventListener('domnai:onboarding-profile-opened', handleProfileOpened);
-    window.addEventListener('domnai:onboarding-profile-cancelled', handleProfileCancelled);
-    return () => {
-      window.removeEventListener('domnai:billing-updated', handleBillingUpdate);
-      window.removeEventListener('domnai:onboarding-profile-opened', handleProfileOpened);
-      window.removeEventListener('domnai:onboarding-profile-cancelled', handleProfileCancelled);
-    };
+    return () => window.removeEventListener('domnai:billing-updated', handleBillingUpdate);
   }, []);
 
   const planSelected = Boolean(
@@ -94,25 +97,48 @@ if 'function ProtectedDashboard()' not in source:
   const accessReady = planSelected && profileCompleted;
 
   useEffect(() => {
-    if (!billingStatus || accessReady || profileOpen) return undefined;
+    if (!billingStatus) return undefined;
 
-    setPlanScreenReady(false);
+    if (accessReady) {
+      setScreenReady(true);
+      return undefined;
+    }
+
+    setScreenReady(false);
+    let cancelled = false;
     let attempts = 0;
-    const interval = window.setInterval(() => {
-      attempts += 1;
+    let timer = null;
+
+    const openBilling = () => {
+      if (cancelled) return;
 
       const billingButton = [...document.querySelectorAll('.sidebar-navigation button')]
         .find((button) => button.textContent.trim().includes('Faturamento'));
-      if (billingButton && !billingButton.classList.contains('is-active')) billingButton.click();
 
-      const ready = Boolean(document.querySelector('.billing-plans-section'));
-      if (ready || attempts >= 80) {
-        setPlanScreenReady(ready);
-        window.clearInterval(interval);
+      if (billingButton && !billingButton.classList.contains('is-active')) {
+        billingButton.click();
       }
-    }, 100);
-    return () => window.clearInterval(interval);
-  }, [billingStatus, accessReady, profileOpen]);
+
+      if (document.querySelector('.billing-plans-section')) {
+        setScreenReady(true);
+        return;
+      }
+
+      attempts += 1;
+      if (attempts >= 120) {
+        setBillingError('Não foi possível abrir o faturamento.');
+        return;
+      }
+
+      timer = window.setTimeout(openBilling, 50);
+    };
+
+    window.requestAnimationFrame(openBilling);
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timer);
+    };
+  }, [billingStatus, accessReady]);
 
   if (billingError) {
     return (
@@ -128,44 +154,22 @@ if 'function ProtectedDashboard()' not in source:
   }
 
   if (!billingStatus) {
-    return (
-      <main className="react-plan-gate-page" aria-busy="true">
-        <section className="react-plan-gate-card">
-          <h1>Validando seu acesso...</h1>
-          <p>Aguarde enquanto verificamos seu cadastro e plano.</p>
-        </section>
-      </main>
-    );
+    return <main className="react-plan-gate-page" aria-busy="true" />;
   }
 
-  if (!accessReady) {
-    return (
-      <div className="react-plan-gate-wrapper">
-        <Dashboard />
-        {!profileOpen && !planScreenReady ? (
-          <div className="react-plan-gate-overlay" aria-busy="true">
-            <section className="react-plan-gate-card">
-              <h1>Preparando seu acesso...</h1>
-              <p>O Dashboard só será liberado depois que você completar o cadastro e escolher FREE ou PREMIUM.</p>
-            </section>
-          </div>
-        ) : null}
-      </div>
-    );
-  }
-
-  return <Dashboard />;
+  return (
+    <div className="react-plan-gate-wrapper">
+      <Dashboard />
+      {!screenReady ? <div className="react-plan-gate-overlay" aria-hidden="true" /> : null}
+    </div>
+  );
 }
 
 function Home() {
   const { isLoaded, isSignedIn } = useAuth();
 
   if (!isLoaded) {
-    return (
-      <main className="react-plan-gate-page" aria-busy="true">
-        <section className="react-plan-gate-card"><h1>Carregando...</h1></section>
-      </main>
-    );
+    return <main className="react-plan-gate-page" aria-busy="true" />;
   }
 
   if (isSignedIn) return <ProtectedDashboard />;
