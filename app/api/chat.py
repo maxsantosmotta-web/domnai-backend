@@ -6,6 +6,7 @@ from app.auth import require_authenticated_user
 from app.database import session_scope
 from app.models import LibraryAsset
 from app.services.credit_meter import charge_usage, ensure_minimum_credit
+from app.services.diagnosis_memory import load_diagnosis_state, save_diagnosis_state
 from app.services.metered_brain import generate_metered_response
 
 
@@ -68,24 +69,34 @@ def respond(payload: ChatRequest, session: dict = Depends(require_authenticated_
     if not message:
         raise HTTPException(status_code=422, detail="Digite uma mensagem para continuar.")
 
+    operation = payload.operation.strip() if payload.operation else None
     attachments = _load_attachments(
         user_id,
         [item.library_id for item in payload.attachments],
     )
+    diagnosis_state = load_diagnosis_state(user_id, operation)
 
     ensure_minimum_credit(user_id)
 
     try:
         result = generate_metered_response(
             message=message,
-            operation=payload.operation.strip() if payload.operation else None,
+            operation=operation,
             history=[item.model_dump() for item in payload.history],
             attachments=attachments,
+            diagnosis_state=diagnosis_state,
         )
     except RuntimeError as exc:
         raise HTTPException(status_code=503, detail=str(exc)) from exc
 
     usage = charge_usage(user_id, result)
+
+    if result.diagnosis_state is not None:
+        try:
+            save_diagnosis_state(user_id, operation, result.diagnosis_state)
+        except Exception:
+            # A memória é auxiliar e nunca pode impedir a entrega da resposta.
+            pass
 
     return {
         "reply": result.text,
