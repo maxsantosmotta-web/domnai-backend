@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import os
+import unicodedata
 
 from app.services.diagnosis_memory import diagnosis_context
 from app.services.domnai_brain import _normalized_history
@@ -11,6 +12,7 @@ from app.services.intelligence_orchestrator import (
     planning_instructions,
     refinement_instructions,
 )
+from app.services.labor_termination import OPERATION as LABOR_TERMINATION_OPERATION
 from app.services.metered_brain import (
     MeteredBrainResult,
     _openai_request,
@@ -29,6 +31,38 @@ def _usage_value(usage: dict, key: str) -> int:
 def _cached_value(usage: dict) -> int:
     details = (usage or {}).get("input_tokens_details") or {}
     return _usage_value(details, "cached_tokens")
+
+
+def _normalized_text(value: str | None) -> str:
+    text = unicodedata.normalize("NFKD", str(value or ""))
+    return "".join(char for char in text if not unicodedata.combining(char)).casefold().strip()
+
+
+def _specialized_engine(plan: dict, operation: str | None, message: str) -> str | None:
+    operation_text = _normalized_text(operation)
+    engine_text = _normalized_text(plan.get("specialized_engine"))
+    message_text = _normalized_text(message)
+
+    labor_operation = _normalized_text(LABOR_TERMINATION_OPERATION)
+    if operation_text == labor_operation:
+        return "labor_termination"
+
+    if any(marker in engine_text for marker in ("labor_termination", "rescisao", "trabalhista", "labor")):
+        return "labor_termination"
+
+    # Proteção para pedidos naturais quando o frontend não envia a operação.
+    labor_markers = (
+        "calcular minha rescisao",
+        "calculo de rescisao",
+        "verbas rescisorias",
+        "demissao sem justa causa",
+        "pedido de demissao",
+        "aviso previo proporcional",
+    )
+    if any(marker in message_text for marker in labor_markers):
+        return "labor_termination"
+
+    return None
 
 
 def generate_orchestrated_response(
@@ -74,6 +108,19 @@ def generate_orchestrated_response(
         },
     )
     plan = parse_plan(raw_plan)
+
+    engine = _specialized_engine(plan, operation, message)
+    if engine == "labor_termination":
+        from app.services.labor_pipeline import generate_labor_response
+
+        return generate_labor_response(
+            message=message,
+            history=history,
+            attachments=safe_attachments,
+            diagnosis_state=diagnosis_state,
+            orchestration_plan=plan,
+            orchestration_usage=plan_usage,
+        )
 
     base_result = generate_metered_response(
         message=message,
