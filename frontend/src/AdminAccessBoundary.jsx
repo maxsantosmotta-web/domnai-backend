@@ -150,6 +150,7 @@ export default function AdminAccessBoundary({ children }) {
   const { isLoaded: userLoaded, user } = useUser();
   const { signOut } = useClerk();
   const [route, setRoute] = useState(currentHashPath);
+  const [accessMode, setAccessMode] = useState(() => sessionStorage.getItem(ACCESS_MODE_KEY) || '');
   const [verification, setVerification] = useState({ status: 'idle', isAdmin: false });
   const [retryKey, setRetryKey] = useState(0);
 
@@ -190,54 +191,66 @@ export default function AdminAccessBoundary({ children }) {
   }, [getToken, isLoaded, isOwnerCandidate, isSignedIn, retryKey, userLoaded]);
 
   useEffect(() => {
-    if (!isSignedIn) sessionStorage.removeItem(ACCESS_MODE_KEY);
+    if (!isSignedIn) {
+      sessionStorage.removeItem(ACCESS_MODE_KEY);
+      setAccessMode('');
+    }
   }, [isSignedIn]);
 
   function selectAdminAccess() {
     sessionStorage.setItem(ACCESS_MODE_KEY, 'admin');
+    setAccessMode('admin');
     navigateTo('/admin');
   }
 
   function selectUserAccess() {
     sessionStorage.setItem(ACCESS_MODE_KEY, 'user');
+    setAccessMode('user');
     navigateTo('/');
   }
 
   async function leaveAccount() {
     sessionStorage.removeItem(ACCESS_MODE_KEY);
+    setAccessMode('');
     await signOut({ redirectUrl: '/#/' });
   }
 
   if (!isLoaded || !isSignedIn) return children;
-  if (!userLoaded) return children;
+  if (!userLoaded) return <AccessLoading />;
   if (!isOwnerCandidate) return children;
 
-  if (verification.status === 'idle' || verification.status === 'checking') return <AccessLoading />;
-  if (verification.status === 'error') {
-    return (
-      <AccessValidationError
-        onRetry={() => setRetryKey((current) => current + 1)}
-        onUser={selectUserAccess}
-        onSignOut={leaveAccount}
-      />
-    );
-  }
-  if (!verification.isAdmin) return children;
-
-  const selectedMode = sessionStorage.getItem(ACCESS_MODE_KEY);
   const adminRoute = route === '/admin' || route.startsWith('/admin/');
 
-  if (adminRoute || selectedMode === 'admin') {
-    return <AdminPortalShell onUser={selectUserAccess} onSignOut={leaveAccount} />;
-  }
-
-  if (selectedMode === 'user') {
+  if (accessMode === 'user') {
     return (
       <>
         {children}
-        <AdminReturnButton onAdmin={selectAdminAccess} />
+        {verification.status === 'verified' && verification.isAdmin ? (
+          <AdminReturnButton onAdmin={selectAdminAccess} />
+        ) : null}
       </>
     );
+  }
+
+  if (verification.status === 'idle' || verification.status === 'checking') return <AccessLoading />;
+
+  if (verification.status === 'error') {
+    if (accessMode === 'admin' || adminRoute) {
+      return (
+        <AccessValidationError
+          onRetry={() => setRetryKey((current) => current + 1)}
+          onUser={selectUserAccess}
+          onSignOut={leaveAccount}
+        />
+      );
+    }
+    return children;
+  }
+
+  if (!verification.isAdmin) return children;
+
+  if (adminRoute || accessMode === 'admin') {
+    return <AdminPortalShell onUser={selectUserAccess} onSignOut={leaveAccount} />;
   }
 
   return <AccessChoice onAdmin={selectAdminAccess} onUser={selectUserAccess} onSignOut={leaveAccount} />;
