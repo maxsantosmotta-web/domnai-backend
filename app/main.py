@@ -8,6 +8,7 @@ from app.api.admin_audit import router as admin_audit_router
 from app.api.admin_billing import router as admin_billing_router
 from app.api.admin_errors import router as admin_errors_router
 from app.api.admin_users import router as admin_users_router
+from app.api.artifacts import router as artifacts_router
 from app.api.auth import router as auth_router
 from app.api.billing import router as billing_router
 from app.api.chat import router as chat_router
@@ -62,7 +63,6 @@ async def monitor_operational_errors(request: Request, call_next):
             method=request.method,
         )
         raise
-
     if response.status_code >= 500:
         record_operational_event(
             module=module_from_path(path),
@@ -89,6 +89,7 @@ app.include_router(decisions_router)
 app.include_router(database_router)
 app.include_router(library_router)
 app.include_router(reports_router)
+app.include_router(artifacts_router)
 app.include_router(trash_router)
 app.include_router(profile_router)
 app.include_router(billing_router)
