@@ -57,7 +57,7 @@
   cursor: not-allowed;
 }
 
-.live-indicator {
+.domnai-admin-users-view .live-indicator {
   display: inline-flex;
   align-items: center;
   gap: 7px;
@@ -66,7 +66,7 @@
   font-weight: 800;
 }
 
-.live-indicator i {
+.domnai-admin-users-view .live-indicator i {
   width: 8px;
   height: 8px;
   border-radius: 50%;
@@ -91,7 +91,7 @@
 }
 
 .domnai-admin-users-summary span,
-.analytics-card header span,
+.domnai-admin-users-view .analytics-card header span,
 .domnai-admin-users-toolbar label > span,
 .domnai-admin-users-toolbar .result-count > span {
   color: #777;
@@ -112,7 +112,7 @@
   gap: 12px;
 }
 
-.analytics-card {
+.domnai-admin-users-view .analytics-card {
   min-width: 0;
   padding: 16px;
   border: 1px solid rgba(255, 255, 255, 0.07);
@@ -120,24 +120,24 @@
   background: linear-gradient(180deg, rgba(15, 15, 15, 0.98), rgba(9, 9, 9, 0.98));
 }
 
-.analytics-card > header {
+.domnai-admin-users-view .analytics-card > header {
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
   gap: 12px;
 }
 
-.analytics-card header > div {
+.domnai-admin-users-view .analytics-card header > div {
   display: grid;
   gap: 4px;
 }
 
-.analytics-card header strong {
+.domnai-admin-users-view .analytics-card header strong {
   color: #f4f4f4;
   font-size: 0.93rem;
 }
 
-.analytics-card header small {
+.domnai-admin-users-view .analytics-card header small {
   color: #777;
   font-size: 0.7rem;
   white-space: nowrap;
@@ -234,14 +234,14 @@
   background: linear-gradient(90deg, rgba(231, 195, 94, 0.68), #e7c35e);
 }
 
-.plan-foot {
+.domnai-admin-users-view .plan-foot {
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 8px;
   margin-top: 22px;
 }
 
-.plan-foot span {
+.domnai-admin-users-view .plan-foot span {
   padding: 10px;
   border: 1px solid rgba(255, 255, 255, 0.055);
   border-radius: 11px;
@@ -249,7 +249,7 @@
   font-size: 0.68rem;
 }
 
-.plan-foot strong {
+.domnai-admin-users-view .plan-foot strong {
   display: block;
   margin-top: 4px;
   color: #f1f1f1;
@@ -271,7 +271,7 @@
   gap: 11px;
 }
 
-.brain-mark {
+.domnai-admin-users-view .brain-mark {
   width: 38px;
   height: 38px;
   border: 1px solid rgba(231, 195, 94, 0.28);
@@ -302,14 +302,14 @@
   font-size: 0.92rem;
 }
 
-.brain-grid {
+.domnai-admin-users-view .brain-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 9px;
   margin-top: 14px;
 }
 
-.brain-grid article {
+.domnai-admin-users-view .brain-grid article {
   min-width: 0;
   padding: 12px;
   border: 1px solid rgba(255, 255, 255, 0.055);
@@ -319,34 +319,34 @@
   background: rgba(255, 255, 255, 0.018);
 }
 
-.brain-grid article > span {
+.domnai-admin-users-view .brain-grid article > span {
   flex: 0 0 auto;
   color: #696969;
   font-size: 0.66rem;
   font-weight: 900;
 }
 
-.brain-grid article > div {
+.domnai-admin-users-view .brain-grid article > div {
   min-width: 0;
 }
 
-.brain-grid article strong {
+.domnai-admin-users-view .brain-grid article strong {
   color: #e8e8e8;
   font-size: 0.78rem;
 }
 
-.brain-grid article p {
+.domnai-admin-users-view .brain-grid article p {
   margin: 4px 0 0;
   color: #8a8a8a;
   font-size: 0.73rem;
   line-height: 1.45;
 }
 
-.brain-grid article.attention {
+.domnai-admin-users-view .brain-grid article.attention {
   border-color: rgba(230, 155, 69, 0.16);
 }
 
-.brain-grid article.positive {
+.domnai-admin-users-view .brain-grid article.positive {
   border-color: rgba(81, 201, 135, 0.16);
 }
 
@@ -439,14 +439,14 @@
   background: rgba(255, 255, 255, 0.018);
 }
 
-.user-cell {
+.domnai-admin-users-view .user-cell {
   display: flex;
   align-items: center;
   gap: 10px;
   min-width: 240px;
 }
 
-.user-cell .avatar {
+.domnai-admin-users-view .user-cell .avatar {
   width: 34px;
   height: 34px;
   flex: 0 0 34px;
@@ -460,36 +460,36 @@
   font-weight: 900;
 }
 
-.user-cell > div,
-.plan-cell {
+.domnai-admin-users-view .user-cell > div,
+.domnai-admin-users-view .plan-cell {
   min-width: 0;
   display: grid;
   gap: 3px;
 }
 
-.user-cell strong,
-.plan-cell strong,
-.credits {
+.domnai-admin-users-view .user-cell strong,
+.domnai-admin-users-view .plan-cell strong,
+.domnai-admin-users-view .credits {
   color: #ececec;
   font-size: 0.78rem;
 }
 
-.user-cell small,
-.plan-cell small,
+.domnai-admin-users-view .user-cell small,
+.domnai-admin-users-view .plan-cell small,
 .domnai-admin-users-table time {
   color: #727272;
   font-size: 0.68rem;
 }
 
-.user-cell small {
+.domnai-admin-users-view .user-cell small {
   max-width: 220px;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.role-badge,
-.profile-badge {
+.domnai-admin-users-view .role-badge,
+.domnai-admin-users-view .profile-badge {
   display: inline-flex;
   align-items: center;
   min-height: 24px;
@@ -499,22 +499,22 @@
   font-weight: 850;
 }
 
-.role-badge {
+.domnai-admin-users-view .role-badge {
   background: rgba(255, 255, 255, 0.045);
   color: #a0a0a0;
 }
 
-.role-badge.admin {
+.domnai-admin-users-view .role-badge.admin {
   background: rgba(231, 195, 94, 0.09);
   color: #dfbd59;
 }
 
-.profile-badge.complete {
+.domnai-admin-users-view .profile-badge.complete {
   background: rgba(81, 201, 135, 0.09);
   color: #7dd9a3;
 }
 
-.profile-badge.pending {
+.domnai-admin-users-view .profile-badge.pending {
   background: rgba(230, 155, 69, 0.09);
   color: #e3a85f;
 }
@@ -595,8 +595,8 @@
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
-  .brain-grid,
-  .plan-foot {
+  .domnai-admin-users-view .brain-grid,
+  .domnai-admin-users-view .plan-foot {
     grid-template-columns: 1fr;
   }
 
