@@ -1,10 +1,11 @@
 from pathlib import Path
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
 from app.api.admin_billing import router as admin_billing_router
+from app.api.admin_errors import router as admin_errors_router
 from app.api.admin_users import router as admin_users_router
 from app.api.auth import router as auth_router
 from app.api.billing import router as billing_router
@@ -20,6 +21,7 @@ from app.api.profile import router as profile_router
 from app.api.reports import router as reports_router
 from app.api.trash import router as trash_router
 from app.config import settings
+from app.error_monitoring import module_from_path, record_operational_event
 
 app = FastAPI(
     title=settings.app_name,
@@ -39,11 +41,46 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+
+@app.middleware("http")
+async def monitor_operational_errors(request: Request, call_next):
+    path = request.url.path
+    if path.startswith("/api/admin/errors"):
+        return await call_next(request)
+
+    try:
+        response = await call_next(request)
+    except Exception as exc:
+        record_operational_event(
+            module=module_from_path(path),
+            severity="critical",
+            title=type(exc).__name__,
+            message=str(exc) or "Falha inesperada sem mensagem detalhada.",
+            source="backend",
+            path=path,
+            method=request.method,
+        )
+        raise
+
+    if response.status_code >= 500:
+        record_operational_event(
+            module=module_from_path(path),
+            severity="error",
+            title=f"Resposta HTTP {response.status_code}",
+            message="A rota respondeu com falha interna e foi agrupada automaticamente.",
+            source="backend",
+            path=path,
+            method=request.method,
+        )
+    return response
+
+
 app.include_router(health_router)
 app.include_router(config_router)
 app.include_router(auth_router)
 app.include_router(admin_users_router)
 app.include_router(admin_billing_router)
+app.include_router(admin_errors_router)
 app.include_router(chat_router)
 app.include_router(chat_state_router)
 app.include_router(decisions_router)
