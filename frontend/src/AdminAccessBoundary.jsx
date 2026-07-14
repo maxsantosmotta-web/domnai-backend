@@ -315,7 +315,7 @@ export default function AdminAccessBoundary({ children }) {
     setIsSigningOut(true);
     sessionStorage.removeItem(ADMIN_ENTRY_KEY);
 
-    const landingUrl = `${window.location.origin}${window.location.pathname}#/`;
+    const landingUrl = `${window.location.origin}${window.location.pathname}?signed_out=${Date.now()}#/`;
     const activeSessionId = window.Clerk?.session?.id;
     let redirected = false;
 
