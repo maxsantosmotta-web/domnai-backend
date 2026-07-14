@@ -37,16 +37,20 @@ function readCachedProfile() {
   }
 }
 
-function AccessLoading() {
+function AccessLoading({ message = 'Abrindo Painel Adm...' }) {
   return (
     <main className="domnai-admin-gate-page" aria-busy="true">
       <section className="domnai-admin-gate-card compact">
         <img src={DOMNAI_LOGO} alt="DomnAI" />
         <span className="domnai-admin-spinner" aria-hidden="true" />
-        <p>Validando seu acesso administrativo...</p>
+        <p>{message}</p>
       </section>
     </main>
   );
+}
+
+function AccessTransitionBlank() {
+  return <main className="domnai-admin-gate-page" aria-hidden="true" />;
 }
 
 function AccessValidationError({ diagnostic, onRetry, onUser, onSignOut }) {
@@ -170,6 +174,8 @@ export default function AdminAccessBoundary({ children }) {
   const [verification, setVerification] = useState({ status: 'idle', isAdmin: false, message: '' });
   const [adminProfile, setAdminProfile] = useState(() => ({ profile: readCachedProfile(), avatarUrl: '' }));
   const [retryKey, setRetryKey] = useState(0);
+  const [showAdminLoading, setShowAdminLoading] = useState(false);
+  const [isSigningOut, setIsSigningOut] = useState(false);
 
   const primaryEmail = String(user?.primaryEmailAddress?.emailAddress || '').trim().toLowerCase();
   const isOwnerCandidate = primaryEmail === OWNER_EMAIL;
@@ -202,19 +208,30 @@ export default function AdminAccessBoundary({ children }) {
   }, [adminRoute, isLoaded, isOwnerCandidate, isSignedIn, userLoaded]);
 
   useEffect(() => {
-    if (!isSignedIn) sessionStorage.removeItem(ADMIN_ENTRY_KEY);
-  }, [isSignedIn]);
+    if (!isSignedIn && !isSigningOut) sessionStorage.removeItem(ADMIN_ENTRY_KEY);
+  }, [isSignedIn, isSigningOut]);
 
   useEffect(() => {
-    if (!adminRoute) return;
+    if (!adminRoute || isSigningOut) return;
     if (!adminRequested || (userLoaded && !isOwnerCandidate)) {
       sessionStorage.removeItem(ADMIN_ENTRY_KEY);
       navigateTo('/');
     }
-  }, [adminRequested, adminRoute, isOwnerCandidate, userLoaded]);
+  }, [adminRequested, adminRoute, isOwnerCandidate, isSigningOut, userLoaded]);
 
   useEffect(() => {
-    if (!isLoaded || !isSignedIn || !userLoaded || !isOwnerCandidate || !adminRoute || !adminRequested) {
+    if (verification.status !== 'checking') {
+      setShowAdminLoading(false);
+      return undefined;
+    }
+
+    setShowAdminLoading(false);
+    const timer = window.setTimeout(() => setShowAdminLoading(true), 350);
+    return () => window.clearTimeout(timer);
+  }, [verification.status]);
+
+  useEffect(() => {
+    if (!isLoaded || !isSignedIn || !userLoaded || !isOwnerCandidate || !adminRoute || !adminRequested || isSigningOut) {
       setVerification({ status: 'idle', isAdmin: false, message: '' });
       return undefined;
     }
@@ -244,7 +261,7 @@ export default function AdminAccessBoundary({ children }) {
     })();
 
     return () => { cancelled = true; };
-  }, [adminRequested, adminRoute, getToken, isLoaded, isOwnerCandidate, isSignedIn, retryKey, userLoaded]);
+  }, [adminRequested, adminRoute, getToken, isLoaded, isOwnerCandidate, isSignedIn, isSigningOut, retryKey, userLoaded]);
 
   useEffect(() => {
     if (verification.status !== 'verified' || !verification.isAdmin || !adminRoute) return undefined;
@@ -282,6 +299,7 @@ export default function AdminAccessBoundary({ children }) {
   }, [adminRoute, getToken, verification.isAdmin, verification.status]);
 
   function openAdminAccess() {
+    setShowAdminLoading(false);
     sessionStorage.setItem(ADMIN_ENTRY_KEY, 'true');
     navigateTo('/admin');
   }
@@ -292,9 +310,22 @@ export default function AdminAccessBoundary({ children }) {
   }
 
   async function leaveAccount() {
+    if (isSigningOut) return;
+
+    setIsSigningOut(true);
     sessionStorage.removeItem(ADMIN_ENTRY_KEY);
-    await signOut({ redirectUrl: '/#/' });
+    const landingUrl = `${window.location.origin}${window.location.pathname}#/`;
+
+    try {
+      await signOut();
+      window.location.replace(landingUrl);
+    } catch (error) {
+      console.error('Não foi possível encerrar a sessão do DomnAI.', error);
+      setIsSigningOut(false);
+    }
   }
+
+  if (isSigningOut) return <AccessLoading message="Saindo da conta..." />;
 
   if (!adminRoute || !adminRequested) {
     return (
@@ -307,9 +338,14 @@ export default function AdminAccessBoundary({ children }) {
     );
   }
 
-  if (!isLoaded || !isSignedIn || !userLoaded) return <AccessLoading />;
+  if (!isLoaded || !isSignedIn || !userLoaded) return <AccessLoading message="Abrindo Painel Adm..." />;
   if (!isOwnerCandidate) return children;
-  if (verification.status === 'idle' || verification.status === 'checking') return <AccessLoading />;
+
+  if (verification.status === 'idle' || verification.status === 'checking') {
+    return showAdminLoading
+      ? <AccessLoading message="Abrindo Painel Adm..." />
+      : <AccessTransitionBlank />;
+  }
 
   if (verification.status === 'error') {
     return (
