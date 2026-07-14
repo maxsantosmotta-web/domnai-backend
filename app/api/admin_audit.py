@@ -1,7 +1,7 @@
 from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, HTTPException, Query
-from sqlalchemy import case, func, select
+from sqlalchemy import case, func, or_, select
 
 from app.api.admin import _has_persisted_admin_access
 from app.auth import require_authenticated_user
@@ -34,6 +34,16 @@ RESULT_LABELS = {
     "canceled": "Cancelado",
 }
 
+FILTER_ACTIONS = {
+    "plan_change": ("plan_selected", "plan_changed"),
+    "payment_approved": ("payment_approved",),
+    "payment_failed": ("payment_failed",),
+    "subscription_canceled": ("subscription_canceled",),
+    "credits_added": ("credits_added",),
+    "credits_consumed": ("credits_consumed",),
+    "pdf_delivered": ("pdf_delivered",),
+}
+
 
 def _require_admin(session: dict) -> str:
     user_id = str(session.get("sub") or "").strip()
@@ -42,23 +52,41 @@ def _require_admin(session: dict) -> str:
     return user_id
 
 
+def _action_condition(action_filter: str):
+    actions = FILTER_ACTIONS.get(action_filter)
+    if not actions:
+        return None
+    if len(actions) == 1:
+        return AuditEvent.action == actions[0]
+    return or_(*(AuditEvent.action == action for action in actions))
+
+
 @router.get("")
 def admin_audit_overview(
-    category: str = Query(default="all"),
+    action: str = Query(default="all"),
     limit: int = Query(default=10, ge=1, le=100),
     session: dict = Depends(require_authenticated_user),
 ):
     _require_admin(session)
-    normalized_category = category if category in CATEGORY_LABELS else "all"
+    normalized_action = action if action in FILTER_ACTIONS else "all"
+    action_condition = _action_condition(normalized_action)
 
     with session_scope() as db:
         summary_row = db.execute(
             select(
-                func.count(AuditEvent.id).label("total"),
-                func.sum(case((AuditEvent.category == "plan", 1), else_=0)).label("plans"),
-                func.sum(case((AuditEvent.category == "payment", 1), else_=0)).label("payments"),
-                func.sum(case((AuditEvent.category == "credits", 1), else_=0)).label("credits"),
-                func.sum(case((AuditEvent.category == "pdf", 1), else_=0)).label("pdfs"),
+                func.sum(
+                    case((AuditEvent.action.in_(("plan_selected", "plan_changed")), 1), else_=0)
+                ).label("plan_changes"),
+                func.sum(case((AuditEvent.action == "payment_approved", 1), else_=0)).label("payments_approved"),
+                func.sum(case((AuditEvent.action == "payment_failed", 1), else_=0)).label("payments_failed"),
+                func.sum(
+                    case((AuditEvent.action == "subscription_canceled", 1), else_=0)
+                ).label("subscriptions_canceled"),
+                func.sum(case((AuditEvent.action == "credits_added", 1), else_=0)).label("credits_added"),
+                func.sum(
+                    case((AuditEvent.action == "credits_consumed", 1), else_=0)
+                ).label("credits_consumed"),
+                func.sum(case((AuditEvent.action == "pdf_delivered", 1), else_=0)).label("pdfs_delivered"),
             )
         ).one()
 
@@ -67,15 +95,14 @@ def admin_audit_overview(
             .outerjoin(UserProfile, UserProfile.user_id == AuditEvent.user_id)
             .order_by(AuditEvent.created_at.desc())
         )
-        if normalized_category != "all":
-            query = query.where(AuditEvent.category == normalized_category)
+        count_query = select(func.count(AuditEvent.id))
+
+        if action_condition is not None:
+            query = query.where(action_condition)
+            count_query = count_query.where(action_condition)
 
         rows = db.execute(query.limit(limit)).all()
-        filtered_total = db.scalar(
-            select(func.count(AuditEvent.id)).where(
-                True if normalized_category == "all" else AuditEvent.category == normalized_category
-            )
-        )
+        filtered_total = db.scalar(count_query)
 
         items = [{
             "id": event.id,
@@ -97,11 +124,13 @@ def admin_audit_overview(
         "items": items,
         "total": int(filtered_total or 0),
         "summary": {
-            "total": int(summary_row.total or 0),
-            "plans": int(summary_row.plans or 0),
-            "payments": int(summary_row.payments or 0),
-            "credits": int(summary_row.credits or 0),
-            "pdfs": int(summary_row.pdfs or 0),
+            "planChanges": int(summary_row.plan_changes or 0),
+            "paymentsApproved": int(summary_row.payments_approved or 0),
+            "paymentsFailed": int(summary_row.payments_failed or 0),
+            "subscriptionsCanceled": int(summary_row.subscriptions_canceled or 0),
+            "creditsAdded": int(summary_row.credits_added or 0),
+            "creditsConsumed": int(summary_row.credits_consumed or 0),
+            "pdfsDelivered": int(summary_row.pdfs_delivered or 0),
         },
         "generatedAt": datetime.now(timezone.utc).isoformat(),
     }
