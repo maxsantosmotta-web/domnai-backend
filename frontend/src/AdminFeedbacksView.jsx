@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useAuth } from '@clerk/clerk-react';
 import './admin-feedbacks-view.css';
+import './admin-feedbacks-refine.css';
 
 const FILTERS = [
   { value: 'all', label: 'Todos' },
