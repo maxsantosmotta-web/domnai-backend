@@ -1,0 +1,29 @@
+/* Ajuste isolado para teclado virtual: não altera desktop nem outras salas. */
+html.domnai-mobile-chat-viewport .chat-column {
+  min-height: var(--domnai-chat-visible-height, 100dvh) !important;
+  height: var(--domnai-chat-visible-height, 100dvh) !important;
+  max-height: var(--domnai-chat-visible-height, 100dvh) !important;
+  overflow: hidden !important;
+}
+
+html.domnai-mobile-chat-viewport .clean-chat-area {
+  min-height: 0 !important;
+  overflow-y: auto !important;
+  overscroll-behavior-y: contain;
+  scroll-padding-bottom: 18px;
+}
+
+html.domnai-mobile-chat-viewport .chat-composer {
+  flex: 0 0 auto !important;
+  position: relative;
+  z-index: 12;
+  margin-bottom: max(10px, env(safe-area-inset-bottom)) !important;
+}
+
+html.domnai-mobile-chat-viewport.domnai-keyboard-open .chat-composer {
+  box-shadow: 0 -12px 36px rgba(0, 0, 0, 0.52), 0 0 0 1px rgba(225, 181, 77, 0.08);
+}
+
+html.domnai-mobile-chat-viewport.domnai-keyboard-open .chat-composer textarea {
+  max-height: min(150px, 28dvh) !important;
+}
