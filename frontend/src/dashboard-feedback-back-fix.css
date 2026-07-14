@@ -66,16 +66,35 @@ body:has(.domnai-main-area.feedback-page-open) {
   background: transparent !important;
   color: #ffffff !important;
   font: 700 0.78rem/1 Inter, system-ui, sans-serif !important;
+  text-decoration: none !important;
+  -webkit-tap-highlight-color: transparent;
   cursor: pointer !important;
 }
 
 .domnai-feedback-back:hover,
-.domnai-feedback-back:focus-visible {
+.domnai-feedback-back:focus,
+.domnai-feedback-back:focus-visible,
+.domnai-feedback-back:active {
   background: transparent !important;
-  color: #ffffff !important;
-  text-decoration: underline;
-  text-underline-offset: 4px;
+  color: #e7c35e !important;
+  text-decoration: none !important;
   outline: none !important;
+}
+
+.domnai-feedback-menu-button.is-active,
+.domnai-feedback-menu-button.is-active:hover,
+.domnai-feedback-menu-button.is-active:focus,
+.domnai-feedback-menu-button.is-active:focus-visible,
+.domnai-feedback-menu-button.is-active:active {
+  border-color: rgba(216, 170, 52, 0.34) !important;
+  background: rgba(216, 170, 52, 0.12) !important;
+  color: #e7c35e !important;
+  text-decoration: none !important;
+  outline: none !important;
+}
+
+.domnai-feedback-menu-button.is-active > span {
+  color: #e7c35e !important;
 }
 
 .domnai-feedback-form {
