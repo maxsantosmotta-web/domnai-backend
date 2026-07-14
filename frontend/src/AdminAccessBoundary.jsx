@@ -2,9 +2,10 @@ import React, { useEffect, useState } from 'react';
 import { useAuth, useClerk, useUser } from '@clerk/clerk-react';
 import DOMNAI_LOGO from './assets/domnai-logo-oficial-transparente.png';
 import './admin-access-boundary.css';
+import './admin-user-sidebar-entry.css';
 
 const OWNER_EMAIL = 'maxsantosmotta@gmail.com';
-const ACCESS_MODE_KEY = 'domnai:access-mode:v1';
+const ADMIN_ENTRY_KEY = 'domnai:admin-requested:v1';
 
 const ADMIN_SECTIONS = [
   'Visão geral',
@@ -43,7 +44,7 @@ function AccessValidationError({ diagnostic, onRetry, onUser, onSignOut }) {
       <section className="domnai-admin-gate-card compact">
         <img src={DOMNAI_LOGO} alt="DomnAI" />
         <h1>Não foi possível validar o acesso administrativo.</h1>
-        <p>O Painel ADM permaneceu bloqueado. Você pode tentar novamente ou retornar ao Painel Usuário.</p>
+        <p>O Painel Adm permaneceu bloqueado. Você pode tentar novamente ou retornar ao Painel Usuário.</p>
         {diagnostic ? <p><strong>Diagnóstico:</strong> {diagnostic}</p> : null}
         <div className="domnai-admin-error-actions">
           <button type="button" className="primary" onClick={onRetry}>Tentar novamente</button>
@@ -61,7 +62,7 @@ function AdminPortalShell({ onUser, onSignOut }) {
       <aside className="domnai-admin-sidebar">
         <div className="domnai-admin-brand">
           <img src={DOMNAI_LOGO} alt="DomnAI" />
-          <span>Painel Administrativo</span>
+          <span>Painel Adm</span>
         </div>
 
         <nav aria-label="Monitoramento administrativo">
@@ -97,7 +98,7 @@ function AdminPortalShell({ onUser, onSignOut }) {
           <div className="domnai-admin-foundation-status">
             <span><strong>Proteção</strong> validação administrativa no backend</span>
             <span><strong>Usuário</strong> experiência atual preservada</span>
-            <span><strong>ADM</strong> arquivos e estilos exclusivos</span>
+            <span><strong>Adm</strong> arquivos e estilos exclusivos</span>
           </div>
         </section>
       </section>
@@ -116,6 +117,7 @@ export default function AdminAccessBoundary({ children }) {
   const primaryEmail = String(user?.primaryEmailAddress?.emailAddress || '').trim().toLowerCase();
   const isOwnerCandidate = primaryEmail === OWNER_EMAIL;
   const adminRoute = route === '/admin' || route.startsWith('/admin/');
+  const adminRequested = sessionStorage.getItem(ADMIN_ENTRY_KEY) === 'true';
 
   useEffect(() => {
     const handleHashChange = () => setRoute(currentHashPath());
@@ -124,24 +126,66 @@ export default function AdminAccessBoundary({ children }) {
   }, []);
 
   useEffect(() => {
-    if (!isOwnerCandidate) {
-      delete window.openDomnAIAdmin;
+    if (!isLoaded || !isSignedIn || !userLoaded || !isOwnerCandidate || adminRoute) {
+      document.querySelector('[data-domnai-admin-menu]')?.remove();
       return undefined;
     }
 
+    let cancelled = false;
+    let animationFrame = 0;
+    let entry = null;
+    let button = null;
+
     const openAdmin = () => {
-      sessionStorage.setItem(ACCESS_MODE_KEY, 'admin');
+      sessionStorage.setItem(ADMIN_ENTRY_KEY, 'true');
       navigateTo('/admin');
     };
 
-    window.openDomnAIAdmin = openAdmin;
-    return () => {
-      if (window.openDomnAIAdmin === openAdmin) delete window.openDomnAIAdmin;
+    const installEntry = (attempt = 0) => {
+      if (cancelled) return;
+      const navigation = document.querySelector('.sidebar-navigation');
+      if (!navigation) {
+        if (attempt < 20) animationFrame = window.requestAnimationFrame(() => installEntry(attempt + 1));
+        return;
+      }
+
+      entry = navigation.querySelector('[data-domnai-admin-menu]');
+      if (!entry) {
+        entry = document.createElement('div');
+        entry.className = 'sidebar-group domnai-user-admin-group';
+        entry.dataset.domnaiAdminMenu = 'true';
+        entry.innerHTML = '<p>Admin</p><button type="button" class="domnai-user-admin-button"><span>◇</span> Painel Adm <small>ADM</small></button>';
+        navigation.appendChild(entry);
+      }
+
+      button = entry.querySelector('.domnai-user-admin-button');
+      button?.addEventListener('click', openAdmin);
     };
-  }, [isOwnerCandidate]);
+
+    installEntry();
+
+    return () => {
+      cancelled = true;
+      if (animationFrame) window.cancelAnimationFrame(animationFrame);
+      button?.removeEventListener('click', openAdmin);
+      entry?.remove();
+    };
+  }, [adminRoute, isLoaded, isOwnerCandidate, isSignedIn, userLoaded]);
 
   useEffect(() => {
-    if (!isLoaded || !isSignedIn || !userLoaded || !isOwnerCandidate || !adminRoute) {
+    if (!isSignedIn) sessionStorage.removeItem(ADMIN_ENTRY_KEY);
+  }, [isSignedIn]);
+
+  useEffect(() => {
+    if (!adminRoute) return;
+    if (!adminRequested || (userLoaded && !isOwnerCandidate)) {
+      sessionStorage.removeItem(ADMIN_ENTRY_KEY);
+      navigateTo('/');
+    }
+  }, [adminRequested, adminRoute, isOwnerCandidate, userLoaded]);
+
+  useEffect(() => {
+    if (!isLoaded || !isSignedIn || !userLoaded || !isOwnerCandidate || !adminRoute || !adminRequested) {
       setVerification({ status: 'idle', isAdmin: false, message: '' });
       return undefined;
     }
@@ -173,23 +217,19 @@ export default function AdminAccessBoundary({ children }) {
     })();
 
     return () => { cancelled = true; };
-  }, [adminRoute, getToken, isLoaded, isOwnerCandidate, isSignedIn, retryKey, userLoaded]);
-
-  useEffect(() => {
-    if (!isSignedIn) sessionStorage.removeItem(ACCESS_MODE_KEY);
-  }, [isSignedIn]);
+  }, [adminRequested, adminRoute, getToken, isLoaded, isOwnerCandidate, isSignedIn, retryKey, userLoaded]);
 
   function selectUserAccess() {
-    sessionStorage.setItem(ACCESS_MODE_KEY, 'user');
+    sessionStorage.removeItem(ADMIN_ENTRY_KEY);
     navigateTo('/');
   }
 
   async function leaveAccount() {
-    sessionStorage.removeItem(ACCESS_MODE_KEY);
+    sessionStorage.removeItem(ADMIN_ENTRY_KEY);
     await signOut({ redirectUrl: '/#/' });
   }
 
-  if (!adminRoute) return children;
+  if (!adminRoute || !adminRequested) return children;
   if (!isLoaded || !isSignedIn || !userLoaded) return <AccessLoading />;
   if (!isOwnerCandidate) return children;
   if (verification.status === 'idle' || verification.status === 'checking') return <AccessLoading />;
