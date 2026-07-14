@@ -7,16 +7,13 @@ from app.services.diagnosis_memory import diagnosis_context
 from app.services.domnai_brain import _normalized_history
 from app.services.intelligence_orchestrator import (
     build_plan_input,
-    build_refinement_input,
     parse_plan,
     planning_instructions,
-    refinement_instructions,
 )
 from app.services.labor_termination import OPERATION as LABOR_TERMINATION_OPERATION
 from app.services.metered_brain import (
     MeteredBrainResult,
     _openai_request,
-    _update_diagnosis_memory,
     generate_metered_response,
 )
 
@@ -128,6 +125,9 @@ def generate_orchestrated_response(
             orchestration_usage=plan_usage,
         )
 
+    # A camada principal já executa resposta, revisão, auditoria e memória quando
+    # aplicáveis. Repetir refinamento e memória aqui mantinha a mesma conexão
+    # aberta por tempo excessivo e podia resultar em "Failed to fetch".
     base_result = generate_metered_response(
         message=message,
         history=history,
@@ -136,62 +136,12 @@ def generate_orchestrated_response(
         diagnosis_state=diagnosis_state,
     )
 
-    final_text = base_result.text
-    refinement_usage: dict = {}
-    try:
-        final_text, refinement_usage = _openai_request(
-            api_key,
-            {
-                "model": os.getenv("DOMNAI_REFINER_MODEL", model).strip() or model,
-                "instructions": refinement_instructions(),
-                "input": [{
-                    "role": "user",
-                    "content": [{
-                        "type": "input_text",
-                        "text": build_refinement_input(
-                            user_message=message,
-                            candidate_answer=base_result.text,
-                            plan=plan,
-                            immutable_evidence=(
-                                "Preserve sem alteração todos os números, datas, percentuais, referências documentais "
-                                "e resultados explícitos da resposta candidata. Não recalcule nem introduza valores novos."
-                            ),
-                        ),
-                    }],
-                }],
-                "temperature": 0.0,
-                "max_output_tokens": 2400,
-            },
-        )
-    except Exception:
-        # Se o Refinador falhar, entrega a resposta-base em vez de retornar 503.
-        final_text = base_result.text
-        refinement_usage = {}
-
-    try:
-        updated_state, memory_usage = _update_diagnosis_memory(
-            api_key,
-            model,
-            operation,
-            base_result.diagnosis_state or diagnosis_state,
-            message,
-            final_text,
-            safe_attachments,
-        )
-    except Exception:
-        updated_state = base_result.diagnosis_state or diagnosis_state
-        memory_usage = {}
-
-    extra_input = _usage_value(plan_usage, "input_tokens") + _usage_value(refinement_usage, "input_tokens") + _usage_value(memory_usage, "input_tokens")
-    extra_output = _usage_value(plan_usage, "output_tokens") + _usage_value(refinement_usage, "output_tokens") + _usage_value(memory_usage, "output_tokens")
-    extra_cached = _cached_value(plan_usage) + _cached_value(refinement_usage) + _cached_value(memory_usage)
-
     return MeteredBrainResult(
-        text=final_text,
-        provider=f"orchestrated-refined:{base_result.provider}" if refinement_usage else f"orchestrated-fallback:{base_result.provider}",
+        text=base_result.text,
+        provider=f"orchestrated:{base_result.provider}",
         model=base_result.model,
-        input_tokens=base_result.input_tokens + extra_input,
-        output_tokens=base_result.output_tokens + extra_output,
-        cached_input_tokens=base_result.cached_input_tokens + extra_cached,
-        diagnosis_state=updated_state,
+        input_tokens=base_result.input_tokens + _usage_value(plan_usage, "input_tokens"),
+        output_tokens=base_result.output_tokens + _usage_value(plan_usage, "output_tokens"),
+        cached_input_tokens=base_result.cached_input_tokens + _cached_value(plan_usage),
+        diagnosis_state=base_result.diagnosis_state,
     )
