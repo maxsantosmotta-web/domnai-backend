@@ -37,13 +37,13 @@ function readCachedProfile() {
   }
 }
 
-function AccessLoading({ message = 'Abrindo Painel Adm...' }) {
+function AccessLoading({ message = 'Abrindo Painel Adm...', showMessage = true }) {
   return (
     <main className="domnai-admin-gate-page" aria-busy="true">
       <section className="domnai-admin-gate-card compact">
         <img src={DOMNAI_LOGO} alt="DomnAI" />
         <span className="domnai-admin-spinner" aria-hidden="true" />
-        <p>{message}</p>
+        {showMessage ? <p>{message}</p> : null}
       </section>
     </main>
   );
@@ -350,7 +350,7 @@ export default function AdminAccessBoundary({ children }) {
     }
   }
 
-  if (isSigningOut) return <AccessLoading message="Saindo da conta..." />;
+  if (isSigningOut) return <AccessLoading showMessage={false} />;
 
   if (!adminRoute || !adminRequested) {
     return (
