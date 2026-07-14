@@ -8,7 +8,8 @@ from datetime import datetime, timezone
 from sqlalchemy import select, update
 
 from app.database import session_scope
-from app.models import ChatTask
+from app.models import ActiveChatState, ChatTask, LibraryAsset
+from app.services.artifact_decision import decide_artifact
 from app.services.credit_meter import charge_usage, ensure_minimum_credit
 from app.services.diagnosis_memory import load_diagnosis_state, save_diagnosis_state
 from app.services.orchestrated_brain import generate_orchestrated_response
@@ -48,41 +49,129 @@ def _claim_next_task() -> str | None:
         return task.id
 
 
+def _load_attachments(user_id: str, attachment_ids: list[str]) -> list[dict]:
+    if not attachment_ids:
+        return []
+    unique_ids = list(dict.fromkeys(attachment_ids))
+    with session_scope() as db:
+        assets = db.scalars(
+            select(LibraryAsset).where(
+                LibraryAsset.user_id == user_id,
+                LibraryAsset.id.in_(unique_ids),
+            )
+        ).all()
+        by_id = {item.id: item for item in assets}
+        return [
+            {
+                "id": item.id,
+                "name": item.name,
+                "mime_type": item.mime_type,
+                "content": bytes(item.content or b""),
+            }
+            for asset_id in unique_ids
+            if (item := by_id.get(asset_id)) is not None
+        ]
+
+
+def _append_completed_response(user_id: str, payload: dict, reply: str, artifacts: list[dict]) -> None:
+    with session_scope() as db:
+        state = db.get(ActiveChatState, user_id)
+        if state is None:
+            state = ActiveChatState(user_id=user_id, messages_json="[]")
+            db.add(state)
+        try:
+            messages = json.loads(state.messages_json or "[]")
+            if not isinstance(messages, list):
+                messages = []
+        except json.JSONDecodeError:
+            messages = []
+        marker = f"task:{payload.get('task_id', '')}"
+        if any(str(item.get("taskId") or "") == marker for item in messages if isinstance(item, dict)):
+            return
+        messages.append({
+            "id": f"user-{payload.get('task_id')}",
+            "role": "user",
+            "text": str(payload.get("message") or ""),
+            "attachments": [],
+            "isError": False,
+            "taskId": marker,
+        })
+        messages.append({
+            "id": f"assistant-{payload.get('task_id')}",
+            "role": "assistant",
+            "text": reply,
+            "attachments": artifacts,
+            "isError": False,
+            "taskId": marker,
+        })
+        state.messages_json = json.dumps(messages[-300:], ensure_ascii=False)
+        state.active_operation = payload.get("operation")
+        state.updated_at = _now()
+
+
 def _process_task(task_id: str) -> None:
     with session_scope() as db:
         task = db.get(ChatTask, task_id)
         if task is None:
             return
         payload = json.loads(task.request_json)
+        payload["task_id"] = task_id
         existing_result = json.loads(task.result_json) if task.result_json else None
         user_id = task.user_id
 
     if existing_result is None:
         ensure_minimum_credit(user_id)
-        message = str(payload.get("message") or "").strip()
+        original_message = str(payload.get("message") or "").strip()
         operation = payload.get("operation")
         history = payload.get("history") or []
-        attachments = payload.get("attachments") or []
+        attachments = _load_attachments(user_id, payload.get("attachment_ids") or [])
         diagnosis_state = load_diagnosis_state(user_id, operation)
-        sources = []
-        research_text = ""
-        if should_research_web(message, operation):
-            research = research_web(message)
-            research_text = research.text
+        sources: list[dict] = []
+        message_for_brain = original_message
+        if should_research_web(original_message, operation):
+            research = research_web(original_message)
             sources = research.sources
-            message = (
-                f"{message}\n\nPESQUISA WEB VERIFICADA PARA USO NA RESPOSTA:\n{research_text}\n\n"
-                "Use apenas fatos sustentados pela pesquisa e cite as fontes reais fornecidas."
+            message_for_brain = (
+                f"{original_message}\n\nPESQUISA WEB VERIFICADA:\n{research.text}\n\n"
+                "Use os fatos pesquisados e não invente fontes ou URLs."
             )
         result = generate_orchestrated_response(
-            message=message,
+            message=message_for_brain,
             operation=operation,
             history=history,
             attachments=attachments,
             diagnosis_state=diagnosis_state,
         )
+        reply = result.text
+        artifacts: list[dict] = []
+        decision = decide_artifact(
+            message=original_message,
+            operation=operation,
+            history=history,
+            answer=reply,
+        )
+        if decision.get("action") == "create":
+            try:
+                from app.api.chat import _create_artifact
+                artifact = _create_artifact(
+                    user_id=user_id,
+                    operation=operation,
+                    answer=reply,
+                    decision=decision,
+                )
+                artifacts.append(artifact)
+                reply = f"{reply.rstrip()}\n\nArquivo criado e salvo na sua Biblioteca."
+            except Exception:
+                reply = f"{reply.rstrip()}\n\nNão foi possível gerar o arquivo nesta tentativa."
+        elif decision.get("action") == "offer":
+            from app.api.chat import _artifact_offer
+            offer = _artifact_offer(decision.get("artifact_type"))
+            if offer and offer.casefold() not in reply.casefold():
+                reply = f"{reply.rstrip()}\n\n{offer}"
+
         existing_result = {
-            "reply": result.text,
+            "reply": reply,
+            "artifacts": artifacts,
             "provider": result.provider,
             "model": result.model,
             "input_tokens": result.input_tokens,
@@ -116,6 +205,12 @@ def _process_task(task_id: str) -> None:
         except Exception:
             pass
     existing_result["usage"] = usage
+    _append_completed_response(
+        user_id,
+        payload,
+        existing_result["reply"],
+        existing_result.get("artifacts") or [],
+    )
     with session_scope() as db:
         task = db.get(ChatTask, task_id)
         if task is None:
@@ -132,7 +227,7 @@ def _loop() -> None:
     while True:
         task_id = _claim_next_task()
         if not task_id:
-            time.sleep(1.5)
+            time.sleep(1.0)
             continue
         try:
             _process_task(task_id)
