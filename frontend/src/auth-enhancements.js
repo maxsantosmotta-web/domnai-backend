@@ -14,6 +14,109 @@ const EYE_CLOSED = `
   </svg>
 `;
 
+const AUTH_ERROR_TRANSLATIONS = [
+  {
+    pattern: /could(?:n't| not) find (?:your )?account|account (?:was )?not found|identifier.*not found|no account found/i,
+    message: 'Não encontramos uma conta com esses dados.',
+  },
+  {
+    pattern: /password is incorrect|incorrect password|wrong password|invalid credentials|credentials.*invalid/i,
+    message: 'E-mail ou senha inválidos.',
+  },
+  {
+    pattern: /email address.*(?:taken|already exists|already in use)|identifier.*already exists|account.*already exists|already registered/i,
+    message: 'Já existe uma conta cadastrada com este e-mail.',
+  },
+  {
+    pattern: /invalid email|email address is invalid|email.*not valid|identifier is invalid/i,
+    message: 'Informe um endereço de e-mail válido.',
+  },
+  {
+    pattern: /password.*(?:data breach|compromised|pwned)/i,
+    message: 'Esta senha foi identificada como insegura. Crie uma senha diferente.',
+  },
+  {
+    pattern: /password.*(?:not strong enough|too weak)|weak password/i,
+    message: 'A senha não atende aos requisitos de segurança. Use uma senha mais forte.',
+  },
+  {
+    pattern: /password.*(?:at least|minimum|must be).*(?:character|length)|password.*too short/i,
+    message: 'A senha não possui o tamanho mínimo exigido.',
+  },
+  {
+    pattern: /verification code.*incorrect|incorrect verification code|code is incorrect|invalid code|code.*not valid/i,
+    message: 'O código de verificação está incorreto.',
+  },
+  {
+    pattern: /verification code.*expired|code has expired|expired code/i,
+    message: 'O código de verificação expirou. Solicite um novo código.',
+  },
+  {
+    pattern: /too many (?:attempts|requests)|rate limit|try again later/i,
+    message: 'Muitas tentativas. Aguarde um momento e tente novamente.',
+  },
+  {
+    pattern: /captcha.*(?:failed|invalid|not verified)|failed.*captcha/i,
+    message: 'Não foi possível validar a segurança. Atualize a página e tente novamente.',
+  },
+  {
+    pattern: /session.*(?:expired|not found|does not exist|invalid)|expired session/i,
+    message: 'Sua sessão expirou. Faça login novamente.',
+  },
+  {
+    pattern: /account.*(?:locked|blocked|suspended)|user.*(?:locked|blocked|suspended)/i,
+    message: 'Esta conta está temporariamente bloqueada. Tente novamente mais tarde.',
+  },
+  {
+    pattern: /access denied|oauth.*(?:cancelled|canceled|denied)|user.*denied/i,
+    message: 'O acesso com o Google foi cancelado.',
+  },
+  {
+    pattern: /sign-?up.*(?:disabled|restricted|not allowed)|registration.*(?:disabled|restricted)/i,
+    message: 'A criação de novas contas não está disponível no momento.',
+  },
+  {
+    pattern: /email.*not verified|verify your email|verification.*required/i,
+    message: 'Confirme seu e-mail para continuar.',
+  },
+  {
+    pattern: /unsupported strategy|strategy.*not supported|method.*not supported/i,
+    message: 'Este método de acesso não está disponível no momento.',
+  },
+  {
+    pattern: /failed to fetch|network.*(?:failed|error)|load failed|connection.*failed/i,
+    message: 'Não foi possível conectar. Verifique sua internet e tente novamente.',
+  },
+  {
+    pattern: /something went wrong|unexpected error|internal error|unknown error/i,
+    message: 'Não foi possível concluir a autenticação. Tente novamente.',
+  },
+];
+
+const ENGLISH_AUTH_ERROR_MARKERS = /\b(couldn['’]?t|cannot|can['’]?t|your account|password|incorrect|invalid|failed|verification|expired|attempts|try again|not found|already exists|not allowed|required|something went wrong)\b/i;
+
+function translateAuthErrorMessage(value) {
+  const text = String(value || '').replace(/\s+/g, ' ').trim();
+  if (!text) return '';
+
+  const translation = AUTH_ERROR_TRANSLATIONS.find(({ pattern }) => pattern.test(text));
+  if (translation) return translation.message;
+
+  if (ENGLISH_AUTH_ERROR_MARKERS.test(text)) {
+    return 'Não foi possível concluir a autenticação. Confira os dados e tente novamente.';
+  }
+
+  return text;
+}
+
+function normalizeAuthError(card) {
+  card.querySelectorAll('.custom-auth-error').forEach((element) => {
+    const current = String(element.textContent || '').trim();
+    const translated = translateAuthErrorMessage(current);
+    if (translated && translated !== current) element.textContent = translated;
+  });
+}
+
 function normalizeTitle(card) {
   const title = card.querySelector('.custom-auth-header h1');
   if (!title) return;
@@ -57,6 +160,7 @@ function enhanceAuthModal() {
   if (!card) return;
 
   normalizeTitle(card);
+  normalizeAuthError(card);
   card.querySelectorAll('input[type="password"]').forEach(addPasswordToggle);
 }
 
