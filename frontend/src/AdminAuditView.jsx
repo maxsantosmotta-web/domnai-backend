@@ -3,19 +3,24 @@ import { useAuth } from '@clerk/clerk-react';
 import './admin-audit-view.css';
 
 const EMPTY_SUMMARY = {
-  total: 0,
-  plans: 0,
-  payments: 0,
-  credits: 0,
-  pdfs: 0,
+  planChanges: 0,
+  paymentsApproved: 0,
+  paymentsFailed: 0,
+  subscriptionsCanceled: 0,
+  creditsAdded: 0,
+  creditsConsumed: 0,
+  pdfsDelivered: 0,
 };
 
-const CATEGORY_OPTIONS = [
+const ACTION_OPTIONS = [
   { value: 'all', label: 'Todas as ações' },
-  { value: 'plan', label: 'Planos' },
-  { value: 'payment', label: 'Pagamentos' },
-  { value: 'credits', label: 'Créditos' },
-  { value: 'pdf', label: 'PDFs concluídos' },
+  { value: 'plan_change', label: 'Plano escolhido ou alterado' },
+  { value: 'payment_approved', label: 'Pagamento aprovado' },
+  { value: 'payment_failed', label: 'Pagamento recusado' },
+  { value: 'subscription_canceled', label: 'Assinatura cancelada' },
+  { value: 'credits_added', label: 'Créditos adicionados' },
+  { value: 'credits_consumed', label: 'Créditos consumidos' },
+  { value: 'pdf_delivered', label: 'PDF concluído pelo chat' },
 ];
 
 function formatNumber(value) {
@@ -51,7 +56,7 @@ export default function AdminAuditView() {
   const [summary, setSummary] = useState(EMPTY_SUMMARY);
   const [total, setTotal] = useState(0);
   const [generatedAt, setGeneratedAt] = useState('');
-  const [category, setCategory] = useState('all');
+  const [action, setAction] = useState('all');
   const [visibleLimit, setVisibleLimit] = useState(10);
   const [status, setStatus] = useState('loading');
   const [error, setError] = useState('');
@@ -62,7 +67,7 @@ export default function AdminAuditView() {
     try {
       const token = await getToken();
       if (!token) throw new Error('Não foi possível validar a sessão administrativa.');
-      const params = new URLSearchParams({ category, limit: String(visibleLimit) });
+      const params = new URLSearchParams({ action, limit: String(visibleLimit) });
       const response = await fetch(`/api/admin/audit?${params.toString()}`, {
         headers: { Authorization: `Bearer ${token}` },
         cache: 'no-store',
@@ -82,7 +87,7 @@ export default function AdminAuditView() {
         setStatus('error');
       }
     }
-  }, [category, getToken, visibleLimit]);
+  }, [action, getToken, visibleLimit]);
 
   useEffect(() => {
     loadAudit();
@@ -95,8 +100,8 @@ export default function AdminAuditView() {
     loadAudit();
   }
 
-  function handleCategoryChange(event) {
-    setCategory(event.target.value);
+  function handleActionChange(event) {
+    setAction(event.target.value);
     setVisibleLimit(10);
   }
 
@@ -123,11 +128,13 @@ export default function AdminAuditView() {
       </header>
 
       <div className="domnai-admin-audit-summary" aria-label="Resumo da auditoria">
-        <article><span>Total de eventos</span><strong>{formatNumber(summary.total)}</strong></article>
-        <article><span>Planos</span><strong>{formatNumber(summary.plans)}</strong></article>
-        <article><span>Pagamentos</span><strong>{formatNumber(summary.payments)}</strong></article>
-        <article><span>Créditos</span><strong>{formatNumber(summary.credits)}</strong></article>
-        <article><span>PDFs concluídos</span><strong>{formatNumber(summary.pdfs)}</strong></article>
+        <article><span>Plano escolhido ou alterado</span><strong>{formatNumber(summary.planChanges)}</strong></article>
+        <article><span>Pagamento aprovado</span><strong>{formatNumber(summary.paymentsApproved)}</strong></article>
+        <article><span>Pagamento recusado</span><strong>{formatNumber(summary.paymentsFailed)}</strong></article>
+        <article><span>Assinatura cancelada</span><strong>{formatNumber(summary.subscriptionsCanceled)}</strong></article>
+        <article><span>Créditos adicionados</span><strong>{formatNumber(summary.creditsAdded)}</strong></article>
+        <article><span>Créditos consumidos</span><strong>{formatNumber(summary.creditsConsumed)}</strong></article>
+        <article><span>PDF concluído pelo chat</span><strong>{formatNumber(summary.pdfsDelivered)}</strong></article>
       </div>
 
       {status === 'loading' ? (
@@ -147,8 +154,8 @@ export default function AdminAuditView() {
           <div className="domnai-admin-audit-toolbar">
             <label>
               <span>Tipo de ação</span>
-              <select value={category} onChange={handleCategoryChange}>
-                {CATEGORY_OPTIONS.map((option) => (
+              <select value={action} onChange={handleActionChange}>
+                {ACTION_OPTIONS.map((option) => (
                   <option value={option.value} key={option.value}>{option.label}</option>
                 ))}
               </select>
@@ -162,14 +169,14 @@ export default function AdminAuditView() {
           {items.length === 0 ? (
             <div className="domnai-admin-audit-state compact">
               <strong>Nenhum evento registrado</strong>
-              <p>Planos, pagamentos, créditos e PDFs concluídos aparecerão aqui automaticamente.</p>
+              <p>As ações definidas para a Auditoria aparecerão aqui automaticamente.</p>
             </div>
           ) : (
             <section className="domnai-admin-audit-list-card">
               <header>
                 <div>
                   <span>Histórico auditável</span>
-                  <strong>Somente ações que alteram plano, pagamento, créditos ou entregam PDF</strong>
+                  <strong>Plano, pagamento, assinatura, créditos e PDFs concluídos pelo chat</strong>
                 </div>
                 <small>{formatNumber(items.length)} de {formatNumber(total)}</small>
               </header>
