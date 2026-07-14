@@ -4,9 +4,11 @@ import { useAuth, useClerk, useUser } from '@clerk/clerk-react';
 import DOMNAI_LOGO from './assets/domnai-logo-oficial-transparente.png';
 import './admin-access-boundary.css';
 import './admin-user-sidebar-entry.css';
+import './admin-profile-shell.css';
 
 const OWNER_EMAIL = 'maxsantosmotta@gmail.com';
 const ADMIN_ENTRY_KEY = 'domnai:admin-requested:v1';
+const PROFILE_CACHE_KEY = 'domnai:profile:v1';
 
 const ADMIN_SECTIONS = [
   'Visão geral',
@@ -25,6 +27,14 @@ function currentHashPath() {
 function navigateTo(path) {
   const nextHash = `#${path}`;
   if (window.location.hash !== nextHash) window.location.hash = path;
+}
+
+function readCachedProfile() {
+  try {
+    return JSON.parse(sessionStorage.getItem(PROFILE_CACHE_KEY) || 'null')?.profile || {};
+  } catch {
+    return {};
+  }
 }
 
 function AccessLoading() {
@@ -57,7 +67,27 @@ function AccessValidationError({ diagnostic, onRetry, onUser, onSignOut }) {
   );
 }
 
-function AdminPortalShell({ onUser, onSignOut }) {
+function AdminProfileCard({ profile, user, avatarUrl }) {
+  const email = String(user?.primaryEmailAddress?.emailAddress || '');
+  const name = String(profile?.fullName || user?.fullName || user?.firstName || 'Minha conta');
+  const image = avatarUrl || user?.imageUrl || '';
+  const initial = (name || email || 'A').trim().charAt(0).toUpperCase();
+
+  return (
+    <div className="domnai-admin-profile-card">
+      <div className="domnai-admin-profile-avatar">
+        {image ? <img src={image} alt="Foto do perfil" /> : <span>{initial}</span>}
+      </div>
+      <div className="domnai-admin-profile-copy">
+        <strong>{name}</strong>
+        <small>{email || 'Conta DomnAI'}</small>
+      </div>
+      <span className="domnai-admin-profile-role">Adm</span>
+    </div>
+  );
+}
+
+function AdminPortalShell({ onUser, onSignOut, profile, user, avatarUrl }) {
   return (
     <main className="domnai-admin-shell">
       <aside className="domnai-admin-sidebar">
@@ -65,6 +95,14 @@ function AdminPortalShell({ onUser, onSignOut }) {
           <img src={DOMNAI_LOGO} alt="DomnAI" />
           <span>Painel Adm</span>
         </div>
+
+        <button type="button" className="domnai-admin-user-switch" onClick={onUser}>
+          <span className="domnai-admin-user-switch-icon">↩</span>
+          <span>
+            <strong>Painel Usuário</strong>
+            <small>Voltar ao ambiente de uso</small>
+          </span>
+        </button>
 
         <nav aria-label="Monitoramento administrativo">
           {ADMIN_SECTIONS.map((section, index) => (
@@ -75,9 +113,12 @@ function AdminPortalShell({ onUser, onSignOut }) {
           ))}
         </nav>
 
-        <div className="domnai-admin-sidebar-actions">
-          <button type="button" onClick={onUser}>Painel Usuário</button>
-          <button type="button" onClick={onSignOut}>Sair da conta</button>
+        <div className="domnai-admin-sidebar-footer">
+          <button type="button" className="domnai-admin-signout-button" onClick={onSignOut}>
+            <span>↪</span>
+            Sair da conta
+          </button>
+          <AdminProfileCard profile={profile} user={user} avatarUrl={avatarUrl} />
         </div>
       </aside>
 
@@ -127,6 +168,7 @@ export default function AdminAccessBoundary({ children }) {
   const [route, setRoute] = useState(currentHashPath);
   const [sidebarTarget, setSidebarTarget] = useState(null);
   const [verification, setVerification] = useState({ status: 'idle', isAdmin: false, message: '' });
+  const [adminProfile, setAdminProfile] = useState(() => ({ profile: readCachedProfile(), avatarUrl: '' }));
   const [retryKey, setRetryKey] = useState(0);
 
   const primaryEmail = String(user?.primaryEmailAddress?.emailAddress || '').trim().toLowerCase();
@@ -156,7 +198,6 @@ export default function AdminAccessBoundary({ children }) {
 
     syncSidebarTarget();
     const interval = window.setInterval(syncSidebarTarget, 300);
-
     return () => window.clearInterval(interval);
   }, [adminRoute, isLoaded, isOwnerCandidate, isSignedIn, userLoaded]);
 
@@ -190,9 +231,7 @@ export default function AdminAccessBoundary({ children }) {
         });
         const payload = await response.json().catch(() => ({}));
         if (!response.ok) throw new Error(payload.detail || 'Não foi possível validar o acesso administrativo.');
-        if (!cancelled) {
-          setVerification({ status: 'verified', isAdmin: payload.isAdmin === true, message: '' });
-        }
+        if (!cancelled) setVerification({ status: 'verified', isAdmin: payload.isAdmin === true, message: '' });
       } catch (error) {
         if (!cancelled) {
           setVerification({
@@ -206,6 +245,41 @@ export default function AdminAccessBoundary({ children }) {
 
     return () => { cancelled = true; };
   }, [adminRequested, adminRoute, getToken, isLoaded, isOwnerCandidate, isSignedIn, retryKey, userLoaded]);
+
+  useEffect(() => {
+    if (verification.status !== 'verified' || !verification.isAdmin || !adminRoute) return undefined;
+
+    let cancelled = false;
+    let avatarObjectUrl = '';
+
+    (async () => {
+      try {
+        const token = await getToken();
+        const headers = { Authorization: `Bearer ${token}` };
+        const [profileResponse, avatarResponse] = await Promise.all([
+          fetch('/api/profile', { headers, cache: 'no-store' }),
+          fetch('/api/profile/avatar', { headers, cache: 'no-store' }),
+        ]);
+
+        const profilePayload = profileResponse.ok ? await profileResponse.json() : null;
+        if (avatarResponse.ok) avatarObjectUrl = URL.createObjectURL(await avatarResponse.blob());
+
+        if (!cancelled) {
+          setAdminProfile({
+            profile: profilePayload?.profile || readCachedProfile(),
+            avatarUrl: avatarObjectUrl,
+          });
+        }
+      } catch {
+        if (!cancelled) setAdminProfile((current) => ({ ...current, profile: current.profile || readCachedProfile() }));
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+      if (avatarObjectUrl) URL.revokeObjectURL(avatarObjectUrl);
+    };
+  }, [adminRoute, getToken, verification.isAdmin, verification.status]);
 
   function openAdminAccess() {
     sessionStorage.setItem(ADMIN_ENTRY_KEY, 'true');
@@ -259,5 +333,13 @@ export default function AdminAccessBoundary({ children }) {
     );
   }
 
-  return <AdminPortalShell onUser={selectUserAccess} onSignOut={leaveAccount} />;
+  return (
+    <AdminPortalShell
+      onUser={selectUserAccess}
+      onSignOut={leaveAccount}
+      profile={adminProfile.profile}
+      user={user}
+      avatarUrl={adminProfile.avatarUrl}
+    />
+  );
 }
