@@ -22,6 +22,7 @@ COPY scripts/fix_user_account_footer_block.py /tmp/fix_user_account_footer_block
 COPY scripts/connect_admin_feedbacks_view.py /tmp/connect_admin_feedbacks_view.py
 COPY scripts/refactor_feedback_light_ui.py /tmp/refactor_feedback_light_ui.py
 COPY scripts/fix_feedback_back_button.py /tmp/fix_feedback_back_button.py
+COPY scripts/append_interaction_button_states.py /tmp/append_interaction_button_states.py
 RUN apk add --no-cache python3 \
     && python3 /tmp/connect_domnai_chat.py \
     && python3 /tmp/connect_operation_to_composer.py \
@@ -41,6 +42,7 @@ RUN apk add --no-cache python3 \
     && python3 /tmp/connect_admin_feedbacks_view.py \
     && python3 /tmp/refactor_feedback_light_ui.py \
     && python3 /tmp/fix_feedback_back_button.py \
+    && python3 /tmp/append_interaction_button_states.py \
     && npm run build
 
 FROM python:3.13-slim AS runtime
