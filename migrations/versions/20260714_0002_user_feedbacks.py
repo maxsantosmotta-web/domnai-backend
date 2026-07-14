@@ -14,6 +14,11 @@ depends_on = None
 
 
 def upgrade() -> None:
+    bind = op.get_bind()
+    inspector = sa.inspect(bind)
+    if inspector.has_table("user_feedbacks"):
+        return
+
     op.create_table(
         "user_feedbacks",
         sa.Column("id", sa.String(length=36), nullable=False),
@@ -46,6 +51,11 @@ def upgrade() -> None:
 
 
 def downgrade() -> None:
+    bind = op.get_bind()
+    inspector = sa.inspect(bind)
+    if not inspector.has_table("user_feedbacks"):
+        return
+
     op.drop_index("ix_user_feedbacks_created_at", table_name="user_feedbacks")
     op.drop_index("ix_user_feedbacks_status", table_name="user_feedbacks")
     op.drop_index("ix_user_feedbacks_category", table_name="user_feedbacks")
