@@ -27,6 +27,7 @@ COPY scripts/connect_admin_users_view.py /tmp/connect_admin_users_view.py
 COPY scripts/connect_admin_billing_view.py /tmp/connect_admin_billing_view.py
 COPY scripts/connect_admin_errors_view.py /tmp/connect_admin_errors_view.py
 COPY scripts/connect_admin_audit_view.py /tmp/connect_admin_audit_view.py
+COPY scripts/connect_admin_health_view.py /tmp/connect_admin_health_view.py
 RUN apk add --no-cache python3 \
     && python3 /tmp/connect_domnai_chat.py \
     && python3 /tmp/connect_operation_to_composer.py \
@@ -51,6 +52,7 @@ RUN apk add --no-cache python3 \
     && python3 /tmp/connect_admin_billing_view.py \
     && python3 /tmp/connect_admin_errors_view.py \
     && python3 /tmp/connect_admin_audit_view.py \
+    && python3 /tmp/connect_admin_health_view.py \
     && npm run build
 
 FROM python:3.13-slim AS runtime

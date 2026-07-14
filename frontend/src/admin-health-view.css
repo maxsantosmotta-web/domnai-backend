@@ -1,0 +1,311 @@
+.domnai-admin-health-view {
+  display: grid;
+  gap: 22px;
+}
+
+.domnai-admin-health-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+}
+
+.domnai-admin-health-heading > div {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.health-live-indicator {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  color: #dedede;
+  font-size: 0.76rem;
+  font-weight: 800;
+}
+
+.health-live-indicator i {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #51c987;
+  box-shadow: 0 0 0 4px rgba(81, 201, 135, 0.1);
+}
+
+.domnai-admin-health-heading small {
+  color: #6f6f6f;
+  font-size: 0.72rem;
+}
+
+.domnai-admin-health-heading button,
+.domnai-admin-health-state button {
+  min-height: 38px;
+  padding: 0 14px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.03);
+  color: #ffffff;
+  font-size: 0.76rem;
+  font-weight: 800;
+  text-decoration: none;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.domnai-admin-health-heading button:hover,
+.domnai-admin-health-heading button:focus,
+.domnai-admin-health-heading button:focus-visible,
+.domnai-admin-health-state button:hover,
+.domnai-admin-health-state button:focus,
+.domnai-admin-health-state button:focus-visible {
+  color: #ffffff;
+  outline: none;
+  text-decoration: none;
+}
+
+.domnai-admin-health-heading button:active:not(:disabled),
+.domnai-admin-health-state button:active:not(:disabled) {
+  border-color: rgba(231, 195, 94, 0.3);
+  background: rgba(231, 195, 94, 0.08);
+  color: #e7c35e;
+}
+
+.domnai-admin-health-heading button:disabled,
+.domnai-admin-health-state button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.domnai-admin-health-overall {
+  min-height: 126px;
+  padding: 18px;
+  border: 1px solid rgba(255, 255, 255, 0.07);
+  border-radius: 16px;
+  background: rgba(12, 12, 12, 0.96);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+}
+
+.domnai-admin-health-overall.ready {
+  border-color: rgba(81, 201, 135, 0.17);
+}
+
+.domnai-admin-health-overall.attention {
+  border-color: rgba(231, 195, 94, 0.17);
+}
+
+.domnai-admin-health-overall > div:first-child {
+  display: grid;
+  gap: 5px;
+}
+
+.domnai-admin-health-overall span,
+.health-service-title span {
+  color: #777;
+  font-size: 0.68rem;
+  font-weight: 850;
+  letter-spacing: 0.055em;
+  text-transform: uppercase;
+}
+
+.domnai-admin-health-overall > div:first-child > strong {
+  color: #fff;
+  font-size: 1.65rem;
+}
+
+.domnai-admin-health-overall.ready > div:first-child > strong {
+  color: #7dd9a3;
+}
+
+.domnai-admin-health-overall.attention > div:first-child > strong {
+  color: #e7c35e;
+}
+
+.domnai-admin-health-overall p,
+.domnai-admin-health-note {
+  margin: 0;
+  color: #777;
+  font-size: 0.76rem;
+  line-height: 1.5;
+}
+
+.health-overall-numbers {
+  display: flex;
+  align-items: stretch;
+  gap: 10px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.health-overall-numbers > span {
+  min-width: 110px;
+  min-height: 62px;
+  padding: 10px 12px;
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: 11px;
+  display: grid;
+  align-content: center;
+  gap: 3px;
+  color: #737373;
+  font-size: 0.66rem;
+  text-transform: none;
+  letter-spacing: 0;
+}
+
+.health-overall-numbers strong {
+  color: #e9e9e9;
+  font-size: 0.88rem;
+}
+
+.domnai-admin-health-services {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.domnai-admin-health-services article {
+  min-height: 118px;
+  padding: 15px;
+  border: 1px solid rgba(255, 255, 255, 0.07);
+  border-radius: 14px;
+  background: rgba(13, 13, 13, 0.94);
+  display: grid;
+  align-content: space-between;
+  gap: 8px;
+}
+
+.domnai-admin-health-services article.ready {
+  border-color: rgba(81, 201, 135, 0.12);
+}
+
+.domnai-admin-health-services article.attention {
+  border-color: rgba(231, 195, 94, 0.13);
+}
+
+.domnai-admin-health-services article.offline {
+  border-color: rgba(230, 88, 88, 0.15);
+}
+
+.health-service-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.health-service-title i {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #727272;
+}
+
+article.ready .health-service-title i {
+  background: #51c987;
+}
+
+article.attention .health-service-title i {
+  background: #e7c35e;
+}
+
+article.offline .health-service-title i {
+  background: #e65858;
+}
+
+.domnai-admin-health-services article > strong {
+  color: #efefef;
+  font-size: 1rem;
+}
+
+.domnai-admin-health-services article.ready > strong {
+  color: #7dd9a3;
+}
+
+.domnai-admin-health-services article.attention > strong {
+  color: #e7c35e;
+}
+
+.domnai-admin-health-services article.offline > strong {
+  color: #ff9696;
+}
+
+.domnai-admin-health-services article > small {
+  color: #747474;
+  font-size: 0.72rem;
+  line-height: 1.4;
+}
+
+.domnai-admin-health-note {
+  padding: 14px 16px;
+  border: 1px solid rgba(255, 255, 255, 0.055);
+  border-radius: 12px;
+  background: rgba(10, 10, 10, 0.8);
+}
+
+.domnai-admin-health-state {
+  min-height: 170px;
+  padding: 24px;
+  border: 1px dashed rgba(255, 255, 255, 0.09);
+  border-radius: 15px;
+  display: grid;
+  place-items: center;
+  align-content: center;
+  gap: 8px;
+  color: #7c7c7c;
+  text-align: center;
+}
+
+.domnai-admin-health-state.error {
+  border-color: rgba(220, 80, 80, 0.2);
+  color: #ff9b9b;
+}
+
+.domnai-admin-health-state p {
+  margin: 0;
+  font-size: 0.8rem;
+}
+
+@media (max-width: 1100px) {
+  .domnai-admin-health-services {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 760px) {
+  .domnai-admin-health-heading,
+  .domnai-admin-health-overall {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .domnai-admin-health-heading button {
+    width: 100%;
+  }
+
+  .health-overall-numbers {
+    width: 100%;
+    justify-content: flex-start;
+  }
+
+  .health-overall-numbers > span {
+    flex: 1;
+  }
+}
+
+@media (max-width: 520px) {
+  .domnai-admin-health-services {
+    grid-template-columns: 1fr;
+  }
+
+  .health-overall-numbers {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .health-overall-numbers > span:last-child {
+    grid-column: 1 / -1;
+  }
+}
