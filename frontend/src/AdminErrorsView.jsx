@@ -95,7 +95,7 @@ export default function AdminErrorsView() {
   const [items, setItems] = useState([]);
   const [summary, setSummary] = useState(EMPTY_SUMMARY);
   const [generatedAt, setGeneratedAt] = useState('');
-  const [query, setQuery] = useState('');
+  const [moduleFilter, setModuleFilter] = useState('all');
   const [severityFilter, setSeverityFilter] = useState('all');
   const [statusFilter, setStatusFilter] = useState('all');
   const [showAll, setShowAll] = useState(false);
@@ -134,18 +134,27 @@ export default function AdminErrorsView() {
     return () => window.clearInterval(interval);
   }, [loadErrors]);
 
-  const filteredItems = useMemo(() => {
-    const normalized = query.trim().toLowerCase();
-    return items.filter((item) => {
-      const matchesQuery = !normalized
-        || String(item.module || '').toLowerCase().includes(normalized)
-        || String(item.title || '').toLowerCase().includes(normalized)
-        || String(item.message || '').toLowerCase().includes(normalized);
-      const matchesSeverity = severityFilter === 'all' || item.severity === severityFilter;
-      const matchesStatus = statusFilter === 'all' || item.status === statusFilter;
-      return matchesQuery && matchesSeverity && matchesStatus;
-    });
-  }, [items, query, severityFilter, statusFilter]);
+  const affectedModules = useMemo(() => (
+    Array.from(new Set(
+      items
+        .filter((item) => item.status !== 'resolved')
+        .map((item) => String(item.module || '').trim())
+        .filter(Boolean),
+    )).sort((a, b) => a.localeCompare(b, 'pt-BR'))
+  ), [items]);
+
+  useEffect(() => {
+    if (moduleFilter !== 'all' && !affectedModules.includes(moduleFilter)) {
+      setModuleFilter('all');
+    }
+  }, [affectedModules, moduleFilter]);
+
+  const filteredItems = useMemo(() => items.filter((item) => {
+    const matchesModule = moduleFilter === 'all' || item.module === moduleFilter;
+    const matchesSeverity = severityFilter === 'all' || item.severity === severityFilter;
+    const matchesStatus = statusFilter === 'all' || item.status === statusFilter;
+    return matchesModule && matchesSeverity && matchesStatus;
+  }), [items, moduleFilter, severityFilter, statusFilter]);
 
   const visibleItems = showAll ? filteredItems : filteredItems.slice(0, 8);
 
@@ -162,6 +171,12 @@ export default function AdminErrorsView() {
   function handleShowAll(event) {
     event.currentTarget.blur();
     setShowAll((current) => !current);
+  }
+
+  function selectModule(event, moduleName) {
+    event.currentTarget.blur();
+    setModuleFilter(moduleName);
+    setShowAll(false);
   }
 
   return (
@@ -199,11 +214,37 @@ export default function AdminErrorsView() {
 
       {status === 'ready' ? (
         <>
+          <section className="domnai-admin-errors-modules" aria-label="Módulos com erro">
+            <header>
+              <span>Módulos com erro</span>
+              <strong>{affectedModules.length > 0 ? 'Selecione o módulo para ver os detalhes' : 'Nenhum módulo com falha'}</strong>
+            </header>
+            {affectedModules.length > 0 ? (
+              <div className="errors-module-buttons">
+                <button
+                  type="button"
+                  className={moduleFilter === 'all' ? 'selected' : ''}
+                  onClick={(event) => selectModule(event, 'all')}
+                >
+                  Todos os módulos
+                </button>
+                {affectedModules.map((moduleName) => (
+                  <button
+                    type="button"
+                    className={moduleFilter === moduleName ? 'selected' : ''}
+                    onClick={(event) => selectModule(event, moduleName)}
+                    key={moduleName}
+                  >
+                    {moduleName}
+                  </button>
+                ))}
+              </div>
+            ) : (
+              <p>Quando surgir uma falha, o nome do módulo aparecerá aqui automaticamente.</p>
+            )}
+          </section>
+
           <div className="domnai-admin-errors-toolbar">
-            <label className="errors-search-field">
-              <span>Buscar</span>
-              <input type="search" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Módulo ou erro" />
-            </label>
             <label>
               <span>Gravidade</span>
               <select value={severityFilter} onChange={(event) => setSeverityFilter(event.target.value)}>
