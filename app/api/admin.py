@@ -12,28 +12,34 @@ ADMIN_TRANSACTION_KIND = "admin_credit"
 ADMIN_TRANSACTION_DESCRIPTION = "Créditos administrativos do proprietário"
 
 
+def _admin_marker(db, user_id: str) -> str | None:
+    return db.scalar(
+        select(CreditTransaction.id)
+        .where(
+            CreditTransaction.user_id == user_id,
+            CreditTransaction.kind == ADMIN_TRANSACTION_KIND,
+            CreditTransaction.description == ADMIN_TRANSACTION_DESCRIPTION,
+        )
+        .limit(1)
+    )
+
+
+def _is_legacy_admin_account(account: BillingAccount | None) -> bool:
+    return bool(
+        account
+        and account.plan == "premium"
+        and account.subscription_status == "active"
+        and account.plan_credits >= ADMIN_CREDITS
+    )
+
+
 def _has_persisted_admin_access(user_id: str) -> bool:
     with session_scope() as db:
         account = db.get(BillingAccount, user_id)
         if account is None:
             return False
 
-        admin_marker = db.scalar(
-            select(CreditTransaction.id)
-            .where(
-                CreditTransaction.user_id == user_id,
-                CreditTransaction.kind == ADMIN_TRANSACTION_KIND,
-                CreditTransaction.description == ADMIN_TRANSACTION_DESCRIPTION,
-            )
-            .limit(1)
-        )
-
-        return bool(
-            admin_marker
-            and account.plan == "premium"
-            and account.subscription_status == "active"
-            and account.plan_credits >= ADMIN_CREDITS
-        )
+        return bool(_admin_marker(db, user_id) or _is_legacy_admin_account(account))
 
 
 def owner_access_status(session: dict) -> dict:
@@ -54,22 +60,24 @@ def _grant_admin_access(user_id: str) -> dict:
         if account is None:
             raise HTTPException(status_code=403, detail="Vínculo administrativo não encontrado.")
 
-        marker = db.scalar(
-            select(CreditTransaction.id)
-            .where(
-                CreditTransaction.user_id == user_id,
-                CreditTransaction.kind == ADMIN_TRANSACTION_KIND,
-                CreditTransaction.description == ADMIN_TRANSACTION_DESCRIPTION,
-            )
-            .limit(1)
-        )
-        if not marker:
+        marker = _admin_marker(db, user_id)
+        if not marker and not _is_legacy_admin_account(account):
             raise HTTPException(status_code=403, detail="Vínculo administrativo não encontrado.")
 
         account.plan = "premium"
         account.subscription_status = "active"
         account.plan_credits = max(account.plan_credits, ADMIN_CREDITS)
         account.current_period_end = None
+
+        if not marker:
+            db.add(CreditTransaction(
+                user_id=user_id,
+                kind=ADMIN_TRANSACTION_KIND,
+                amount=0,
+                plan_balance=account.plan_credits,
+                extra_balance=account.extra_credits,
+                description=ADMIN_TRANSACTION_DESCRIPTION,
+            ))
 
         return {
             "status": "ok",
