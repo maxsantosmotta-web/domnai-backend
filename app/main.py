@@ -4,6 +4,7 @@ from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
+from app.api.admin_audit import router as admin_audit_router
 from app.api.admin_billing import router as admin_billing_router
 from app.api.admin_errors import router as admin_errors_router
 from app.api.admin_users import router as admin_users_router
@@ -81,6 +82,7 @@ app.include_router(auth_router)
 app.include_router(admin_users_router)
 app.include_router(admin_billing_router)
 app.include_router(admin_errors_router)
+app.include_router(admin_audit_router)
 app.include_router(chat_router)
 app.include_router(chat_state_router)
 app.include_router(decisions_router)

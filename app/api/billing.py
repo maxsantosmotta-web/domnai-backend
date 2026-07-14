@@ -6,6 +6,7 @@ from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel
 from sqlalchemy import select
 
+from app.audit import record_audit_event
 from app.auth import require_authenticated_user
 from app.database import session_scope
 from app.models import BillingAccount, CreditTransaction, ProcessedStripeEvent, UserProfile
@@ -98,8 +99,26 @@ def _serialize_account(account: BillingAccount) -> dict:
     }
 
 
-def _record_transaction(db, account: BillingAccount, kind: str, amount: int, description: str, event_id: str | None = None):
-    db.add(CreditTransaction(
+def _plan_label(plan: str | None) -> str:
+    mapping = {
+        "premium": "PREMIUM",
+        "free": "FREE",
+        "free_demo": "FREE",
+        "unselected": "sem plano",
+        "": "sem plano",
+    }
+    return mapping.get(str(plan or "").lower(), str(plan or "sem plano").upper())
+
+
+def _record_transaction(
+    db,
+    account: BillingAccount,
+    kind: str,
+    amount: int,
+    description: str,
+    event_id: str | None = None,
+) -> CreditTransaction:
+    transaction = CreditTransaction(
         user_id=account.user_id,
         kind=kind,
         amount=amount,
@@ -107,7 +126,10 @@ def _record_transaction(db, account: BillingAccount, kind: str, amount: int, des
         extra_balance=account.extra_credits,
         description=description[:255],
         stripe_event_id=event_id,
-    ))
+    )
+    db.add(transaction)
+    db.flush()
+    return transaction
 
 
 def _datetime_from_unix(value) -> datetime | None:
@@ -118,6 +140,20 @@ def _datetime_from_unix(value) -> datetime | None:
 
 def _subscription_period_end(subscription) -> datetime | None:
     return _datetime_from_unix(subscription.get("current_period_end"))
+
+
+def _stripe_user_id(db, obj) -> str | None:
+    metadata = obj.get("metadata") or {}
+    user_id = metadata.get("user_id") or obj.get("client_reference_id")
+    if user_id:
+        return str(user_id)
+    customer_id = obj.get("customer")
+    if not customer_id:
+        return None
+    account = db.scalar(
+        select(BillingAccount).where(BillingAccount.stripe_customer_id == customer_id)
+    )
+    return account.user_id if account else None
 
 
 @router.get("/status")
@@ -142,11 +178,31 @@ def select_free_plan(session: dict = Depends(require_authenticated_user)):
         account = _get_or_create_account(db, user_id)
         if _is_premium(account):
             raise HTTPException(status_code=409, detail="Gerencie ou cancele sua assinatura PREMIUM antes de mudar para o FREE.")
+
+        previous_plan = account.plan
         account.plan = "free"
         account.subscription_status = "inactive"
         account.plan_credits = 0
         account.current_period_end = None
         db.flush()
+
+        if previous_plan != "free":
+            action = "plan_selected" if previous_plan in {"unselected", "free_demo", ""} else "plan_changed"
+            description = (
+                "Plano FREE escolhido."
+                if action == "plan_selected"
+                else f"Plano alterado de {_plan_label(previous_plan)} para FREE."
+            )
+            record_audit_event(
+                db,
+                user_id=user_id,
+                category="plan",
+                module="Faturamento",
+                action=action,
+                description=description,
+                source="billing",
+            )
+
         payload = _serialize_account(account)
         payload["profileCompleted"] = True
         return payload
@@ -241,7 +297,23 @@ def consume_credits(payload: ConsumeCreditsRequest, session: dict = Depends(requ
         if remaining:
             account.extra_credits -= remaining
 
-        _record_transaction(db, account, "consumption", -payload.amount, payload.description or "Consumo de créditos")
+        transaction = _record_transaction(
+            db,
+            account,
+            "consumption",
+            -payload.amount,
+            payload.description or "Consumo de créditos",
+        )
+        record_audit_event(
+            db,
+            user_id=user_id,
+            category="credits",
+            module="Faturamento",
+            action="credits_consumed",
+            description=f"{payload.amount} crédito(s) consumido(s).",
+            source="billing",
+            source_key=f"credit:{transaction.id}",
+        )
         return _serialize_account(account)
 
 
@@ -272,6 +344,7 @@ async def stripe_webhook(request: Request):
             product = (obj.get("metadata") or {}).get("product")
             if user_id:
                 account = _get_or_create_account(db, user_id)
+                previous_plan = account.plan
                 account.stripe_customer_id = obj.get("customer") or account.stripe_customer_id
 
                 if obj.get("mode") == "subscription":
@@ -282,11 +355,79 @@ async def stripe_webhook(request: Request):
                     if account.stripe_subscription_id:
                         subscription = stripe.Subscription.retrieve(account.stripe_subscription_id)
                         account.current_period_end = _subscription_period_end(subscription)
-                    _record_transaction(db, account, "plan_credit", PLAN_CREDITS, "Créditos do plano PREMIUM", event_id)
+                    transaction = _record_transaction(
+                        db,
+                        account,
+                        "plan_credit",
+                        PLAN_CREDITS,
+                        "Créditos do plano PREMIUM",
+                        event_id,
+                    )
+                    record_audit_event(
+                        db,
+                        user_id=user_id,
+                        category="payment",
+                        module="Faturamento",
+                        action="payment_approved",
+                        description="Pagamento do plano PREMIUM aprovado.",
+                        source="stripe",
+                        source_key=f"stripe:{event_id}:payment",
+                    )
+                    record_audit_event(
+                        db,
+                        user_id=user_id,
+                        category="plan",
+                        module="Faturamento",
+                        action="plan_selected" if previous_plan in {"unselected", "free_demo", "free", ""} else "plan_changed",
+                        description=(
+                            "Plano PREMIUM escolhido."
+                            if previous_plan in {"unselected", "free_demo", "free", ""}
+                            else f"Plano alterado de {_plan_label(previous_plan)} para PREMIUM."
+                        ),
+                        source="stripe",
+                        source_key=f"stripe:{event_id}:plan",
+                    )
+                    record_audit_event(
+                        db,
+                        user_id=user_id,
+                        category="credits",
+                        module="Faturamento",
+                        action="credits_added",
+                        description=f"{PLAN_CREDITS} créditos adicionados.",
+                        source="stripe",
+                        source_key=f"credit:{transaction.id}:audit",
+                    )
 
                 elif obj.get("mode") == "payment" and product == "credits_250":
                     account.extra_credits += EXTRA_CREDIT_PACK
-                    _record_transaction(db, account, "extra_credit", EXTRA_CREDIT_PACK, "Pacote avulso de 250 créditos", event_id)
+                    transaction = _record_transaction(
+                        db,
+                        account,
+                        "extra_credit",
+                        EXTRA_CREDIT_PACK,
+                        "Pacote avulso de 250 créditos",
+                        event_id,
+                    )
+                    record_audit_event(
+                        db,
+                        user_id=user_id,
+                        category="payment",
+                        module="Faturamento",
+                        action="payment_approved",
+                        description="Pagamento do pacote de créditos aprovado.",
+                        source="stripe",
+                        source_key=f"stripe:{event_id}:payment",
+                    )
+                    record_audit_event(
+                        db,
+                        user_id=user_id,
+                        category="credits",
+                        module="Faturamento",
+                        action="credits_added",
+                        description=f"{EXTRA_CREDIT_PACK} créditos adicionados.",
+                        source="stripe",
+                        source_key=f"credit:{transaction.id}:audit",
+                    )
 
         elif event_type == "invoice.paid":
             billing_reason = obj.get("billing_reason")
@@ -299,17 +440,68 @@ async def stripe_webhook(request: Request):
                     account.plan_credits = PLAN_CREDITS
                     subscription = stripe.Subscription.retrieve(subscription_id)
                     account.current_period_end = _subscription_period_end(subscription)
-                    _record_transaction(db, account, "plan_credit", PLAN_CREDITS, "Renovação do plano PREMIUM", event_id)
+                    transaction = _record_transaction(
+                        db,
+                        account,
+                        "plan_credit",
+                        PLAN_CREDITS,
+                        "Renovação do plano PREMIUM",
+                        event_id,
+                    )
+                    record_audit_event(
+                        db,
+                        user_id=account.user_id,
+                        category="payment",
+                        module="Faturamento",
+                        action="payment_approved",
+                        description="Renovação do plano PREMIUM aprovada.",
+                        source="stripe",
+                        source_key=f"stripe:{event_id}:payment",
+                    )
+                    record_audit_event(
+                        db,
+                        user_id=account.user_id,
+                        category="credits",
+                        module="Faturamento",
+                        action="credits_added",
+                        description=f"{PLAN_CREDITS} créditos adicionados.",
+                        source="stripe",
+                        source_key=f"credit:{transaction.id}:audit",
+                    )
 
         elif event_type in {"customer.subscription.updated", "customer.subscription.deleted"}:
             subscription_id = obj.get("id")
             account = db.scalar(select(BillingAccount).where(BillingAccount.stripe_subscription_id == subscription_id))
             if account:
+                previous_plan = account.plan
                 account.subscription_status = obj.get("status", "inactive")
                 account.current_period_end = _subscription_period_end(obj)
                 if event_type == "customer.subscription.deleted" or obj.get("status") in {"canceled", "unpaid", "incomplete_expired"}:
                     account.plan = "free"
                     account.plan_credits = 0
+                if event_type == "customer.subscription.deleted":
+                    record_audit_event(
+                        db,
+                        user_id=account.user_id,
+                        category="payment",
+                        module="Faturamento",
+                        action="subscription_canceled",
+                        description="Assinatura do plano PREMIUM cancelada.",
+                        result="canceled",
+                        source="stripe",
+                        source_key=f"stripe:{event_id}:subscription",
+                    )
+                    if previous_plan != "free":
+                        record_audit_event(
+                            db,
+                            user_id=account.user_id,
+                            category="plan",
+                            module="Faturamento",
+                            action="plan_changed",
+                            description=f"Plano alterado de {_plan_label(previous_plan)} para FREE após o cancelamento.",
+                            source="stripe",
+                            source_key=f"stripe:{event_id}:plan",
+                        )
 
         elif event_type == "invoice.payment_failed":
             subscription_id = obj.get("subscription")
@@ -317,6 +509,32 @@ async def stripe_webhook(request: Request):
                 account = db.scalar(select(BillingAccount).where(BillingAccount.stripe_subscription_id == subscription_id))
                 if account:
                     account.subscription_status = "past_due"
+                    record_audit_event(
+                        db,
+                        user_id=account.user_id,
+                        category="payment",
+                        module="Faturamento",
+                        action="payment_failed",
+                        description="Pagamento da assinatura PREMIUM recusado.",
+                        result="failed",
+                        source="stripe",
+                        source_key=f"stripe:{event_id}:payment",
+                    )
+
+        elif event_type in {"payment_intent.payment_failed", "checkout.session.async_payment_failed"}:
+            user_id = _stripe_user_id(db, obj)
+            if user_id:
+                record_audit_event(
+                    db,
+                    user_id=user_id,
+                    category="payment",
+                    module="Faturamento",
+                    action="payment_failed",
+                    description="Pagamento recusado pelo processador financeiro.",
+                    result="failed",
+                    source="stripe",
+                    source_key=f"stripe:{event_id}:payment",
+                )
 
         db.add(ProcessedStripeEvent(event_id=event_id, event_type=event_type))
 

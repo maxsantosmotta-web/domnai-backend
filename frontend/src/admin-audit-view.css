@@ -1,0 +1,399 @@
+.domnai-admin-audit-view {
+  display: grid;
+  gap: 22px;
+}
+
+.domnai-admin-audit-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+}
+
+.domnai-admin-audit-heading > div {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.audit-live-indicator {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  color: #dedede;
+  font-size: 0.76rem;
+  font-weight: 800;
+}
+
+.audit-live-indicator i {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #51c987;
+  box-shadow: 0 0 0 4px rgba(81, 201, 135, 0.1);
+}
+
+.domnai-admin-audit-heading small {
+  color: #6f6f6f;
+  font-size: 0.72rem;
+}
+
+.domnai-admin-audit-heading button,
+.domnai-admin-audit-state button,
+.audit-list-actions button {
+  min-height: 38px;
+  padding: 0 14px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.03);
+  color: #ffffff;
+  font-size: 0.76rem;
+  font-weight: 800;
+  text-decoration: none;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.domnai-admin-audit-heading button:hover,
+.domnai-admin-audit-heading button:focus,
+.domnai-admin-audit-heading button:focus-visible,
+.domnai-admin-audit-state button:hover,
+.domnai-admin-audit-state button:focus,
+.domnai-admin-audit-state button:focus-visible,
+.audit-list-actions button:hover,
+.audit-list-actions button:focus,
+.audit-list-actions button:focus-visible {
+  color: #ffffff;
+  outline: none;
+  text-decoration: none;
+}
+
+.domnai-admin-audit-heading button:active:not(:disabled),
+.domnai-admin-audit-state button:active:not(:disabled),
+.audit-list-actions button:active:not(:disabled) {
+  border-color: rgba(231, 195, 94, 0.3);
+  background: rgba(231, 195, 94, 0.08);
+  color: #e7c35e;
+}
+
+.domnai-admin-audit-heading button:disabled,
+.domnai-admin-audit-state button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.domnai-admin-audit-summary {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.domnai-admin-audit-summary article {
+  min-height: 88px;
+  padding: 14px;
+  border: 1px solid rgba(255, 255, 255, 0.07);
+  border-radius: 14px;
+  background: rgba(13, 13, 13, 0.94);
+  display: grid;
+  align-content: space-between;
+}
+
+.domnai-admin-audit-summary span,
+.domnai-admin-audit-toolbar label > span,
+.audit-result-count > span,
+.domnai-admin-audit-list-card > header span,
+.audit-user > span,
+.audit-date > span {
+  color: #777;
+  font-size: 0.68rem;
+  font-weight: 850;
+  letter-spacing: 0.055em;
+  text-transform: uppercase;
+}
+
+.domnai-admin-audit-summary strong {
+  color: #fff;
+  font-size: 1.55rem;
+}
+
+.domnai-admin-audit-toolbar {
+  display: grid;
+  grid-template-columns: minmax(220px, 0.8fr) auto;
+  gap: 10px;
+  align-items: end;
+}
+
+.domnai-admin-audit-toolbar label,
+.audit-result-count {
+  display: grid;
+  gap: 6px;
+}
+
+.domnai-admin-audit-toolbar select {
+  width: 100%;
+  min-height: 40px;
+  padding: 0 12px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 10px;
+  outline: none;
+  background: #0d0d0d;
+  color: #e8e8e8;
+  font: inherit;
+  font-size: 0.78rem;
+}
+
+.domnai-admin-audit-toolbar select:focus {
+  border-color: rgba(231, 195, 94, 0.35);
+  box-shadow: 0 0 0 3px rgba(231, 195, 94, 0.06);
+}
+
+.audit-result-count {
+  min-height: 40px;
+  padding: 7px 11px;
+  border: 1px solid rgba(255, 255, 255, 0.065);
+  border-radius: 10px;
+  align-content: center;
+}
+
+.audit-result-count strong {
+  color: #dfdfdf;
+  font-size: 0.76rem;
+}
+
+.domnai-admin-audit-list-card {
+  overflow: hidden;
+  border: 1px solid rgba(255, 255, 255, 0.07);
+  border-radius: 15px;
+  background: rgba(10, 10, 10, 0.96);
+}
+
+.domnai-admin-audit-list-card > header {
+  padding: 15px 16px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.055);
+  display: flex;
+  justify-content: space-between;
+  gap: 14px;
+}
+
+.domnai-admin-audit-list-card > header > div {
+  display: grid;
+  gap: 4px;
+}
+
+.domnai-admin-audit-list-card > header strong {
+  color: #f0f0f0;
+  font-size: 0.9rem;
+}
+
+.domnai-admin-audit-list-card > header small {
+  color: #6f6f6f;
+  font-size: 0.7rem;
+}
+
+.domnai-admin-audit-list {
+  display: grid;
+}
+
+.audit-row {
+  display: grid;
+  grid-template-columns: minmax(130px, 0.75fr) minmax(150px, 0.9fr) minmax(280px, 2fr) minmax(100px, 0.6fr) minmax(150px, 0.9fr);
+  gap: 14px;
+  align-items: center;
+  padding: 14px 16px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.055);
+}
+
+.audit-row:last-child {
+  border-bottom: 0;
+}
+
+.audit-row:hover {
+  background: rgba(255, 255, 255, 0.018);
+}
+
+.audit-category,
+.audit-user,
+.audit-action,
+.audit-date {
+  min-width: 0;
+  display: grid;
+  gap: 4px;
+}
+
+.audit-category > span {
+  color: #e7c35e;
+  font-size: 0.68rem;
+  font-weight: 850;
+  text-transform: uppercase;
+}
+
+.audit-category > strong,
+.audit-user > strong,
+.audit-date > strong {
+  color: #e7e7e7;
+  font-size: 0.77rem;
+}
+
+.audit-action > strong {
+  color: #f0f0f0;
+  font-size: 0.8rem;
+}
+
+.audit-action p {
+  margin: 0;
+  color: #878787;
+  font-size: 0.72rem;
+  line-height: 1.45;
+}
+
+.audit-result {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.audit-result > span {
+  min-height: 24px;
+  padding: 0 9px;
+  border-radius: 999px;
+  display: inline-flex;
+  align-items: center;
+  font-size: 0.64rem;
+  font-weight: 850;
+}
+
+.audit-result > span.success {
+  background: rgba(81, 201, 135, 0.09);
+  color: #7dd9a3;
+}
+
+.audit-result > span.failed {
+  background: rgba(230, 88, 88, 0.1);
+  color: #ff9696;
+}
+
+.audit-result > span.canceled {
+  background: rgba(231, 195, 94, 0.09);
+  color: #e7c35e;
+}
+
+.audit-list-actions {
+  padding: 14px 16px;
+  border-top: 1px solid rgba(255, 255, 255, 0.055);
+  display: flex;
+  justify-content: center;
+  gap: 10px;
+}
+
+.domnai-admin-audit-state {
+  min-height: 190px;
+  padding: 24px;
+  border: 1px dashed rgba(255, 255, 255, 0.09);
+  border-radius: 15px;
+  display: grid;
+  place-items: center;
+  align-content: center;
+  gap: 8px;
+  color: #7c7c7c;
+  text-align: center;
+}
+
+.domnai-admin-audit-state.compact {
+  min-height: 150px;
+}
+
+.domnai-admin-audit-state p {
+  margin: 0;
+  font-size: 0.8rem;
+}
+
+.domnai-admin-audit-state.error {
+  border-color: rgba(220, 80, 80, 0.2);
+  color: #ff9b9b;
+}
+
+.audit-spinner {
+  width: 28px;
+  height: 28px;
+  border: 3px solid rgba(231, 195, 94, 0.16);
+  border-top-color: #e7c35e;
+  border-radius: 50%;
+  animation: domnai-admin-audit-spin 800ms linear infinite;
+}
+
+@keyframes domnai-admin-audit-spin {
+  to { transform: rotate(360deg); }
+}
+
+@media (max-width: 1100px) {
+  .domnai-admin-audit-summary {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .audit-row {
+    grid-template-columns: minmax(120px, 0.75fr) minmax(140px, 0.85fr) minmax(240px, 1.8fr) minmax(140px, 0.8fr);
+  }
+
+  .audit-result {
+    grid-column: 1 / -1;
+    justify-content: flex-start;
+  }
+}
+
+@media (max-width: 760px) {
+  .domnai-admin-audit-heading {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .domnai-admin-audit-heading button {
+    width: 100%;
+  }
+
+  .domnai-admin-audit-summary {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .domnai-admin-audit-toolbar {
+    grid-template-columns: 1fr;
+  }
+
+  .audit-row {
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+  }
+
+  .audit-action {
+    grid-column: 1 / -1;
+    grid-row: 2;
+  }
+
+  .audit-result,
+  .audit-date {
+    grid-row: 3;
+  }
+
+  .audit-result {
+    grid-column: auto;
+    justify-content: flex-start;
+  }
+}
+
+@media (max-width: 440px) {
+  .domnai-admin-audit-summary article {
+    min-height: 80px;
+  }
+
+  .audit-row {
+    grid-template-columns: 1fr;
+  }
+
+  .audit-category,
+  .audit-user,
+  .audit-action,
+  .audit-result,
+  .audit-date {
+    grid-column: auto;
+    grid-row: auto;
+  }
+}

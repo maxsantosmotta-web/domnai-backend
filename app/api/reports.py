@@ -5,6 +5,7 @@ from typing import Any
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel, Field
 
+from app.audit import record_audit_event
 from app.auth import require_authenticated_user
 from app.database import session_scope
 from app.models import LibraryAsset
@@ -80,6 +81,16 @@ def create_pdf_report(
     with session_scope() as db:
         db.add(asset)
         db.flush()
+        record_audit_event(
+            db,
+            user_id=user_id,
+            category="pdf",
+            module="Chat",
+            action="pdf_delivered",
+            description=f"PDF concluído e disponibilizado pelo chat: {asset.name}.",
+            source="chat",
+            source_key=f"pdf:{asset.id}",
+        )
         return {
             "id": asset.id,
             "name": asset.name,
