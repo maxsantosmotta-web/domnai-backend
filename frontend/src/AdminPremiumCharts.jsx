@@ -1,4 +1,5 @@
 import React, { useId, useMemo, useState } from 'react';
+import './admin-hybrid-signal-charts.css';
 
 const CHART_COLORS = ['#f4c95d', '#3fd7ff', '#ff5cc8', '#64e6a6', '#9b82ff', '#ff9f5a', '#ff657f'];
 
@@ -11,8 +12,16 @@ function defaultFormatter(value) {
   return safeNumber(value).toLocaleString('pt-BR');
 }
 
-function chartPath(points) {
-  return points.map((point, index) => `${index === 0 ? 'M' : 'L'} ${point.x} ${point.y}`).join(' ');
+function smoothPath(points) {
+  if (!points.length) return '';
+  if (points.length === 1) return `M ${points[0].x} ${points[0].y}`;
+
+  return points.reduce((path, point, index) => {
+    if (index === 0) return `M ${point.x} ${point.y}`;
+    const previous = points[index - 1];
+    const controlX = (previous.x + point.x) / 2;
+    return `${path} C ${controlX} ${previous.y}, ${controlX} ${point.y}, ${point.x} ${point.y}`;
+  }, '');
 }
 
 export function InteractiveLineChart({
@@ -26,6 +35,7 @@ export function InteractiveLineChart({
 }) {
   const gradientId = useId().replaceAll(':', '');
   const [activeIndex, setActiveIndex] = useState(null);
+  const [touching, setTouching] = useState(false);
   const width = 760;
   const height = 250;
   const padding = { top: 24, right: 24, bottom: 42, left: 42 };
@@ -56,14 +66,16 @@ export function InteractiveLineChart({
       ? null
       : padding.top + innerHeight - (item.secondaryValue / maxValue) * innerHeight,
   }));
-  const secondaryPoints = points.filter((point) => point.secondaryY !== null).map((point) => ({ ...point, y: point.secondaryY }));
-  const primaryPath = chartPath(points);
-  const secondaryPath = chartPath(secondaryPoints);
+  const secondaryPoints = points
+    .filter((point) => point.secondaryY !== null)
+    .map((point) => ({ ...point, y: point.secondaryY }));
+  const primaryPath = smoothPath(points);
+  const secondaryPath = smoothPath(secondaryPoints);
   const areaPath = points.length
     ? `${primaryPath} L ${points[points.length - 1].x} ${padding.top + innerHeight} L ${points[0].x} ${padding.top + innerHeight} Z`
     : '';
-  const resolvedIndex = activeIndex === null ? Math.max(0, points.length - 1) : Math.min(activeIndex, Math.max(0, points.length - 1));
-  const active = points[resolvedIndex];
+  const active = activeIndex === null ? null : points[Math.min(activeIndex, Math.max(0, points.length - 1))];
+  const latest = points[points.length - 1];
 
   function selectFromPointer(event) {
     if (!points.length) return;
@@ -72,16 +84,26 @@ export function InteractiveLineChart({
     setActiveIndex(Math.round(ratio * (points.length - 1)));
   }
 
+  function beginInteraction(event) {
+    event.currentTarget.setPointerCapture?.(event.pointerId);
+    setTouching(true);
+    selectFromPointer(event);
+  }
+
+  function endInteraction(event) {
+    event.currentTarget.releasePointerCapture?.(event.pointerId);
+    setTouching(false);
+    setActiveIndex(null);
+  }
+
   return (
     <section className="domnai-premium-chart-card line-chart-card">
       <header>
         <div><span>{subtitle}</span><strong>{title}</strong></div>
-        {active ? (
-          <div className="domnai-chart-current">
-            <small>{active.label}</small>
-            <strong>{valueFormatter(active.value)}</strong>
-          </div>
-        ) : null}
+        <div className="domnai-chart-current">
+          <small>{active?.label || latest?.label || 'Agora'}</small>
+          <strong>{valueFormatter(active?.value ?? latest?.value ?? 0)}</strong>
+        </div>
       </header>
 
       {points.length ? (
@@ -90,18 +112,24 @@ export function InteractiveLineChart({
             viewBox={`0 0 ${width} ${height}`}
             role="img"
             aria-label={title}
-            onPointerDown={selectFromPointer}
-            onPointerMove={selectFromPointer}
-            onPointerLeave={() => setActiveIndex(null)}
+            onPointerDown={beginInteraction}
+            onPointerMove={(event) => touching && selectFromPointer(event)}
+            onPointerUp={endInteraction}
+            onPointerCancel={endInteraction}
+            onPointerLeave={(event) => {
+              if (!touching) setActiveIndex(null);
+              if (touching && event.buttons === 0) endInteraction(event);
+            }}
           >
             <defs>
               <linearGradient id={`${gradientId}-area`} x1="0" y1="0" x2="0" y2="1">
-                <stop offset="0%" stopColor="#f4c95d" stopOpacity="0.34" />
-                <stop offset="100%" stopColor="#f4c95d" stopOpacity="0" />
+                <stop offset="0%" stopColor="#3fd7ff" stopOpacity="0.24" />
+                <stop offset="55%" stopColor="#f4c95d" stopOpacity="0.12" />
+                <stop offset="100%" stopColor="#ff5cc8" stopOpacity="0" />
               </linearGradient>
               <linearGradient id={`${gradientId}-line`} x1="0" y1="0" x2="1" y2="0">
                 <stop offset="0%" stopColor="#3fd7ff" />
-                <stop offset="50%" stopColor="#f4c95d" />
+                <stop offset="48%" stopColor="#f4c95d" />
                 <stop offset="100%" stopColor="#ff5cc8" />
               </linearGradient>
             </defs>
@@ -111,25 +139,19 @@ export function InteractiveLineChart({
               return <line key={step} x1={padding.left} y1={y} x2={width - padding.right} y2={y} className="premium-grid-line" />;
             })}
 
-            {areaPath ? <path d={areaPath} fill={`url(#${gradientId}-area)`} className="premium-chart-area" /> : null}
-            {primaryPath ? (
-              <path
-                key={normalized.map((item) => item.value).join('-')}
-                d={primaryPath}
-                fill="none"
-                stroke={`url(#${gradientId}-line)`}
-                className="premium-chart-line"
-                pathLength="1"
-              />
-            ) : null}
-            {secondaryPath ? (
-              <path
-                key={normalized.map((item) => item.secondaryValue ?? '').join('-')}
-                d={secondaryPath}
-                fill="none"
-                className="premium-chart-line secondary"
-                pathLength="1"
-              />
+            {areaPath ? <path d={areaPath} fill={`url(#${gradientId}-area)`} className="domnai-signal-area" /> : null}
+            {primaryPath ? <path d={primaryPath} className="domnai-signal-halo" /> : null}
+            {primaryPath ? <path d={primaryPath} stroke={`url(#${gradientId}-line)`} className="domnai-signal-trace" /> : null}
+            {primaryPath ? <path d={primaryPath} pathLength="1" className="domnai-signal-energy" /> : null}
+
+            {secondaryPath ? <path d={secondaryPath} className="premium-chart-line secondary" /> : null}
+            {secondaryPath ? <path d={secondaryPath} pathLength="1" className="domnai-signal-energy secondary" /> : null}
+
+            {latest ? (
+              <g className="domnai-signal-beat">
+                <circle cx={latest.x} cy={latest.y} r="8" fill="rgba(100,230,166,.16)" />
+                <circle cx={latest.x} cy={latest.y} r="3.5" fill="#64e6a6" />
+              </g>
             ) : null}
 
             {active ? (
@@ -150,7 +172,7 @@ export function InteractiveLineChart({
           </svg>
 
           {active ? (
-            <div className="domnai-chart-tooltip" style={{ '--tooltip-left': `${(active.x / width) * 100}%` }}>
+            <div className={`domnai-chart-tooltip${touching ? ' is-touching' : ''}`} style={{ '--tooltip-left': `${(active.x / width) * 100}%` }}>
               <span>{active.label}</span>
               <strong><i className="primary" />{primaryLabel}: {valueFormatter(active.value)}</strong>
               {hasSecondary && active.secondaryValue !== null ? (
@@ -159,9 +181,7 @@ export function InteractiveLineChart({
             </div>
           ) : null}
         </div>
-      ) : (
-        <div className="domnai-chart-empty">{emptyLabel}</div>
-      )}
+      ) : <div className="domnai-chart-empty">{emptyLabel}</div>}
     </section>
   );
 }
@@ -189,10 +209,10 @@ export function InteractiveBarChart({
         {active ? <div className="domnai-chart-current"><small>{active.label}</small><strong>{valueFormatter(active.value)}</strong></div> : null}
       </header>
       {normalized.length ? (
-        <div className="domnai-premium-bars">
+        <div className="domnai-spectrum-stage" style={{ '--spectrum-count': normalized.length }}>
           {normalized.map((item, index) => (
             <div
-              className={`domnai-premium-bar-row${activeIndex === index ? ' is-active' : ''}`}
+              className={`domnai-spectrum-column${activeIndex === index ? ' is-active' : ''}`}
               role="button"
               tabIndex="0"
               aria-label={`${item.label}: ${valueFormatter(item.value)}`}
@@ -204,10 +224,15 @@ export function InteractiveBarChart({
               }}
               key={item.label}
             >
-              <div><span>{item.label}</span><strong>{valueFormatter(item.value)}</strong></div>
-              <div className="premium-bar-track">
-                <span style={{ '--bar-width': `${Math.max(item.value > 0 ? 3 : 0, (item.value / maxValue) * 100)}%`, '--bar-color': item.color }} />
-              </div>
+              <div
+                className="domnai-spectrum-bar"
+                style={{
+                  '--spectrum-height': `${Math.max(item.value > 0 ? 6 : 3, (item.value / maxValue) * 150)}px`,
+                  '--spectrum-color': item.color,
+                }}
+              />
+              <strong>{valueFormatter(item.value)}</strong>
+              <small title={item.label}>{item.label}</small>
             </div>
           ))}
         </div>
