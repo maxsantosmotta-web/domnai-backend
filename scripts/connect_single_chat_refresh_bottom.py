@@ -45,13 +45,12 @@ single_effect = r'''
     const bottomAnchor = chatBottomRef.current;
     if (!chatArea || !bottomAnchor) return undefined;
 
-    const pinToBottom = () => {
-      bottomAnchor.scrollIntoView({ block: 'end', behavior: 'auto' });
-      chatArea.scrollTop = chatArea.scrollHeight;
-    };
+    const distanceFromBottom = chatArea.scrollHeight - chatArea.scrollTop - chatArea.clientHeight;
+    if (distanceFromBottom <= 2) return undefined;
 
-    pinToBottom();
-    const frame = window.requestAnimationFrame(pinToBottom);
+    const frame = window.requestAnimationFrame(() => {
+      bottomAnchor.scrollIntoView({ block: 'end', behavior: 'smooth' });
+    });
 
     return () => window.cancelAnimationFrame(frame);
   }, [section, conversationReady, messages.length, chatRefreshTick]);
