@@ -15,6 +15,7 @@ COPY scripts/connect_standalone_module_rooms.py /tmp/connect_standalone_module_r
 COPY scripts/connect_billing_signout_first_render.py /tmp/connect_billing_signout_first_render.py
 COPY scripts/connect_final_independent_room_behavior.py /tmp/connect_final_independent_room_behavior.py
 COPY scripts/connect_premium_notice_viewport_center.py /tmp/connect_premium_notice_viewport_center.py
+COPY scripts/connect_admin_access_boundary.py /tmp/connect_admin_access_boundary.py
 RUN apk add --no-cache python3 \
     && python3 /tmp/connect_domnai_chat.py \
     && python3 /tmp/connect_operation_to_composer.py \
@@ -27,6 +28,7 @@ RUN apk add --no-cache python3 \
     && python3 /tmp/connect_billing_signout_first_render.py \
     && python3 /tmp/connect_final_independent_room_behavior.py \
     && python3 /tmp/connect_premium_notice_viewport_center.py \
+    && python3 /tmp/connect_admin_access_boundary.py \
     && npm run build
 
 FROM python:3.13-slim AS runtime
