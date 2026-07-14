@@ -7,42 +7,6 @@
   background: rgba(12, 12, 12, 0.92);
 }
 
-.domnai-user-admin-slot,
-.domnai-user-logout-slot {
-  min-height: 0;
-}
-
-.domnai-user-admin-slot {
-  border-bottom: 1px solid rgba(255, 255, 255, 0.07);
-}
-
-.domnai-user-admin-entry {
-  margin: 0;
-  padding: 0;
-}
-
-.domnai-user-admin-button {
-  width: 100%;
-  min-height: 38px;
-  padding: 10px 12px;
-  border: 0;
-  border-radius: 0;
-  background: transparent;
-  color: #d4d4d4;
-  display: flex;
-  align-items: center;
-  text-align: left;
-  font: 700 0.78rem/1.2 Inter, system-ui, sans-serif;
-  cursor: pointer;
-}
-
-.domnai-user-admin-button:hover,
-.domnai-user-admin-button:focus-visible {
-  background: transparent;
-  color: #ffffff;
-  outline: none;
-}
-
 .domnai-user-account-block > .sidebar-profile {
   margin: 0 !important;
   padding: 0 !important;
@@ -62,6 +26,7 @@
 }
 
 .domnai-user-logout-slot {
+  min-height: 0;
   border-top: 1px solid rgba(255, 255, 255, 0.07);
 }
 
