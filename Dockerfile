@@ -80,8 +80,10 @@ COPY migrations ./migrations
 COPY app ./app
 COPY scripts/tune_domnai_responses.py /tmp/tune_domnai_responses.py
 COPY scripts/guard_domnai_capabilities.py /tmp/guard_domnai_capabilities.py
+COPY scripts/apply_stages_9_11.py /tmp/apply_stages_9_11.py
 RUN python /tmp/tune_domnai_responses.py \
-    && python /tmp/guard_domnai_capabilities.py
+    && python /tmp/guard_domnai_capabilities.py \
+    && python /tmp/apply_stages_9_11.py
 COPY --from=frontend-builder /frontend/dist ./frontend/dist
 EXPOSE 8080
 CMD ["sh", "-c", "alembic upgrade head && uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-8080}"]
