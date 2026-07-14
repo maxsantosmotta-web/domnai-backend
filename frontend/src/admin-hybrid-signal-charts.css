@@ -1,0 +1,202 @@
+.domnai-premium-chart-card {
+  position: relative;
+  overflow: hidden;
+}
+
+.domnai-premium-chart-card::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: linear-gradient(105deg, transparent 0 42%, rgba(255,255,255,.025) 49%, transparent 56% 100%);
+  transform: translateX(-120%);
+  animation: domnai-monitor-scan 5.8s linear infinite;
+}
+
+@keyframes domnai-monitor-scan {
+  to { transform: translateX(120%); }
+}
+
+.domnai-line-chart-stage svg {
+  touch-action: none;
+  cursor: crosshair;
+}
+
+.domnai-signal-halo {
+  fill: none;
+  stroke: rgba(63, 215, 255, .22);
+  stroke-width: 10;
+  filter: blur(7px);
+  opacity: .7;
+}
+
+.domnai-signal-trace {
+  fill: none;
+  stroke: url(#domnai-signal-gradient);
+  stroke-width: 3.25;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  filter: drop-shadow(0 0 7px rgba(63,215,255,.35));
+}
+
+.domnai-signal-energy {
+  fill: none;
+  stroke: rgba(255,255,255,.92);
+  stroke-width: 2.15;
+  stroke-linecap: round;
+  stroke-dasharray: .025 .975;
+  animation: domnai-signal-run 2.25s linear infinite;
+  filter: drop-shadow(0 0 8px rgba(244,201,93,.9));
+}
+
+.domnai-signal-energy.secondary {
+  stroke: rgba(155,130,255,.92);
+  animation-duration: 3.1s;
+}
+
+@keyframes domnai-signal-run {
+  to { stroke-dashoffset: -1; }
+}
+
+.domnai-signal-area {
+  opacity: .72;
+}
+
+.domnai-signal-beat {
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: domnai-signal-beat 1.5s ease-in-out infinite;
+}
+
+@keyframes domnai-signal-beat {
+  0%,100% { opacity: .55; transform: scale(.82); }
+  50% { opacity: 1; transform: scale(1.2); }
+}
+
+.domnai-chart-tooltip.is-touching {
+  opacity: 1;
+  transform: translate(-50%, 0);
+}
+
+.domnai-spectrum-stage {
+  display: grid;
+  grid-template-columns: repeat(var(--spectrum-count), minmax(22px, 1fr));
+  align-items: end;
+  gap: 10px;
+  min-height: 210px;
+  padding: 18px 8px 8px;
+}
+
+.domnai-spectrum-column {
+  position: relative;
+  display: grid;
+  align-content: end;
+  gap: 8px;
+  min-width: 0;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.domnai-spectrum-bar {
+  position: relative;
+  min-height: 8px;
+  height: max(8px, var(--spectrum-height));
+  border-radius: 999px 999px 8px 8px;
+  background: linear-gradient(180deg, color-mix(in srgb, var(--spectrum-color) 100%, white 12%), color-mix(in srgb, var(--spectrum-color) 62%, transparent));
+  box-shadow: 0 0 18px color-mix(in srgb, var(--spectrum-color) 26%, transparent);
+  transition: height .45s cubic-bezier(.2,.8,.2,1), filter .18s ease, transform .18s ease;
+  overflow: hidden;
+}
+
+.domnai-spectrum-bar::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: repeating-linear-gradient(to bottom, rgba(255,255,255,.3) 0 2px, transparent 2px 8px);
+  opacity: .34;
+  animation: domnai-spectrum-flow 1.8s linear infinite;
+}
+
+@keyframes domnai-spectrum-flow {
+  to { transform: translateY(8px); }
+}
+
+.domnai-spectrum-column.is-active .domnai-spectrum-bar,
+.domnai-spectrum-column:active .domnai-spectrum-bar {
+  transform: translateY(-3px) scaleX(1.04);
+  filter: brightness(1.28);
+}
+
+.domnai-spectrum-column small {
+  overflow: hidden;
+  color: #858791;
+  font-size: .62rem;
+  line-height: 1.25;
+  text-align: center;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.domnai-spectrum-column strong {
+  color: #f7f7f8;
+  font-size: .68rem;
+  text-align: center;
+}
+
+.domnai-premium-donut {
+  position: relative;
+}
+
+.domnai-premium-donut::after {
+  content: '';
+  position: absolute;
+  inset: -7px;
+  border-radius: 50%;
+  border: 2px solid transparent;
+  border-top-color: rgba(63,215,255,.78);
+  border-right-color: rgba(244,201,93,.42);
+  filter: drop-shadow(0 0 7px rgba(63,215,255,.35));
+  animation: domnai-radar-ring 4.2s linear infinite;
+}
+
+@keyframes domnai-radar-ring {
+  to { transform: rotate(360deg); }
+}
+
+.domnai-premium-donut > div::after {
+  content: '';
+  position: absolute;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #64e6a6;
+  box-shadow: 0 0 0 5px rgba(100,230,166,.08), 0 0 14px rgba(100,230,166,.8);
+  animation: domnai-signal-beat 1.5s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .domnai-premium-chart-card::after,
+  .domnai-signal-energy,
+  .domnai-signal-beat,
+  .domnai-spectrum-bar::after,
+  .domnai-premium-donut::after,
+  .domnai-premium-donut > div::after {
+    animation: none !important;
+  }
+}
+
+@media (max-width: 700px) {
+  .domnai-spectrum-stage {
+    gap: 6px;
+    min-height: 185px;
+    padding-inline: 2px;
+  }
+
+  .domnai-spectrum-column small {
+    font-size: .56rem;
+  }
+
+  .domnai-spectrum-column strong {
+    font-size: .61rem;
+  }
+}
