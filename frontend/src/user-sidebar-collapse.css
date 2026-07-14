@@ -12,12 +12,13 @@
 
 .user-sidebar-collapse-button {
   order: -1;
+  align-self: flex-start;
   width: 34px;
   height: 34px;
   flex: 0 0 34px;
   display: grid;
   place-items: center;
-  margin-top: -6px;
+  margin-top: 0;
   border: 1px solid rgba(225, 181, 77, 0.24);
   border-radius: 10px;
   background: #0d0d0d;
