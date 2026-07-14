@@ -9,7 +9,11 @@ from urllib.request import Request, urlopen
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import func, select
 
-from app.api.admin import ADMIN_TRANSACTION_KIND, _has_persisted_admin_access
+from app.api.admin import (
+    ADMIN_TRANSACTION_KIND,
+    _grant_admin_access,
+    _has_persisted_admin_access,
+)
 from app.auth import require_authenticated_user
 from app.config import settings
 from app.database import session_scope
@@ -35,6 +39,10 @@ def _require_admin(session: dict) -> str:
     user_id = str(session.get("sub") or "").strip()
     if not user_id or not _has_persisted_admin_access(user_id):
         raise HTTPException(status_code=403, detail="Acesso administrativo não autorizado.")
+
+    # Garante que o vínculo administrativo e o plano persistido estejam
+    # sincronizados antes de calcular os indicadores do módulo Usuários.
+    _grant_admin_access(user_id)
     return user_id
 
 
@@ -174,19 +182,11 @@ def _latest(*values: datetime | None) -> datetime | None:
     return max(normalized) if normalized else None
 
 
-def _active_premium(account: BillingAccount | None, now: datetime) -> bool:
-    if account is None or account.plan != "premium":
-        return False
-    if account.subscription_status not in {"active", "trialing"}:
-        return False
-    period_end = _normalize_datetime(account.current_period_end)
-    return period_end is None or now <= period_end
-
-
-def _resolved_plan(account: BillingAccount | None, now: datetime) -> str:
-    if _active_premium(account, now):
+def _resolved_plan(account: BillingAccount | None) -> str:
+    raw_plan = str(account.plan if account else "").strip().lower()
+    if raw_plan == "premium":
         return "premium"
-    if account and str(account.plan or "").lower() == "free":
+    if raw_plan == "free":
         return "free"
     return "unselected"
 
@@ -235,7 +235,7 @@ def _build_brain_insights(summary: dict) -> list[dict]:
     insights.append({
         "level": "positive" if premium_rate >= 20 else "info",
         "title": "Conversão para Plano Premium",
-        "message": f"{premium_rate:.1f}% da base está com o Plano Premium ativo.",
+        "message": f"{premium_rate:.1f}% da base está no Plano Premium.",
     })
     return insights[:4]
 
@@ -262,8 +262,9 @@ def list_admin_users(
     }
 
     with session_scope() as db:
+        database_user_ids = _database_user_ids(db)
         user_ids = set(clerk_by_id)
-        user_ids.update(_database_user_ids(db))
+        user_ids.update(database_user_ids)
         user_ids.add(admin_user_id)
 
         accounts = {
@@ -331,7 +332,7 @@ def list_admin_users(
             library_activity.get(user_id),
         )
 
-        normalized_plan = _resolved_plan(account, now)
+        normalized_plan = _resolved_plan(account)
         plan_counts[normalized_plan] += 1
 
         credits = int((account.plan_credits + account.extra_credits) if account else 0)
@@ -418,6 +419,11 @@ def list_admin_users(
         "brainInsights": _build_brain_insights(summary),
         "generatedAt": now.isoformat(),
         "source": "database-fallback" if clerk_warning else "clerk+database",
+        "sourceCounts": {
+            "clerkUsers": len(clerk_by_id),
+            "databaseUsers": len(database_user_ids),
+            "mergedUsers": len(user_ids),
+        },
         "dataWarning": (
             "O Clerk não respondeu nesta atualização. A tela está exibindo os dados reais "
             "já persistidos no DomnAI; e-mails e datas de cadastro podem ficar incompletos."
