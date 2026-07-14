@@ -119,8 +119,9 @@
   font-size: 0.72rem;
 }
 
-/* O IAttom Brain continua disponível internamente, mas não é exibido no Faturamento. */
-.domnai-admin-billing-brain {
+/* O IAttom Brain continua disponível internamente, mas não é exibido nos módulos administrativos. */
+.domnai-admin-billing-brain,
+.domnai-admin-users-brain {
   display: none !important;
 }
 
