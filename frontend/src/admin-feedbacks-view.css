@@ -1,0 +1,268 @@
+.domnai-admin-feedbacks-view {
+  display: grid;
+  gap: 18px;
+}
+
+.domnai-admin-feedbacks-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+}
+
+.domnai-admin-feedbacks-heading h2,
+.domnai-admin-feedbacks-heading p {
+  margin: 0;
+}
+
+.domnai-admin-feedbacks-heading h2 {
+  color: #ffffff;
+  font-size: clamp(1.2rem, 2.5vw, 1.55rem);
+}
+
+.domnai-admin-feedbacks-heading p {
+  margin-top: 5px;
+  color: #858585;
+  font-size: 0.86rem;
+  line-height: 1.5;
+}
+
+.domnai-admin-feedbacks-heading > button,
+.domnai-admin-feedbacks-state button {
+  min-height: 38px;
+  padding: 0 14px;
+  border: 1px solid rgba(231, 195, 94, 0.28);
+  border-radius: 10px;
+  background: rgba(231, 195, 94, 0.08);
+  color: #e7c35e;
+  font-size: 0.78rem;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.domnai-admin-feedbacks-heading > button:disabled {
+  opacity: 0.56;
+  cursor: wait;
+}
+
+.domnai-admin-feedbacks-summary {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.domnai-admin-feedbacks-summary article {
+  min-height: 86px;
+  padding: 14px;
+  border: 1px solid rgba(255, 255, 255, 0.07);
+  border-radius: 14px;
+  background: rgba(13, 13, 13, 0.92);
+  display: grid;
+  align-content: space-between;
+}
+
+.domnai-admin-feedbacks-summary span {
+  color: #7e7e7e;
+  font-size: 0.72rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.domnai-admin-feedbacks-summary strong {
+  color: #ffffff;
+  font-size: 1.55rem;
+}
+
+.domnai-admin-feedbacks-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.domnai-admin-feedbacks-toolbar button {
+  min-height: 34px;
+  padding: 0 12px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 999px;
+  background: transparent;
+  color: #969696;
+  font-size: 0.74rem;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.domnai-admin-feedbacks-toolbar button.selected {
+  border-color: rgba(231, 195, 94, 0.36);
+  background: rgba(231, 195, 94, 0.08);
+  color: #e7c35e;
+}
+
+.domnai-admin-feedbacks-list {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.domnai-admin-feedback-item {
+  min-width: 0;
+  padding: 16px;
+  border: 1px solid rgba(255, 255, 255, 0.07);
+  border-radius: 15px;
+  background: linear-gradient(180deg, rgba(15, 15, 15, 0.98), rgba(9, 9, 9, 0.98));
+}
+
+.domnai-admin-feedback-item.problem {
+  border-color: rgba(220, 80, 80, 0.16);
+}
+
+.domnai-admin-feedback-item.praise {
+  border-color: rgba(74, 190, 126, 0.16);
+}
+
+.domnai-admin-feedback-item-top,
+.domnai-admin-feedback-user {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.domnai-admin-feedback-item-top > div {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.domnai-admin-feedback-item-top .category,
+.domnai-admin-feedback-item-top .status {
+  padding: 5px 8px;
+  border-radius: 999px;
+  font-size: 0.64rem;
+  font-weight: 900;
+}
+
+.domnai-admin-feedback-item-top .category {
+  background: rgba(231, 195, 94, 0.1);
+  color: #dfbd59;
+}
+
+.domnai-admin-feedback-item-top .status {
+  background: rgba(255, 255, 255, 0.05);
+  color: #9d9d9d;
+}
+
+.domnai-admin-feedback-item time {
+  color: #626262;
+  font-size: 0.68rem;
+  white-space: nowrap;
+}
+
+.domnai-admin-feedback-user {
+  margin-top: 13px;
+}
+
+.domnai-admin-feedback-user strong {
+  min-width: 0;
+  overflow: hidden;
+  color: #e8e8e8;
+  font-size: 0.82rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.domnai-admin-feedback-stars {
+  display: inline-flex;
+  gap: 2px;
+  color: #3f3f3f;
+  font-size: 0.88rem;
+}
+
+.domnai-admin-feedback-stars .filled {
+  color: #e4ba43;
+}
+
+.domnai-admin-feedback-item h3 {
+  margin: 13px 0 7px;
+  color: #ffffff;
+  font-size: 0.95rem;
+}
+
+.domnai-admin-feedback-item > p {
+  margin: 0;
+  color: #929292;
+  font-size: 0.8rem;
+  line-height: 1.55;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.domnai-admin-feedbacks-state {
+  min-height: 190px;
+  padding: 24px;
+  border: 1px dashed rgba(255, 255, 255, 0.09);
+  border-radius: 15px;
+  display: grid;
+  place-items: center;
+  align-content: center;
+  gap: 8px;
+  color: #7c7c7c;
+  text-align: center;
+}
+
+.domnai-admin-feedbacks-state p {
+  margin: 0;
+  font-size: 0.82rem;
+}
+
+.domnai-admin-feedbacks-state.error {
+  border-color: rgba(220, 80, 80, 0.2);
+  color: #ff9b9b;
+}
+
+.domnai-admin-feedbacks-state .spinner {
+  width: 28px;
+  height: 28px;
+  border: 3px solid rgba(231, 195, 94, 0.16);
+  border-top-color: #e7c35e;
+  border-radius: 50%;
+  animation: domnai-admin-feedback-spin 800ms linear infinite;
+}
+
+@keyframes domnai-admin-feedback-spin {
+  to { transform: rotate(360deg); }
+}
+
+@media (max-width: 980px) {
+  .domnai-admin-feedbacks-summary {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .domnai-admin-feedbacks-list {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 620px) {
+  .domnai-admin-feedbacks-heading {
+    align-items: flex-start;
+  }
+
+  .domnai-admin-feedbacks-heading > button {
+    flex: 0 0 auto;
+  }
+
+  .domnai-admin-feedbacks-summary {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .domnai-admin-feedback-item-top,
+  .domnai-admin-feedback-user {
+    align-items: flex-start;
+  }
+
+  .domnai-admin-feedback-item time {
+    white-space: normal;
+    text-align: right;
+  }
+}
