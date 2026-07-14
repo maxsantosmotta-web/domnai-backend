@@ -8,21 +8,12 @@ from sqlalchemy import case, func, select, update
 from app.api.admin import _has_persisted_admin_access
 from app.auth import require_authenticated_user
 from app.database import session_scope
-from app.models import UserFeedback, UserProfile
+from app.models import BillingAccount, UserFeedback, UserProfile
 
 router = APIRouter(prefix="/api/feedback", tags=["feedback"])
 
-CATEGORY_LABELS = {
-    "suggestion": "Sugestão",
-    "problem": "Problema",
-    "praise": "Elogio",
-}
-
-STATUS_LABELS = {
-    "received": "Recebido",
-    "reviewing": "Em análise",
-    "resolved": "Resolvido",
-}
+CATEGORY_LABELS = {"suggestion": "Sugestão", "problem": "Problema", "praise": "Elogio"}
+STATUS_LABELS = {"received": "Recebido", "reviewing": "Em análise", "resolved": "Resolvido"}
 
 
 class FeedbackPayload(BaseModel):
@@ -55,41 +46,39 @@ def _require_admin(session: dict) -> str:
     return user_id
 
 
-@router.get("/admin")
-def list_admin_feedbacks(
-    limit: int = Query(default=200, ge=1, le=500),
-    session: dict = Depends(require_authenticated_user),
-):
-    _require_admin(session)
+def _require_feedback_access(db, user_id: str) -> None:
+    if _has_persisted_admin_access(user_id):
+        return
+    account = db.get(BillingAccount, user_id)
+    if account is None or account.plan != "premium" or account.subscription_status not in {"active", "trialing", "past_due"}:
+        raise HTTPException(status_code=403, detail="O módulo Feedback está disponível exclusivamente no plano PREMIUM.")
 
+
+@router.get("/access")
+def feedback_access(session: dict = Depends(require_authenticated_user)):
+    user_id = str(session.get("sub") or "").strip()
     with session_scope() as db:
-        items = list(
-            db.scalars(
-                select(UserFeedback)
-                .where(UserFeedback.admin_hidden_at.is_(None))
-                .order_by(UserFeedback.created_at.desc())
-                .limit(limit)
-            ).all()
-        )
+        try:
+            _require_feedback_access(db, user_id)
+            return {"allowed": True, "premiumRequired": False}
+        except HTTPException:
+            return {"allowed": False, "premiumRequired": True}
 
-        summary_row = db.execute(
-            select(
-                func.count(UserFeedback.id).label("total"),
-                func.sum(case((UserFeedback.category == "suggestion", 1), else_=0)).label("suggestions"),
-                func.sum(case((UserFeedback.category == "problem", 1), else_=0)).label("problems"),
-                func.sum(case((UserFeedback.category == "praise", 1), else_=0)).label("praises"),
-                func.avg(UserFeedback.rating).label("average"),
-            )
-        ).one()
 
+@router.get("/admin")
+def list_admin_feedbacks(limit: int = Query(default=200, ge=1, le=500), session: dict = Depends(require_authenticated_user)):
+    _require_admin(session)
+    with session_scope() as db:
+        items = list(db.scalars(select(UserFeedback).where(UserFeedback.admin_hidden_at.is_(None)).order_by(UserFeedback.created_at.desc()).limit(limit)).all())
+        summary_row = db.execute(select(
+            func.count(UserFeedback.id).label("total"),
+            func.sum(case((UserFeedback.category == "suggestion", 1), else_=0)).label("suggestions"),
+            func.sum(case((UserFeedback.category == "problem", 1), else_=0)).label("problems"),
+            func.sum(case((UserFeedback.category == "praise", 1), else_=0)).label("praises"),
+            func.avg(UserFeedback.rating).label("average"),
+        )).one()
         user_ids = {item.user_id for item in items}
-        profiles = {
-            profile.user_id: profile.full_name
-            for profile in db.scalars(
-                select(UserProfile).where(UserProfile.user_id.in_(user_ids))
-            ).all()
-        } if user_ids else {}
-
+        profiles = {profile.user_id: profile.full_name for profile in db.scalars(select(UserProfile).where(UserProfile.user_id.in_(user_ids))).all()} if user_ids else {}
         return {
             "items": [_serialize(item, profiles.get(item.user_id, "")) for item in items],
             "visibleTotal": len(items),
@@ -104,96 +93,49 @@ def list_admin_feedbacks(
 
 
 @router.delete("/admin")
-def hide_all_admin_feedbacks(
-    session: dict = Depends(require_authenticated_user),
-):
+def hide_all_admin_feedbacks(session: dict = Depends(require_authenticated_user)):
     _require_admin(session)
     hidden_at = datetime.now(timezone.utc)
-
     with session_scope() as db:
-        result = db.execute(
-            update(UserFeedback)
-            .where(UserFeedback.admin_hidden_at.is_(None))
-            .values(admin_hidden_at=hidden_at)
-        )
-        return {
-            "hidden": True,
-            "hiddenCount": int(result.rowcount or 0),
-        }
+        result = db.execute(update(UserFeedback).where(UserFeedback.admin_hidden_at.is_(None)).values(admin_hidden_at=hidden_at))
+        return {"hidden": True, "hiddenCount": int(result.rowcount or 0)}
 
 
 @router.delete("/admin/{feedback_id}")
-def hide_admin_feedback(
-    feedback_id: str,
-    session: dict = Depends(require_authenticated_user),
-):
+def hide_admin_feedback(feedback_id: str, session: dict = Depends(require_authenticated_user)):
     _require_admin(session)
-
     with session_scope() as db:
         item = db.get(UserFeedback, feedback_id)
         if item is None:
             raise HTTPException(status_code=404, detail="Feedback não encontrado.")
-
         if item.admin_hidden_at is None:
             item.admin_hidden_at = datetime.now(timezone.utc)
-
-        return {
-            "hidden": True,
-            "feedbackId": item.id,
-        }
+        return {"hidden": True, "feedbackId": item.id}
 
 
 @router.get("")
-def list_user_feedbacks(
-    limit: int = Query(default=100, ge=1, le=200),
-    session: dict = Depends(require_authenticated_user),
-):
+def list_user_feedbacks(limit: int = Query(default=100, ge=1, le=200), session: dict = Depends(require_authenticated_user)):
     user_id = str(session.get("sub") or "").strip()
     with session_scope() as db:
-        items = list(
-            db.scalars(
-                select(UserFeedback)
-                .where(UserFeedback.user_id == user_id)
-                .order_by(UserFeedback.created_at.desc())
-                .limit(limit)
-            ).all()
-        )
+        _require_feedback_access(db, user_id)
+        items = list(db.scalars(select(UserFeedback).where(UserFeedback.user_id == user_id).order_by(UserFeedback.created_at.desc()).limit(limit)).all())
         profile = db.get(UserProfile, user_id)
-        user_name = profile.full_name if profile else ""
-        return {
-            "items": [_serialize(item, user_name) for item in items],
-            "total": len(items),
-        }
+        return {"items": [_serialize(item, profile.full_name if profile else "") for item in items], "total": len(items)}
 
 
 @router.post("", status_code=201)
-def create_user_feedback(
-    payload: FeedbackPayload,
-    session: dict = Depends(require_authenticated_user),
-):
+def create_user_feedback(payload: FeedbackPayload, session: dict = Depends(require_authenticated_user)):
     user_id = str(session.get("sub") or "").strip()
     title = payload.title.strip()
     message = payload.message.strip()
-
     if len(title) < 3:
         raise HTTPException(status_code=400, detail="Informe um título com pelo menos 3 caracteres.")
     if len(message) < 10:
         raise HTTPException(status_code=400, detail="Descreva seu feedback com pelo menos 10 caracteres.")
-
     with session_scope() as db:
-        item = UserFeedback(
-            user_id=user_id,
-            category=payload.category,
-            rating=payload.rating,
-            title=title,
-            message=message,
-            status="received",
-        )
+        _require_feedback_access(db, user_id)
+        item = UserFeedback(user_id=user_id, category=payload.category, rating=payload.rating, title=title, message=message, status="received")
         db.add(item)
         db.flush()
-
         profile = db.get(UserProfile, user_id)
-        return {
-            "saved": True,
-            "feedback": _serialize(item, profile.full_name if profile else ""),
-        }
+        return {"saved": True, "feedback": _serialize(item, profile.full_name if profile else "")}
