@@ -3,7 +3,6 @@ from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
 
 from fastapi import APIRouter, Depends, HTTPException
-from sqlalchemy import select
 
 from app.auth import require_authenticated_user
 from app.config import settings
@@ -16,9 +15,27 @@ ADMIN_CREDITS = 100000
 OWNER_EMAIL = "maxsantosmotta@gmail.com"
 
 
+def _safe_clerk_error_code(exc: HTTPError) -> str:
+    try:
+        payload = json.loads(exc.read().decode("utf-8"))
+        errors = payload.get("errors") or []
+        raw_code = str((errors[0] if errors else {}).get("code") or "unknown")
+    except (ValueError, UnicodeDecodeError, AttributeError, IndexError):
+        raw_code = "unknown"
+
+    safe_code = "".join(
+        character for character in raw_code
+        if character.isalnum() or character in {"_", "-", "."}
+    )
+    return safe_code[:80] or "unknown"
+
+
 def _clerk_user_email(user_id: str) -> str:
     if not settings.clerk_secret_key:
-        raise HTTPException(status_code=503, detail="CLERK_SECRET_KEY não configurada.")
+        raise HTTPException(
+            status_code=503,
+            detail="Falha na validação do Clerk. Etapa: configuração. Código: secret_key_missing.",
+        )
 
     request = Request(
         f"https://api.clerk.com/v1/users/{user_id}",
@@ -32,9 +49,30 @@ def _clerk_user_email(user_id: str) -> str:
         with urlopen(request, timeout=8) as response:
             payload = json.loads(response.read().decode("utf-8"))
     except HTTPError as exc:
-        raise HTTPException(status_code=403, detail="Não foi possível confirmar a conta administrativa.") from exc
-    except (URLError, TimeoutError, ValueError) as exc:
-        raise HTTPException(status_code=503, detail="Clerk indisponível para validar a conta administrativa.") from exc
+        error_code = _safe_clerk_error_code(exc)
+        public_status = 503 if exc.code >= 500 else 403
+        raise HTTPException(
+            status_code=public_status,
+            detail=(
+                "Falha na validação do Clerk. "
+                f"Etapa: consulta do usuário. HTTP: {exc.code}. Código: {error_code}."
+            ),
+        ) from exc
+    except URLError as exc:
+        raise HTTPException(
+            status_code=503,
+            detail="Falha na validação do Clerk. Etapa: conexão. Código: network_error.",
+        ) from exc
+    except TimeoutError as exc:
+        raise HTTPException(
+            status_code=503,
+            detail="Falha na validação do Clerk. Etapa: conexão. Código: timeout.",
+        ) from exc
+    except (ValueError, UnicodeDecodeError) as exc:
+        raise HTTPException(
+            status_code=503,
+            detail="Falha na validação do Clerk. Etapa: leitura da resposta. Código: invalid_response.",
+        ) from exc
 
     primary_id = payload.get("primary_email_address_id")
     addresses = payload.get("email_addresses") or []
