@@ -1,31 +1,63 @@
-.domnai-profile-header-actions {
+.domnai-sidebar-logout {
+  width: calc(100% - 24px);
+  min-height: 44px;
+  margin: auto 12px 8px;
+  padding: 0 14px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 10px;
+  background: rgba(18, 18, 18, 0.86);
+  color: #b5b5b5;
   display: flex;
   align-items: center;
   gap: 10px;
+  text-align: left;
+  font: 700 0.86rem Inter, system-ui, sans-serif;
+  cursor: pointer;
+  transition: border-color 160ms ease, color 160ms ease, background 160ms ease;
 }
 
-.domnai-logout-button,
+.domnai-sidebar-logout span {
+  color: #c5a74e;
+  font-size: 1rem;
+}
+
+.domnai-sidebar-logout strong {
+  font: inherit;
+}
+
+.domnai-sidebar-logout:hover,
+.domnai-sidebar-logout:focus-visible {
+  border-color: rgba(216, 170, 52, 0.35);
+  background: rgba(216, 170, 52, 0.08);
+  color: #f1d47c;
+  outline: none;
+}
+
+.domnai-sidebar-logout:disabled,
+.domnai-plan-logout:disabled {
+  opacity: 0.72;
+  cursor: wait;
+}
+
+.domnai-sidebar > .sidebar-profile {
+  margin-top: 0 !important;
+}
+
 .domnai-plan-logout {
   min-height: 44px;
   padding: 0 18px;
-  border: 1px solid rgba(205, 76, 76, .34);
+  border: 1px solid rgba(205, 76, 76, 0.34);
   border-radius: 12px;
-  background: rgba(120, 28, 28, .12);
+  background: rgba(120, 28, 28, 0.12);
   color: #ff9d9d;
+  font-size: 0.86rem;
   font-weight: 800;
   cursor: pointer;
 }
 
-.domnai-logout-button:hover,
 .domnai-plan-logout:hover {
-  border-color: rgba(225, 92, 92, .58);
-  background: rgba(120, 28, 28, .2);
-}
-
-.domnai-logout-button:disabled,
-.domnai-plan-logout:disabled {
-  opacity: .65;
-  cursor: wait;
+  border-color: rgba(225, 92, 92, 0.58);
+  background: rgba(120, 28, 28, 0.2);
 }
 
 .domnai-app-shell.onboarding-plan-mode {
@@ -39,14 +71,41 @@
   z-index: 30;
 }
 
-@media (max-width: 820px) {
-  .domnai-profile-header-actions {
-    width: 100%;
-    flex-direction: column;
-  }
+.domnai-user-logout-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 2147483647;
+  display: grid;
+  place-content: center;
+  justify-items: center;
+  gap: 10px;
+  background: #070707;
+}
 
-  .domnai-profile-header-actions button {
-    width: 100%;
+.domnai-user-logout-overlay > img {
+  width: min(180px, 48vw);
+  max-height: 76px;
+  object-fit: contain;
+}
+
+.domnai-user-logout-spinner {
+  width: 32px;
+  height: 32px;
+  display: block;
+  border: 3px solid rgba(216, 170, 52, 0.2);
+  border-top-color: #d8aa34;
+  border-radius: 50%;
+  animation: domnai-user-logout-spin 800ms linear infinite;
+}
+
+@keyframes domnai-user-logout-spin {
+  to { transform: rotate(360deg); }
+}
+
+@media (max-width: 820px) {
+  .domnai-sidebar-logout {
+    width: calc(100% - 16px);
+    margin: 18px 8px 8px;
   }
 
   .domnai-plan-logout {
