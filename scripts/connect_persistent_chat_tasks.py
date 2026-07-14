@@ -1,19 +1,20 @@
 from pathlib import Path
-import re
 
 path = Path('/frontend/src/Dashboard.jsx')
 source = path.read_text(encoding='utf-8')
 
-pattern = re.compile(
-    r"      const response = await authorizedFetch\('/api/chat/respond', \{.*?"
-    r"      setMessages\(\(current\) => \[\.\.\.current, \{\n"
-    r"        id: Date\.now\(\) \+ 1,\n"
-    r"        role: 'assistant',\n"
-    r"        text: payload\.reply \|\| 'O DomnAI não retornou uma resposta em texto\.',\n"
-    r"        attachments: \[\],\n"
-    r"      \}\]\);",
-    re.S,
-)
+# Idempotência: não altera novamente quando a fila já estiver conectada.
+if "authorizedFetch('/api/chat/tasks'" in source:
+    path.write_text(source, encoding='utf-8')
+    raise SystemExit(0)
+
+start_marker = "      const response = await authorizedFetch('/api/chat/respond', {"
+end_marker = "    } catch (error) {"
+start = source.find(start_marker)
+end = source.find(end_marker, start)
+
+if start == -1 or end == -1:
+    raise RuntimeError('Fluxo atual do chat não foi localizado para conexão persistente.')
 
 replacement = '''      const createResponse = await authorizedFetch('/api/chat/tasks', {
         method: 'POST',
@@ -53,10 +54,8 @@ replacement = '''      const createResponse = await authorizedFetch('/api/chat/t
         role: 'assistant',
         text: `${result.reply || 'O DomnAI não retornou uma resposta em texto.'}${sourceText}`,
         attachments: Array.isArray(result.artifacts) ? result.artifacts : [],
-      }]);'''
+      }]);
+'''
 
-source, count = pattern.subn(replacement, source, count=1)
-if count != 1:
-    raise RuntimeError('Fluxo atual do chat não foi localizado para conexão persistente.')
-
+source = source[:start] + replacement + source[end:]
 path.write_text(source, encoding='utf-8')
