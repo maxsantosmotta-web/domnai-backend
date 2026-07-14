@@ -1,7 +1,7 @@
 import re
 
 
-_PROHIBITED_URLS = re.compile(
+_EXTERNAL_URLS = re.compile(
     r"https?://(?:docs\.google\.com|drive\.google\.com|file\.io|dropbox\.com|bit\.ly|tinyurl\.com)/\S+",
     re.IGNORECASE,
 )
@@ -18,15 +18,33 @@ _FUTURE_PROMISES = re.compile(
 )
 
 
-def apply_capability_guard(text: str) -> str:
-    """Remove afirmações de ações externas que o DomnAI não executou de fato."""
+def apply_capability_guard(
+    text: str,
+    confirmed_actions: set[str] | None = None,
+) -> str:
+    """Bloqueia apenas ações externas não confirmadas por uma integração real.
+
+    Integrações futuras devem informar ações confirmadas, por exemplo:
+    - ``google_sheets_created``
+    - ``email_sent``
+    - ``external_link_generated``
+    """
     original = str(text or "").strip()
     if not original:
         return original
 
-    sanitized = _PROHIBITED_URLS.sub("", original)
-    sanitized = _EXTERNAL_ACTION_CLAIMS.sub("", sanitized)
-    sanitized = _FUTURE_PROMISES.sub("", sanitized)
+    confirmed = confirmed_actions or set()
+    allow_sheets = "google_sheets_created" in confirmed
+    allow_email = "email_sent" in confirmed
+    allow_link = "external_link_generated" in confirmed
+
+    sanitized = original
+    if not allow_link:
+        sanitized = _EXTERNAL_URLS.sub("", sanitized)
+
+    if not (allow_sheets and allow_email and allow_link):
+        sanitized = _EXTERNAL_ACTION_CLAIMS.sub("", sanitized)
+        sanitized = _FUTURE_PROMISES.sub("", sanitized)
 
     lines = [line.rstrip() for line in sanitized.splitlines()]
     compact_lines: list[str] = []
@@ -42,9 +60,9 @@ def apply_capability_guard(text: str) -> str:
     changed = result != original
     if changed:
         notice = (
-            "Não consigo criar ou compartilhar Google Sheets, enviar e-mails ou gerar links externos "
-            "sem uma integração ativa. Posso entregar o conteúdo diretamente nesta conversa ou em "
-            "um arquivo realmente gerado pelo DomnAI."
+            "Essa ação só pode ser confirmada quando a integração correspondente executar e retornar "
+            "sucesso. Sem essa confirmação, entrego o conteúdo diretamente nesta conversa ou em um "
+            "arquivo realmente gerado pelo DomnAI."
         )
         result = f"{result}\n\n{notice}" if result else notice
     return result
