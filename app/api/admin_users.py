@@ -32,9 +32,7 @@ def _require_admin(session: dict) -> tuple[str, dict]:
     user_id = str(session.get("sub") or "").strip()
     if not user_id or not _has_persisted_admin_access(user_id):
         raise HTTPException(status_code=403, detail="Acesso administrativo não autorizado.")
-
-    admin_state = _grant_admin_access(user_id)
-    return user_id, admin_state
+    return user_id, _grant_admin_access(user_id)
 
 
 def _normalize_datetime(value: datetime | None) -> datetime | None:
@@ -56,7 +54,7 @@ def _clerk_datetime(value) -> datetime | None:
     try:
         numeric = int(value)
         if numeric > 10_000_000_000:
-            numeric = numeric / 1000
+            numeric /= 1000
         return datetime.fromtimestamp(numeric, tz=timezone.utc)
     except (TypeError, ValueError, OSError, OverflowError):
         return None
@@ -85,7 +83,6 @@ def _clerk_users() -> list[dict]:
 
     users: list[dict] = []
     offset = 0
-
     try:
         while offset < MAX_CLERK_USERS:
             query = urlencode({
@@ -107,7 +104,6 @@ def _clerk_users() -> list[dict]:
             batch = payload if isinstance(payload, list) else payload.get("data", [])
             if not isinstance(batch, list):
                 raise ValueError("Resposta inválida do Clerk.")
-
             users.extend(batch)
             if len(batch) < CLERK_PAGE_SIZE:
                 break
@@ -153,32 +149,29 @@ def _latest(*values: datetime | None) -> datetime | None:
     return max(normalized) if normalized else None
 
 
-def _build_brain_insights(summary: dict) -> list[dict]:
+def _brain_insights(summary: dict) -> list[dict]:
     total = summary["totalUsers"]
     if total == 0:
         return [{
             "level": "info",
             "title": "Base ainda sem usuários",
-            "message": "O IAttom Brain começará a comparar adesão, atividade e conversão assim que houver cadastros.",
+            "message": "O IAttom Brain começará a analisar a base assim que houver cadastros ativos.",
         }]
 
+    insights: list[dict] = []
     incomplete = total - summary["profileCompleted"]
-    unselected = summary["unselectedUsers"]
     inactive = total - summary["activeLast7Days"]
-    premium_rate = round((summary["premiumUsers"] / total) * 100, 1)
-
-    insights = []
     if incomplete:
         insights.append({
             "level": "attention",
             "title": "Cadastros incompletos",
             "message": f"{incomplete} usuário(s) ainda não concluíram o perfil obrigatório.",
         })
-    if unselected:
+    if summary["unselectedUsers"]:
         insights.append({
             "level": "attention",
             "title": "Plano ainda não escolhido",
-            "message": f"{unselected} usuário(s) estão sem Plano Free ou Plano Premium definido.",
+            "message": f"{summary['unselectedUsers']} usuário(s) estão sem Plano Free ou Plano Premium definido.",
         })
     if inactive:
         insights.append({
@@ -186,6 +179,7 @@ def _build_brain_insights(summary: dict) -> list[dict]:
             "title": "Atividade recente",
             "message": f"{summary['activeLast7Days']} de {total} usuário(s) tiveram atividade nos últimos 7 dias.",
         })
+    premium_rate = round((summary["premiumUsers"] / total) * 100, 1)
     insights.append({
         "level": "positive" if premium_rate >= 20 else "info",
         "title": "Conversão para Plano Premium",
@@ -202,12 +196,14 @@ def list_admin_users(
     admin_user_id, admin_state = _require_admin(session)
     warnings: list[str] = []
 
+    clerk_available = True
     try:
         clerk_users = _clerk_users()
     except HTTPException as exc:
+        clerk_available = False
         clerk_users = []
         warnings.append(f"Clerk: {exc.detail}")
-        logger.warning("Módulo Usuários operando sem Clerk: %s", exc.detail)
+        logger.warning("Módulo Usuários operando com fallback do banco: %s", exc.detail)
 
     clerk_by_id = {
         str(item.get("id") or "").strip(): item
@@ -224,9 +220,6 @@ def list_admin_users(
         with session_scope() as db:
             account_rows = db.scalars(select(BillingAccount)).all()
             profile_rows = db.scalars(select(UserProfile)).all()
-
-            # Copia todos os valores ainda dentro da sessão. Nenhum objeto ORM
-            # é usado depois que o contexto do banco termina.
             accounts = {
                 item.user_id: {
                     "plan": str(item.plan or "unselected"),
@@ -245,7 +238,6 @@ def list_admin_users(
                 }
                 for item in profile_rows
             }
-
             admin_ids.update(
                 str(value)
                 for value in db.scalars(
@@ -258,22 +250,18 @@ def list_admin_users(
                 ).all()
                 if value
             )
-
-            credit_activity_rows = db.execute(
-                select(CreditTransaction.user_id, func.max(CreditTransaction.created_at))
-                .group_by(CreditTransaction.user_id)
-            ).all()
             credit_activity = {
                 str(user_id): _normalize_datetime(value)
-                for user_id, value in credit_activity_rows
+                for user_id, value in db.execute(
+                    select(CreditTransaction.user_id, func.max(CreditTransaction.created_at))
+                    .group_by(CreditTransaction.user_id)
+                ).all()
                 if user_id and value is not None
             }
     except Exception as exc:
         logger.exception("Falha parcial no banco do módulo Usuários")
         warnings.append(f"Banco: {type(exc).__name__}")
 
-    # A própria resposta do bootstrap garante que o administrador apareça
-    # mesmo se a consulta complementar do banco falhar.
     accounts.setdefault(admin_user_id, {
         "plan": str(admin_state.get("plan") or "premium"),
         "subscription_status": str(admin_state.get("subscriptionStatus") or "active"),
@@ -283,14 +271,22 @@ def list_admin_users(
     })
 
     database_user_ids = set(accounts) | set(profiles) | set(credit_activity)
-    user_ids = set(clerk_by_id) | database_user_ids | {admin_user_id}
+    if clerk_available:
+        # Clerk é a fonte oficial de existência do usuário. Registros apagados
+        # permanecem no banco apenas como histórico e não entram na tela.
+        user_ids = set(clerk_by_id)
+        user_ids.add(admin_user_id)
+    else:
+        # Somente quando o Clerk está indisponível o banco vira fallback.
+        user_ids = database_user_ids | {admin_user_id}
 
+    historical_excluded = database_user_ids - set(clerk_by_id) if clerk_available else set()
     now = datetime.now(timezone.utc)
     start_week = (now - timedelta(days=now.weekday())).replace(hour=0, minute=0, second=0, microsecond=0)
     start_month = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
     active_cutoff = now - timedelta(days=7)
 
-    items = []
+    items: list[dict] = []
     growth_counts: defaultdict[str, int] = defaultdict(int)
     plan_counts = {"premium": 0, "free": 0, "unselected": 0}
     new_this_week = 0
@@ -303,29 +299,24 @@ def list_admin_users(
         clerk_user = clerk_by_id.get(user_id, {})
         profile = profiles.get(user_id, {})
         account = accounts.get(user_id, {})
-        is_admin = user_id in admin_ids
-
         created_at = _clerk_datetime(clerk_user.get("created_at"))
-        clerk_last_sign_in = _clerk_datetime(clerk_user.get("last_sign_in_at"))
         last_activity = _latest(
-            clerk_last_sign_in,
+            _clerk_datetime(clerk_user.get("last_sign_in_at")),
             account.get("updated_at"),
             profile.get("updated_at"),
             credit_activity.get(user_id),
         )
 
-        normalized_plan = _resolved_plan(account)
-        if user_id == admin_user_id and normalized_plan == "unselected":
+        plan = _resolved_plan(account)
+        if user_id == admin_user_id and plan == "unselected":
             bootstrap_plan = str(admin_state.get("plan") or "premium").strip().lower()
-            normalized_plan = bootstrap_plan if bootstrap_plan in {"premium", "free"} else "premium"
-        plan_counts[normalized_plan] += 1
+            plan = bootstrap_plan if bootstrap_plan in {"premium", "free"} else "premium"
+        plan_counts[plan] += 1
 
         credits = int(account.get("plan_credits") or 0) + int(account.get("extra_credits") or 0)
         total_credits += credits
-
         completed = bool(profile.get("completed"))
-        if completed:
-            profile_completed += 1
+        profile_completed += int(completed)
         if created_at and created_at >= start_week:
             new_this_week += 1
         if created_at and created_at >= start_month:
@@ -341,6 +332,7 @@ def list_admin_users(
         name = clerk_name or str(profile.get("full_name") or "") or "Usuário DomnAI"
         blocked = bool(clerk_user.get("banned") or clerk_user.get("locked"))
         has_clerk_record = bool(clerk_user)
+        is_admin = user_id in admin_ids
 
         items.append({
             "id": user_id,
@@ -348,24 +340,21 @@ def list_admin_users(
             "email": _primary_email(clerk_user),
             "role": "admin" if is_admin else "user",
             "roleLabel": "Admin" if is_admin else "Usuário",
-            "plan": normalized_plan,
-            "planLabel": _plan_label(normalized_plan),
+            "plan": plan,
+            "planLabel": _plan_label(plan),
             "subscriptionStatus": str(account.get("subscription_status") or "inactive"),
             "planCredits": int(account.get("plan_credits") or 0),
             "extraCredits": int(account.get("extra_credits") or 0),
             "totalCredits": credits,
             "profileCompleted": completed,
-            "accountStatus": "blocked" if blocked else ("active" if has_clerk_record else "persisted"),
-            "accountStatusLabel": "Bloqueado" if blocked else ("Ativo" if has_clerk_record else "Base interna"),
+            "accountStatus": "blocked" if blocked else ("active" if has_clerk_record else "fallback"),
+            "accountStatusLabel": "Bloqueado" if blocked else ("Ativo" if has_clerk_record else "Fallback interno"),
             "createdAt": _iso(created_at),
             "lastActivityAt": _iso(last_activity),
         })
 
     items.sort(
-        key=lambda item: (
-            item.get("createdAt") or "",
-            item.get("lastActivityAt") or "",
-        ),
+        key=lambda item: (item.get("createdAt") or "", item.get("lastActivityAt") or ""),
         reverse=True,
     )
     items = items[:limit]
@@ -374,11 +363,7 @@ def list_admin_users(
     for offset in range(29, -1, -1):
         day = (now - timedelta(days=offset)).date()
         key = day.isoformat()
-        growth.append({
-            "date": key,
-            "label": day.strftime("%d/%m"),
-            "count": growth_counts.get(key, 0),
-        })
+        growth.append({"date": key, "label": day.strftime("%d/%m"), "count": growth_counts.get(key, 0)})
 
     summary = {
         "totalUsers": len(user_ids),
@@ -394,8 +379,6 @@ def list_admin_users(
     }
 
     admin_account = accounts.get(admin_user_id, {})
-    admin_resolved_plan = _resolved_plan(admin_account)
-
     return {
         "items": items,
         "summary": summary,
@@ -405,23 +388,21 @@ def list_admin_users(
             {"key": "free", "label": "Plano Free", "count": plan_counts["free"]},
             {"key": "unselected", "label": "Sem plano", "count": plan_counts["unselected"]},
         ],
-        "brainInsights": _build_brain_insights(summary),
+        "brainInsights": _brain_insights(summary),
         "generatedAt": now.isoformat(),
-        "source": "partial" if warnings else "clerk+database",
+        "source": "clerk+database" if clerk_available else "database-fallback",
         "sourceCounts": {
             "clerk": len(clerk_by_id),
             "database": len(database_user_ids),
             "combined": len(user_ids),
+            "historicalExcluded": len(historical_excluded),
         },
         "currentAdminDiagnostic": {
             "accountFound": bool(admin_account),
             "rawPlan": str(admin_account.get("plan") or "unselected"),
-            "resolvedPlan": admin_resolved_plan,
+            "resolvedPlan": _resolved_plan(admin_account),
             "subscriptionStatus": str(admin_account.get("subscription_status") or "inactive"),
-            "isCountedAsPremium": any(
-                item["id"] == admin_user_id and item["plan"] == "premium"
-                for item in items
-            ),
+            "isCountedAsPremium": any(item["id"] == admin_user_id and item["plan"] == "premium" for item in items),
         },
         "dataWarning": " | ".join(warnings),
     }
