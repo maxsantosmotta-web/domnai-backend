@@ -16,12 +16,7 @@
 }
 
 .domnai-user-admin-slot .domnai-user-admin-group > p {
-  margin: 0 10px 8px;
-  color: #e7c35e;
-  font-size: 0.68rem;
-  font-weight: 900;
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
+  display: none;
 }
 
 .domnai-user-admin-slot .domnai-user-admin-button {
