@@ -11,8 +11,10 @@ from app.api.admin_users import router as admin_users_router
 from app.api.artifacts import router as artifacts_router
 from app.api.auth import router as auth_router
 from app.api.billing import router as billing_router
+from app.api.chat_persistent import router as chat_persistent_router
 from app.api.chat import router as chat_router
 from app.api.chat_state import router as chat_state_router
+from app.api.chat_tasks import router as chat_tasks_router
 from app.api.config import router as config_router
 from app.api.database import router as database_router
 from app.api.decisions import router as decisions_router
@@ -24,6 +26,7 @@ from app.api.reports import router as reports_router
 from app.api.trash import router as trash_router
 from app.config import settings
 from app.error_monitoring import module_from_path, record_operational_event
+from app.services.chat_task_worker import start_chat_task_worker
 
 app = FastAPI(
     title=settings.app_name,
@@ -44,12 +47,16 @@ app.add_middleware(
 )
 
 
+@app.on_event("startup")
+def start_persistent_chat_worker():
+    start_chat_task_worker()
+
+
 @app.middleware("http")
 async def monitor_operational_errors(request: Request, call_next):
     path = request.url.path
     if path.startswith("/api/admin/errors"):
         return await call_next(request)
-
     try:
         response = await call_next(request)
     except Exception as exc:
@@ -83,8 +90,10 @@ app.include_router(admin_users_router)
 app.include_router(admin_billing_router)
 app.include_router(admin_errors_router)
 app.include_router(admin_audit_router)
+app.include_router(chat_persistent_router)
 app.include_router(chat_router)
 app.include_router(chat_state_router)
+app.include_router(chat_tasks_router)
 app.include_router(decisions_router)
 app.include_router(database_router)
 app.include_router(library_router)
