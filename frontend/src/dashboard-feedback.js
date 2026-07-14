@@ -295,7 +295,12 @@ function openFeedbackPage() {
 
   const menuButton = document.querySelector(FEEDBACK_MENU_SELECTOR);
   menuButton?.classList.add('is-active');
-  document.querySelector('.domnai-sidebar')?.classList.remove('is-open');
+
+  const sidebar = document.querySelector('.domnai-sidebar');
+  const closeButton = sidebar?.querySelector('.sidebar-close');
+  if (sidebar?.classList.contains('is-open') && closeButton) closeButton.click();
+  else sidebar?.classList.remove('is-open');
+
   bindFeedbackPage(mainArea.querySelector(FEEDBACK_PAGE_SELECTOR));
 }
 
