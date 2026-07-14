@@ -32,6 +32,7 @@ COPY scripts/finalize_admin_user_navigation.py /tmp/finalize_admin_user_navigati
 COPY scripts/upgrade_admin_premium_monitor.py /tmp/upgrade_admin_premium_monitor.py
 COPY scripts/fix_admin_overview_entry.py /tmp/fix_admin_overview_entry.py
 COPY scripts/fix_chat_operation_delivery.py /tmp/fix_chat_operation_delivery.py
+COPY scripts/fix_mobile_chat_keyboard.py /tmp/fix_mobile_chat_keyboard.py
 RUN apk add --no-cache python3 \
     && python3 /tmp/connect_domnai_chat.py \
     && python3 /tmp/connect_operation_to_composer.py \
@@ -61,6 +62,7 @@ RUN apk add --no-cache python3 \
     && python3 /tmp/upgrade_admin_premium_monitor.py \
     && python3 /tmp/fix_admin_overview_entry.py \
     && python3 /tmp/fix_chat_operation_delivery.py \
+    && python3 /tmp/fix_mobile_chat_keyboard.py \
     && npm run build
 
 FROM python:3.13-slim AS runtime
