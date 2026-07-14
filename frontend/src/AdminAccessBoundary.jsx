@@ -22,11 +22,7 @@ function currentHashPath() {
 
 function navigateTo(path) {
   const nextHash = `#${path}`;
-  if (window.location.hash === nextHash) {
-    window.dispatchEvent(new HashChangeEvent('hashchange'));
-    return;
-  }
-  window.location.hash = path;
+  if (window.location.hash !== nextHash) window.location.hash = path;
 }
 
 function AccessLoading() {
