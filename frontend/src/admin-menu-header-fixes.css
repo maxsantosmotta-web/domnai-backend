@@ -53,6 +53,10 @@
   justify-content: flex-start;
 }
 
+.domnai-admin-topbar-leading > div > span {
+  display: none;
+}
+
 .domnai-admin-sidebar-footer {
   margin-top: auto;
   padding: 10px;
