@@ -33,6 +33,32 @@
   place-items: center;
 }
 
+/*
+ * Quando o menu é recolhido, a área externa ocupa toda a tela,
+ * mas o conteúdo útil do chat permanece centralizado e proporcional.
+ */
+.domnai-app-shell.user-sidebar-collapsed .chat-workspace {
+  width: 100%;
+}
+
+.domnai-app-shell.user-sidebar-collapsed .chat-column {
+  width: 100%;
+  max-width: 1180px;
+  margin-inline: auto;
+}
+
+.domnai-app-shell.user-sidebar-collapsed .clean-chat-area {
+  width: 100%;
+  padding-left: max(24px, calc((100% - 980px) / 2 + 24px));
+  padding-right: max(24px, calc((100% - 980px) / 2 + 24px));
+}
+
+.domnai-app-shell.user-sidebar-collapsed .chat-composer {
+  width: min(calc(100% - 48px), 932px);
+  margin-left: auto;
+  margin-right: auto;
+}
+
 @media (max-width: 900px) {
   .user-sidebar-collapse-button {
     display: none;
@@ -40,5 +66,18 @@
 
   .domnai-app-shell.user-sidebar-collapsed .domnai-sidebar.is-open {
     display: flex;
+  }
+
+  .domnai-app-shell.user-sidebar-collapsed .chat-column {
+    max-width: none;
+  }
+
+  .domnai-app-shell.user-sidebar-collapsed .clean-chat-area {
+    padding-left: 20px;
+    padding-right: 20px;
+  }
+
+  .domnai-app-shell.user-sidebar-collapsed .chat-composer {
+    width: calc(100% - 40px);
   }
 }
