@@ -1,0 +1,46 @@
+.domnai-feedback-page {
+  position: relative !important;
+}
+
+.domnai-feedback-back {
+  position: absolute !important;
+  top: 10px !important;
+  right: 12px !important;
+  z-index: 5 !important;
+  width: auto !important;
+  min-height: 0 !important;
+  padding: 0 !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+  color: #ffffff !important;
+  font: 700 0.78rem/1 Inter, system-ui, sans-serif !important;
+  cursor: pointer !important;
+}
+
+.domnai-feedback-back:hover,
+.domnai-feedback-back:focus-visible {
+  background: transparent !important;
+  color: #ffffff !important;
+  text-decoration: underline;
+  text-underline-offset: 4px;
+  outline: none !important;
+}
+
+body:has(.domnai-main-area.feedback-page-open) .options-menu-button,
+body:has(.domnai-main-area.feedback-page-open) .conversation-options-menu,
+body:has(.domnai-main-area.feedback-page-open) .options-backdrop {
+  display: none !important;
+  pointer-events: none !important;
+}
+
+@media (max-width: 820px) {
+  .domnai-feedback-header {
+    padding-right: 64px !important;
+  }
+
+  .domnai-feedback-back {
+    top: 8px !important;
+    right: 10px !important;
+  }
+}
