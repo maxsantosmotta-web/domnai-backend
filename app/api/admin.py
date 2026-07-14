@@ -24,6 +24,17 @@ def _admin_marker(db, user_id: str) -> str | None:
     )
 
 
+def _any_admin_marker(db) -> str | None:
+    return db.scalar(
+        select(CreditTransaction.id)
+        .where(
+            CreditTransaction.kind == ADMIN_TRANSACTION_KIND,
+            CreditTransaction.description == ADMIN_TRANSACTION_DESCRIPTION,
+        )
+        .limit(1)
+    )
+
+
 def _is_legacy_admin_account(account: BillingAccount | None) -> bool:
     return bool(
         account
@@ -33,13 +44,17 @@ def _is_legacy_admin_account(account: BillingAccount | None) -> bool:
     )
 
 
+def _can_migrate_legacy_admin(db, account: BillingAccount | None) -> bool:
+    return bool(not _any_admin_marker(db) and _is_legacy_admin_account(account))
+
+
 def _has_persisted_admin_access(user_id: str) -> bool:
     with session_scope() as db:
         account = db.get(BillingAccount, user_id)
         if account is None:
             return False
 
-        return bool(_admin_marker(db, user_id) or _is_legacy_admin_account(account))
+        return bool(_admin_marker(db, user_id) or _can_migrate_legacy_admin(db, account))
 
 
 def owner_access_status(session: dict) -> dict:
@@ -61,7 +76,8 @@ def _grant_admin_access(user_id: str) -> dict:
             raise HTTPException(status_code=403, detail="Vínculo administrativo não encontrado.")
 
         marker = _admin_marker(db, user_id)
-        if not marker and not _is_legacy_admin_account(account):
+        can_migrate = _can_migrate_legacy_admin(db, account)
+        if not marker and not can_migrate:
             raise HTTPException(status_code=403, detail="Vínculo administrativo não encontrado.")
 
         account.plan = "premium"
