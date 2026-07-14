@@ -30,6 +30,7 @@ import './dashboard-operation-groups.js';
 import './dashboard-extra-icons.js';
 import './dashboard-billing-enhancements.js';
 import './dashboard-admin-access-sync.js';
+import './dashboard-feedback-pre-navigation.js';
 import './dashboard-profile-enhancements.js';
 import './dashboard-profile-avatar-sync.js';
 import './dashboard-profile-compact.js';
