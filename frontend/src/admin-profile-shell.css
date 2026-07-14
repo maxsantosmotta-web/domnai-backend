@@ -1,3 +1,8 @@
+.domnai-admin-gate-page,
+.domnai-admin-shell {
+  background: #070707 !important;
+}
+
 .domnai-admin-user-switch {
   width: 100%;
   min-height: 54px;
@@ -71,14 +76,14 @@
   align-items: center;
   gap: 10px;
   text-align: left;
-  font: 700 0.78rem Inter, system-ui, sans-serif;
+  font: 700 0.86rem Inter, system-ui, sans-serif;
   cursor: pointer;
   transition: border-color 160ms ease, color 160ms ease, background 160ms ease;
 }
 
 .domnai-admin-signout-button span {
   color: #c5a74e;
-  font-size: 0.95rem;
+  font-size: 1rem;
 }
 
 .domnai-admin-signout-button:hover,
@@ -155,6 +160,7 @@
   letter-spacing: 0.05em;
 }
 
+.domnai-admin-gate-page[aria-busy="true"] .domnai-admin-gate-card.compact,
 .domnai-admin-gate-card.compact:not(:has(p)):not(:has(h1)) {
   width: auto;
   max-width: none;
@@ -165,10 +171,16 @@
   box-shadow: none;
 }
 
+.domnai-admin-gate-page[aria-busy="true"] .domnai-admin-gate-card.compact > p {
+  display: none;
+}
+
+.domnai-admin-gate-page[aria-busy="true"] .domnai-admin-gate-card.compact > img,
 .domnai-admin-gate-card.compact:not(:has(p)):not(:has(h1)) > img {
   margin-bottom: 10px;
 }
 
+.domnai-admin-gate-page[aria-busy="true"] .domnai-admin-gate-card.compact .domnai-admin-spinner,
 .domnai-admin-gate-card.compact:not(:has(p)):not(:has(h1)) .domnai-admin-spinner {
   margin: 0 auto;
 }
