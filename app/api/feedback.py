@@ -1,8 +1,9 @@
+from datetime import datetime, timezone
 from typing import Literal
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel, Field
-from sqlalchemy import select
+from sqlalchemy import case, func, select, update
 
 from app.api.admin import _has_persisted_admin_access
 from app.auth import require_authenticated_user
@@ -47,23 +48,40 @@ def _serialize(item: UserFeedback, user_name: str = "") -> dict:
     }
 
 
+def _require_admin(session: dict) -> str:
+    user_id = str(session.get("sub") or "").strip()
+    if not user_id or not _has_persisted_admin_access(user_id):
+        raise HTTPException(status_code=403, detail="Acesso administrativo não autorizado.")
+    return user_id
+
+
 @router.get("/admin")
 def list_admin_feedbacks(
     limit: int = Query(default=200, ge=1, le=500),
     session: dict = Depends(require_authenticated_user),
 ):
-    user_id = str(session.get("sub") or "").strip()
-    if not user_id or not _has_persisted_admin_access(user_id):
-        raise HTTPException(status_code=403, detail="Acesso administrativo não autorizado.")
+    _require_admin(session)
 
     with session_scope() as db:
         items = list(
             db.scalars(
                 select(UserFeedback)
+                .where(UserFeedback.admin_hidden_at.is_(None))
                 .order_by(UserFeedback.created_at.desc())
                 .limit(limit)
             ).all()
         )
+
+        summary_row = db.execute(
+            select(
+                func.count(UserFeedback.id).label("total"),
+                func.sum(case((UserFeedback.category == "suggestion", 1), else_=0)).label("suggestions"),
+                func.sum(case((UserFeedback.category == "problem", 1), else_=0)).label("problems"),
+                func.sum(case((UserFeedback.category == "praise", 1), else_=0)).label("praises"),
+                func.avg(UserFeedback.rating).label("average"),
+            )
+        ).one()
+
         user_ids = {item.user_id for item in items}
         profiles = {
             profile.user_id: profile.full_name
@@ -74,7 +92,54 @@ def list_admin_feedbacks(
 
         return {
             "items": [_serialize(item, profiles.get(item.user_id, "")) for item in items],
-            "total": len(items),
+            "visibleTotal": len(items),
+            "summary": {
+                "total": int(summary_row.total or 0),
+                "suggestions": int(summary_row.suggestions or 0),
+                "problems": int(summary_row.problems or 0),
+                "praises": int(summary_row.praises or 0),
+                "average": float(summary_row.average or 0),
+            },
+        }
+
+
+@router.delete("/admin")
+def hide_all_admin_feedbacks(
+    session: dict = Depends(require_authenticated_user),
+):
+    _require_admin(session)
+    hidden_at = datetime.now(timezone.utc)
+
+    with session_scope() as db:
+        result = db.execute(
+            update(UserFeedback)
+            .where(UserFeedback.admin_hidden_at.is_(None))
+            .values(admin_hidden_at=hidden_at)
+        )
+        return {
+            "hidden": True,
+            "hiddenCount": int(result.rowcount or 0),
+        }
+
+
+@router.delete("/admin/{feedback_id}")
+def hide_admin_feedback(
+    feedback_id: str,
+    session: dict = Depends(require_authenticated_user),
+):
+    _require_admin(session)
+
+    with session_scope() as db:
+        item = db.get(UserFeedback, feedback_id)
+        if item is None:
+            raise HTTPException(status_code=404, detail="Feedback não encontrado.")
+
+        if item.admin_hidden_at is None:
+            item.admin_hidden_at = datetime.now(timezone.utc)
+
+        return {
+            "hidden": True,
+            "feedbackId": item.id,
         }
 
 
