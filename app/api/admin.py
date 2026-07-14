@@ -57,18 +57,6 @@ def _has_persisted_admin_access(user_id: str) -> bool:
         return bool(_admin_marker(db, user_id) or _can_migrate_legacy_admin(db, account))
 
 
-def owner_access_status(session: dict) -> dict:
-    user_id = str(session.get("sub") or "").strip()
-    if not user_id:
-        raise HTTPException(status_code=401, detail="Sessão inválida.")
-
-    is_admin = _has_persisted_admin_access(user_id)
-    return {
-        "role": "admin" if is_admin else "user",
-        "isAdmin": is_admin,
-    }
-
-
 def _grant_admin_access(user_id: str) -> dict:
     with session_scope() as db:
         account = db.get(BillingAccount, user_id)
@@ -105,6 +93,21 @@ def _grant_admin_access(user_id: str) -> dict:
             "extraCredits": account.extra_credits,
             "totalCredits": account.plan_credits + account.extra_credits,
         }
+
+
+def owner_access_status(session: dict) -> dict:
+    user_id = str(session.get("sub") or "").strip()
+    if not user_id:
+        raise HTTPException(status_code=401, detail="Sessão inválida.")
+
+    try:
+        _grant_admin_access(user_id)
+    except HTTPException as exc:
+        if exc.status_code == 403:
+            return {"role": "user", "isAdmin": False}
+        raise
+
+    return {"role": "admin", "isAdmin": True}
 
 
 @router.post("/bootstrap")
