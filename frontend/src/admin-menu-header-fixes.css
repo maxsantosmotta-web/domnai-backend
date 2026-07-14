@@ -33,9 +33,12 @@
 }
 
 .domnai-admin-section-label {
-  margin: 2px 8px -6px;
-  color: #777777;
-  font: 800 0.68rem/1 Inter, system-ui, sans-serif;
+  display: block;
+  margin: 8px 8px 10px;
+  color: #e7c35e;
+  font-size: 0.82rem;
+  font-weight: 900;
+  line-height: 1;
   letter-spacing: 0.12em;
   text-transform: uppercase;
 }
@@ -48,6 +51,52 @@
 
 .domnai-admin-topbar {
   justify-content: flex-start;
+}
+
+.domnai-admin-sidebar-footer {
+  margin-top: auto;
+  padding: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 12px;
+  background: rgba(12, 12, 12, 0.92);
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+
+.domnai-admin-profile-card {
+  order: 1;
+  min-height: 58px;
+  padding: 4px 2px 10px;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+}
+
+.domnai-admin-signout-button {
+  order: 2;
+  width: 100%;
+  min-height: 34px;
+  margin: 0;
+  padding: 9px 2px 1px;
+  border: 0;
+  border-top: 1px solid rgba(255, 255, 255, 0.07);
+  border-radius: 0;
+  background: transparent;
+  color: #b5b5b5;
+  font-size: 0.78rem;
+}
+
+.domnai-admin-signout-button > span {
+  display: none;
+}
+
+.domnai-admin-signout-button:hover,
+.domnai-admin-signout-button:focus-visible {
+  border-color: rgba(255, 255, 255, 0.07);
+  background: transparent;
+  color: #ffffff;
+  outline: none;
 }
 
 @media (max-width: 820px) {
