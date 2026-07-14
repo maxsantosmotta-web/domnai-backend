@@ -8,6 +8,7 @@
   flex: 0 0 34px;
   display: grid;
   place-items: center;
+  transform: translateY(-6px);
   border: 1px solid rgba(225, 181, 77, 0.24);
   border-radius: 10px;
   background: #0d0d0d;
@@ -34,29 +35,36 @@
 }
 
 /*
- * Quando o menu é recolhido, a área externa ocupa toda a tela,
- * mas o conteúdo útil do chat permanece centralizado e proporcional.
+ * Com o menu recolhido, a conversa usa toda a largura útil,
+ * com o mesmo alinhamento e respiro para usuário, assistente e compositor.
  */
-.domnai-app-shell.user-sidebar-collapsed .chat-workspace {
-  width: 100%;
-}
-
+.domnai-app-shell.user-sidebar-collapsed .chat-workspace,
 .domnai-app-shell.user-sidebar-collapsed .chat-column {
   width: 100%;
-  max-width: 1180px;
-  margin-inline: auto;
+  max-width: none;
+  margin-inline: 0;
 }
 
 .domnai-app-shell.user-sidebar-collapsed .clean-chat-area {
   width: 100%;
-  padding-left: max(24px, calc((100% - 980px) / 2 + 24px));
-  padding-right: max(24px, calc((100% - 980px) / 2 + 24px));
+  padding: 22px clamp(18px, 3vw, 34px);
+}
+
+.domnai-app-shell.user-sidebar-collapsed .chat-message,
+.domnai-app-shell.user-sidebar-collapsed .chat-message.user {
+  width: 100%;
+  max-width: none;
+}
+
+.domnai-app-shell.user-sidebar-collapsed .chat-message p {
+  width: 100%;
+  padding: 18px 20px;
+  box-sizing: border-box;
 }
 
 .domnai-app-shell.user-sidebar-collapsed .chat-composer {
-  width: min(calc(100% - 48px), 932px);
-  margin-left: auto;
-  margin-right: auto;
+  width: auto;
+  margin: 0 clamp(18px, 3vw, 34px) 22px;
 }
 
 @media (max-width: 900px) {
@@ -68,16 +76,20 @@
     display: flex;
   }
 
-  .domnai-app-shell.user-sidebar-collapsed .chat-column {
-    max-width: none;
+  .domnai-sidebar .sidebar-close {
+    transform: translateY(-7px);
   }
 
   .domnai-app-shell.user-sidebar-collapsed .clean-chat-area {
-    padding-left: 20px;
-    padding-right: 20px;
+    padding: 16px;
+  }
+
+  .domnai-app-shell.user-sidebar-collapsed .chat-message p {
+    padding: 16px;
   }
 
   .domnai-app-shell.user-sidebar-collapsed .chat-composer {
-    width: calc(100% - 40px);
+    width: auto;
+    margin: 0 16px 16px;
   }
 }
