@@ -17,6 +17,14 @@ if "const chatScrollRef = useRef(null);" not in source:
         raise RuntimeError('Não foi possível localizar os refs do Dashboard.')
     source = source.replace(marker, marker + "\n  const chatScrollRef = useRef(null);", 1)
 
+if "const browserReloadPendingRef = useRef(true);" not in source:
+    marker = "  const chatScrollRef = useRef(null);"
+    source = source.replace(
+        marker,
+        marker + "\n  const browserReloadPendingRef = useRef(true);",
+        1,
+    )
+
 if "const [chatRefreshTick, setChatRefreshTick]" not in source:
     marker = "  const [uploading, setUploading] = useState(false);"
     if marker not in source:
@@ -27,9 +35,39 @@ if "const [chatRefreshTick, setChatRefreshTick]" not in source:
         1,
     )
 
+scroll_tracking_effect = r'''
+  useEffect(() => {
+    if (section !== 'chat') return undefined;
+
+    const chatArea = chatScrollRef.current;
+    if (!chatArea) return undefined;
+
+    const rememberBottomState = () => {
+      const distanceFromBottom = chatArea.scrollHeight - chatArea.scrollTop - chatArea.clientHeight;
+      window.sessionStorage.setItem('domnai-chat-was-at-bottom', distanceFromBottom <= 24 ? '1' : '0');
+    };
+
+    rememberBottomState();
+    chatArea.addEventListener('scroll', rememberBottomState, { passive: true });
+    window.addEventListener('pagehide', rememberBottomState);
+
+    return () => {
+      chatArea.removeEventListener('scroll', rememberBottomState);
+      window.removeEventListener('pagehide', rememberBottomState);
+    };
+  }, [section, conversationReady]);
+
+'''
+
+if "domnai-chat-was-at-bottom" not in source:
+    marker = "  function selectOperation(item) {"
+    if marker not in source:
+        raise RuntimeError('Não foi possível localizar o ponto seguro do chat.')
+    source = source.replace(marker, scroll_tracking_effect + marker, 1)
+
 single_effect = r'''
   useLayoutEffect(() => {
-    if (section !== 'chat' || !conversationReady) return undefined;
+    if (section !== 'chat' || !conversationReady || messages.length === 0) return undefined;
 
     const chatArea = chatScrollRef.current;
     if (!chatArea) return undefined;
@@ -39,6 +77,18 @@ single_effect = r'''
     }
 
     const distanceFromBottom = chatArea.scrollHeight - chatArea.scrollTop - chatArea.clientHeight;
+    const isBrowserReload = browserReloadPendingRef.current;
+
+    if (isBrowserReload) {
+      browserReloadPendingRef.current = false;
+      const wasAtBottom = window.sessionStorage.getItem('domnai-chat-was-at-bottom') === '1';
+
+      if (wasAtBottom) {
+        chatArea.scrollTop = chatArea.scrollHeight;
+        return undefined;
+      }
+    }
+
     if (distanceFromBottom <= 2) return undefined;
 
     const frame = window.requestAnimationFrame(() => {
@@ -50,11 +100,21 @@ single_effect = r'''
 
 '''
 
-if "[section, conversationReady, messages.length, chatRefreshTick]" not in source:
+existing_effect_pattern = re.compile(
+    r"\n  useLayoutEffect\(\(\) => \{\n"
+    r"    if \(section !== 'chat' \|\| !conversationReady\).*?"
+    r"  \}, \[section, conversationReady, messages\.length, chatRefreshTick\]\);\n\n",
+    re.S,
+)
+source, effect_count = existing_effect_pattern.subn("\n" + single_effect.lstrip("\n"), source, count=1)
+
+if effect_count == 0 and "[section, conversationReady, messages.length, chatRefreshTick]" not in source:
     marker = "  function selectOperation(item) {"
     if marker not in source:
         raise RuntimeError('Não foi possível localizar o ponto seguro do chat.')
     source = source.replace(marker, single_effect + marker, 1)
+elif effect_count == 0:
+    raise RuntimeError('Não foi possível substituir com segurança o controlador atual de rolagem.')
 
 new_refresh = r'''  async function refreshConversation() {
     setSearch('');
@@ -93,3 +153,33 @@ elif new_chat_area not in source:
     raise RuntimeError('Não foi possível localizar o container de mensagens.')
 
 path.write_text(source, encoding='utf-8')
+
+# Corrige apenas contenção e quebra de textos longos nas mensagens.
+css_path = Path('/frontend/src/dashboard.css')
+css = css_path.read_text(encoding='utf-8')
+message_fix = """
+
+/* Mantém textos, links e tabelas textuais dentro da caixa da mensagem. */
+.chat-message,
+.chat-message p {
+  min-width: 0;
+  max-width: 100%;
+  box-sizing: border-box;
+}
+
+.chat-message p,
+.chat-message pre,
+.chat-message code {
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+.chat-message pre,
+.chat-message code {
+  max-width: 100%;
+  white-space: pre-wrap;
+}
+"""
+if 'Mantém textos, links e tabelas textuais dentro da caixa da mensagem.' not in css:
+    css = css.rstrip() + message_fix + '\n'
+css_path.write_text(css, encoding='utf-8')
