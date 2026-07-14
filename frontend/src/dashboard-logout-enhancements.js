@@ -1,3 +1,7 @@
+import DOMNAI_LOGO from './assets/domnai-logo-oficial-transparente.png';
+
+let domnaiLogoutInProgress = false;
+
 function clearDomnAISessionState() {
   try {
     Object.keys(sessionStorage).forEach((key) => {
@@ -18,46 +22,91 @@ function clearDomnAISessionState() {
   window.dispatchEvent(new CustomEvent('domnai:signed-out'));
 }
 
-async function domnaiSignOut(button) {
-  if (button) {
-    button.disabled = true;
-    button.textContent = 'Saindo...';
-  }
+function showDomnAILogoutOverlay() {
+  let overlay = document.querySelector('[data-domnai-logout-overlay="true"]');
+  if (overlay) return overlay;
+
+  overlay = document.createElement('main');
+  overlay.className = 'domnai-user-logout-overlay';
+  overlay.dataset.domnaiLogoutOverlay = 'true';
+  overlay.setAttribute('aria-busy', 'true');
+  overlay.innerHTML = `
+    <img src="${DOMNAI_LOGO}" alt="DomnAI">
+    <span class="domnai-user-logout-spinner" aria-hidden="true"></span>
+  `;
+  document.body.appendChild(overlay);
+  return overlay;
+}
+
+function domnaiSignOut(button) {
+  if (domnaiLogoutInProgress) return;
+  domnaiLogoutInProgress = true;
+
+  if (button) button.disabled = true;
+  showDomnAILogoutOverlay();
+  clearDomnAISessionState();
+
+  const landingUrl = `${window.location.origin}${window.location.pathname}?signed_out=${Date.now()}#/`;
+  const activeSessionId = window.Clerk?.session?.id;
+  let redirected = false;
+
+  const finishRedirect = () => {
+    if (redirected) return;
+    redirected = true;
+    window.location.replace(landingUrl);
+  };
+
+  const fallbackTimer = window.setTimeout(finishRedirect, 2200);
 
   try {
     if (!window.Clerk?.signOut) throw new Error('Sessão não encontrada.');
-    clearDomnAISessionState();
-    await window.Clerk.signOut();
-    window.location.replace(`${window.location.origin}/#/`);
-    window.setTimeout(() => window.location.reload(), 30);
+
+    const result = window.Clerk.signOut({
+      ...(activeSessionId ? { sessionId: activeSessionId } : {}),
+      redirectUrl: landingUrl,
+    });
+
+    Promise.resolve(result)
+      .then(() => {
+        window.clearTimeout(fallbackTimer);
+        finishRedirect();
+      })
+      .catch((error) => {
+        console.error('Não foi possível encerrar a sessão do DomnAI.', error);
+        window.clearTimeout(fallbackTimer);
+        finishRedirect();
+      });
   } catch (error) {
-    if (button) {
-      button.disabled = false;
-      button.textContent = 'Sair da conta';
-    }
-    window.alert(error?.message || 'Não foi possível sair da conta.');
+    console.error('Não foi possível iniciar a saída do DomnAI.', error);
+    window.clearTimeout(fallbackTimer);
+    finishRedirect();
   }
 }
 
 window.domnaiSafeSignOut = () => domnaiSignOut(null);
 
-function installProfileLogout() {
-  const header = document.querySelector('[data-domnai-profile-page] .domnai-profile-header');
-  if (!header || header.querySelector('.domnai-profile-header-actions')) return;
+function removeProfilePageLogout() {
+  document.querySelectorAll('[data-domnai-profile-page] .domnai-logout-button')
+    .forEach((button) => button.remove());
+}
 
-  const backButton = header.querySelector('.domnai-profile-close');
-  const actions = document.createElement('div');
-  actions.className = 'domnai-profile-header-actions';
+function installSidebarLogout() {
+  const sidebar = document.querySelector('.domnai-sidebar');
+  const profile = sidebar?.querySelector('.sidebar-profile');
+  if (!sidebar || !profile) return;
 
-  if (backButton) actions.appendChild(backButton);
+  let logoutButton = sidebar.querySelector('.domnai-sidebar-logout');
+  if (!logoutButton) {
+    logoutButton = document.createElement('button');
+    logoutButton.type = 'button';
+    logoutButton.className = 'domnai-sidebar-logout';
+    logoutButton.innerHTML = '<span aria-hidden="true">↪</span><strong>Sair da conta</strong>';
+    logoutButton.addEventListener('click', () => domnaiSignOut(logoutButton));
+  }
 
-  const logoutButton = document.createElement('button');
-  logoutButton.type = 'button';
-  logoutButton.className = 'domnai-logout-button';
-  logoutButton.textContent = 'Sair da conta';
-  logoutButton.addEventListener('click', () => domnaiSignOut(logoutButton));
-  actions.appendChild(logoutButton);
-  header.appendChild(actions);
+  if (logoutButton.nextElementSibling !== profile) {
+    sidebar.insertBefore(logoutButton, profile);
+  }
 }
 
 function installPlanSelectionLogout() {
@@ -73,10 +122,13 @@ function installPlanSelectionLogout() {
 }
 
 function installDomnAILogoutActions() {
-  installProfileLogout();
+  removeProfilePageLogout();
+  installSidebarLogout();
   installPlanSelectionLogout();
 }
 
-const domnaiLogoutObserver = new MutationObserver(installDomnAILogoutActions);
+const domnaiLogoutObserver = new MutationObserver(() => {
+  window.requestAnimationFrame(installDomnAILogoutActions);
+});
 domnaiLogoutObserver.observe(document.documentElement, { childList: true, subtree: true });
 installDomnAILogoutActions();
