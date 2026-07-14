@@ -1,0 +1,74 @@
+/* Estado visual final dos botões textuais brancos.
+   Normal/foco: branco e sem sublinhado.
+   Enquanto pressionado: dourado. */
+
+.domnai-feedback-back,
+.domnai-admin-brand-back,
+.domnai-user-account-block .domnai-sidebar-logout,
+.domnai-admin-signout-button,
+.domnai-admin-feedbacks-actions button,
+.domnai-admin-feedback-list-actions button,
+.domnai-admin-feedback-item-actions button {
+  color: #ffffff !important;
+  text-decoration: none !important;
+  -webkit-tap-highlight-color: transparent !important;
+}
+
+.domnai-feedback-back:hover,
+.domnai-feedback-back:focus,
+.domnai-feedback-back:focus-visible,
+.domnai-admin-brand-back:hover,
+.domnai-admin-brand-back:focus,
+.domnai-admin-brand-back:focus-visible,
+.domnai-user-account-block .domnai-sidebar-logout:hover,
+.domnai-user-account-block .domnai-sidebar-logout:focus,
+.domnai-user-account-block .domnai-sidebar-logout:focus-visible,
+.domnai-admin-signout-button:hover,
+.domnai-admin-signout-button:focus,
+.domnai-admin-signout-button:focus-visible,
+.domnai-admin-feedbacks-actions button:hover,
+.domnai-admin-feedbacks-actions button:focus,
+.domnai-admin-feedbacks-actions button:focus-visible,
+.domnai-admin-feedback-list-actions button:hover,
+.domnai-admin-feedback-list-actions button:focus,
+.domnai-admin-feedback-list-actions button:focus-visible,
+.domnai-admin-feedback-item-actions button:hover,
+.domnai-admin-feedback-item-actions button:focus,
+.domnai-admin-feedback-item-actions button:focus-visible {
+  color: #ffffff !important;
+  text-decoration: none !important;
+  outline: none !important;
+}
+
+.domnai-feedback-back:active,
+.domnai-admin-brand-back:active,
+.domnai-user-account-block .domnai-sidebar-logout:active,
+.domnai-admin-signout-button:active,
+.domnai-admin-feedbacks-actions button:active,
+.domnai-admin-feedback-list-actions button:active,
+.domnai-admin-feedback-item-actions button:active {
+  color: #e7c35e !important;
+  text-decoration: none !important;
+  outline: none !important;
+}
+
+/* Feedback selecionado permanece dourado enquanto a função estiver aberta. */
+.domnai-feedback-menu-button.is-active,
+.domnai-feedback-menu-button.is-active:hover,
+.domnai-feedback-menu-button.is-active:focus,
+.domnai-feedback-menu-button.is-active:focus-visible,
+.domnai-feedback-menu-button.is-active:active,
+.domnai-admin-sidebar nav button.active-section,
+.domnai-admin-sidebar nav button.active-section:hover,
+.domnai-admin-sidebar nav button.active-section:focus,
+.domnai-admin-sidebar nav button.active-section:focus-visible,
+.domnai-admin-sidebar nav button.active-section:active {
+  color: #e7c35e !important;
+  text-decoration: none !important;
+  outline: none !important;
+}
+
+.domnai-feedback-menu-button.is-active > span,
+.domnai-admin-sidebar nav button.active-section > span {
+  color: #e7c35e !important;
+}
