@@ -17,6 +17,7 @@ COPY scripts/connect_final_independent_room_behavior.py /tmp/connect_final_indep
 COPY scripts/connect_premium_notice_viewport_center.py /tmp/connect_premium_notice_viewport_center.py
 COPY scripts/connect_admin_access_boundary.py /tmp/connect_admin_access_boundary.py
 COPY scripts/fix_admin_reload_persistence.py /tmp/fix_admin_reload_persistence.py
+COPY scripts/fix_admin_menu_header_layout.py /tmp/fix_admin_menu_header_layout.py
 RUN apk add --no-cache python3 \
     && python3 /tmp/connect_domnai_chat.py \
     && python3 /tmp/connect_operation_to_composer.py \
@@ -31,6 +32,7 @@ RUN apk add --no-cache python3 \
     && python3 /tmp/connect_premium_notice_viewport_center.py \
     && python3 /tmp/connect_admin_access_boundary.py \
     && python3 /tmp/fix_admin_reload_persistence.py \
+    && python3 /tmp/fix_admin_menu_header_layout.py \
     && npm run build
 
 FROM python:3.13-slim AS runtime
