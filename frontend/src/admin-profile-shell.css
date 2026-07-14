@@ -3,59 +3,6 @@
   background: #070707 !important;
 }
 
-.domnai-admin-user-switch {
-  width: 100%;
-  min-height: 54px;
-  padding: 0 13px;
-  border: 1px solid rgba(216, 170, 52, 0.28);
-  border-radius: 12px;
-  background: linear-gradient(145deg, rgba(216, 170, 52, 0.13), rgba(17, 17, 17, 0.94));
-  color: #f4d16a;
-  display: flex;
-  align-items: center;
-  gap: 11px;
-  text-align: left;
-  font: inherit;
-  cursor: pointer;
-  transition: border-color 160ms ease, background 160ms ease, transform 160ms ease;
-}
-
-.domnai-admin-user-switch:hover,
-.domnai-admin-user-switch:focus-visible {
-  border-color: rgba(216, 170, 52, 0.56);
-  background: linear-gradient(145deg, rgba(216, 170, 52, 0.2), rgba(19, 19, 19, 0.98));
-  transform: translateY(-1px);
-  outline: none;
-}
-
-.domnai-admin-user-switch-icon {
-  width: 30px;
-  height: 30px;
-  border-radius: 9px;
-  display: grid;
-  place-items: center;
-  background: rgba(216, 170, 52, 0.13);
-  color: #ebc75d;
-  font-size: 1rem;
-  flex: 0 0 auto;
-}
-
-.domnai-admin-user-switch > span:last-child {
-  min-width: 0;
-  display: grid;
-  gap: 2px;
-}
-
-.domnai-admin-user-switch strong {
-  color: #f4d16a;
-  font-size: 0.87rem;
-}
-
-.domnai-admin-user-switch small {
-  color: #8f8f8f;
-  font-size: 0.68rem;
-}
-
 .domnai-admin-sidebar-footer {
   margin-top: auto;
   display: grid;
@@ -66,7 +13,7 @@
 
 .domnai-admin-signout-button {
   width: 100%;
-  min-height: 42px;
+  min-height: 44px;
   padding: 0 13px;
   border: 1px solid rgba(255, 255, 255, 0.1);
   border-radius: 10px;
@@ -183,14 +130,4 @@
 .domnai-admin-gate-page[aria-busy="true"] .domnai-admin-gate-card.compact .domnai-admin-spinner,
 .domnai-admin-gate-card.compact:not(:has(p)):not(:has(h1)) .domnai-admin-spinner {
   margin: 0 auto;
-}
-
-@media (max-width: 820px) {
-  .domnai-admin-user-switch {
-    margin-bottom: 2px;
-  }
-
-  .domnai-admin-sidebar-footer {
-    margin-top: 18px;
-  }
 }
