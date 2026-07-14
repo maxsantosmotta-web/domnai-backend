@@ -45,6 +45,18 @@ def _clerk_user_email(user_id: str) -> str:
     return str((primary or {}).get("email_address") or "").strip().lower()
 
 
+def owner_access_status(session: dict) -> dict:
+    user_id = str(session.get("sub") or "").strip()
+    if not user_id:
+        raise HTTPException(status_code=401, detail="Sessão inválida.")
+
+    is_admin = _clerk_user_email(user_id) == OWNER_EMAIL
+    return {
+        "role": "admin" if is_admin else "user",
+        "isAdmin": is_admin,
+    }
+
+
 def _grant_admin_access(user_id: str) -> dict:
     with session_scope() as db:
         account = db.get(BillingAccount, user_id)
