@@ -1,0 +1,624 @@
+.domnai-admin-users-view {
+  display: grid;
+  gap: 18px;
+}
+
+.domnai-admin-users-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+}
+
+.domnai-admin-users-heading > div:first-child,
+.domnai-admin-users-heading .heading-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.domnai-admin-users-heading > div:first-child {
+  min-width: 0;
+  flex-wrap: wrap;
+}
+
+.domnai-admin-users-heading small {
+  color: #6f6f6f;
+  font-size: 0.72rem;
+}
+
+.domnai-admin-users-heading .heading-actions {
+  flex: 0 0 auto;
+}
+
+.domnai-admin-users-heading button,
+.domnai-admin-users-state button {
+  min-height: 38px;
+  padding: 0 14px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.03);
+  color: #f1f1f1;
+  font-size: 0.76rem;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.domnai-admin-users-heading button:last-child,
+.domnai-admin-users-state button {
+  border-color: rgba(231, 195, 94, 0.3);
+  background: rgba(231, 195, 94, 0.08);
+  color: #e7c35e;
+}
+
+.domnai-admin-users-heading button:disabled,
+.domnai-admin-users-state button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.live-indicator {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  color: #d8d8d8;
+  font-size: 0.76rem;
+  font-weight: 800;
+}
+
+.live-indicator i {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #51c987;
+  box-shadow: 0 0 0 4px rgba(81, 201, 135, 0.1);
+}
+
+.domnai-admin-users-summary {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.domnai-admin-users-summary article {
+  min-height: 88px;
+  padding: 14px;
+  border: 1px solid rgba(255, 255, 255, 0.07);
+  border-radius: 14px;
+  background: rgba(13, 13, 13, 0.94);
+  display: grid;
+  align-content: space-between;
+}
+
+.domnai-admin-users-summary span,
+.analytics-card header span,
+.domnai-admin-users-toolbar label > span,
+.domnai-admin-users-toolbar .result-count > span {
+  color: #777;
+  font-size: 0.68rem;
+  font-weight: 850;
+  letter-spacing: 0.055em;
+  text-transform: uppercase;
+}
+
+.domnai-admin-users-summary strong {
+  color: #fff;
+  font-size: 1.55rem;
+}
+
+.domnai-admin-users-analytics {
+  display: grid;
+  grid-template-columns: minmax(0, 1.65fr) minmax(280px, 0.85fr);
+  gap: 12px;
+}
+
+.analytics-card {
+  min-width: 0;
+  padding: 16px;
+  border: 1px solid rgba(255, 255, 255, 0.07);
+  border-radius: 16px;
+  background: linear-gradient(180deg, rgba(15, 15, 15, 0.98), rgba(9, 9, 9, 0.98));
+}
+
+.analytics-card > header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.analytics-card header > div {
+  display: grid;
+  gap: 4px;
+}
+
+.analytics-card header strong {
+  color: #f4f4f4;
+  font-size: 0.93rem;
+}
+
+.analytics-card header small {
+  color: #777;
+  font-size: 0.7rem;
+  white-space: nowrap;
+}
+
+.domnai-admin-users-chart-wrap {
+  margin-top: 10px;
+  min-height: 220px;
+}
+
+.domnai-admin-users-chart {
+  width: 100%;
+  height: 220px;
+  overflow: visible;
+}
+
+.domnai-admin-users-chart .grid-line {
+  stroke: rgba(255, 255, 255, 0.06);
+  stroke-width: 1;
+}
+
+.domnai-admin-users-chart .axis-value,
+.domnai-admin-users-chart .axis-label {
+  fill: #626262;
+  font-size: 10px;
+}
+
+.domnai-admin-users-chart .area {
+  fill: rgba(231, 195, 94, 0.08);
+}
+
+.domnai-admin-users-chart .line {
+  fill: none;
+  stroke: #e7c35e;
+  stroke-width: 2.4;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.domnai-admin-users-chart .point {
+  fill: #4b4b4b;
+}
+
+.domnai-admin-users-chart .point.active {
+  fill: #e7c35e;
+  stroke: rgba(231, 195, 94, 0.28);
+  stroke-width: 6;
+  paint-order: stroke;
+}
+
+.domnai-admin-users-plan-chart {
+  display: grid;
+  gap: 16px;
+  margin-top: 26px;
+}
+
+.domnai-admin-users-plan-chart .plan-row {
+  display: grid;
+  gap: 8px;
+}
+
+.domnai-admin-users-plan-chart .plan-row > div:first-child {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.domnai-admin-users-plan-chart span,
+.domnai-admin-users-plan-chart strong {
+  font-size: 0.76rem;
+}
+
+.domnai-admin-users-plan-chart span {
+  color: #a6a6a6;
+}
+
+.domnai-admin-users-plan-chart strong {
+  color: #e9e9e9;
+}
+
+.domnai-admin-users-plan-chart .track {
+  height: 8px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.055);
+}
+
+.domnai-admin-users-plan-chart .track span {
+  display: block;
+  min-width: 2px;
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, rgba(231, 195, 94, 0.68), #e7c35e);
+}
+
+.plan-foot {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  margin-top: 22px;
+}
+
+.plan-foot span {
+  padding: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.055);
+  border-radius: 11px;
+  color: #777;
+  font-size: 0.68rem;
+}
+
+.plan-foot strong {
+  display: block;
+  margin-top: 4px;
+  color: #f1f1f1;
+  font-size: 0.9rem;
+}
+
+.domnai-admin-users-brain {
+  padding: 16px;
+  border: 1px solid rgba(231, 195, 94, 0.17);
+  border-radius: 16px;
+  background:
+    radial-gradient(circle at top right, rgba(231, 195, 94, 0.07), transparent 35%),
+    rgba(11, 11, 11, 0.96);
+}
+
+.domnai-admin-users-brain > header {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+}
+
+.brain-mark {
+  width: 38px;
+  height: 38px;
+  border: 1px solid rgba(231, 195, 94, 0.28);
+  border-radius: 11px;
+  display: grid;
+  place-items: center;
+  background: rgba(231, 195, 94, 0.08);
+  color: #e7c35e;
+  font-size: 0.72rem;
+  font-weight: 900;
+}
+
+.domnai-admin-users-brain > header > div:last-child {
+  display: grid;
+  gap: 3px;
+}
+
+.domnai-admin-users-brain > header span {
+  color: #e7c35e;
+  font-size: 0.68rem;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.domnai-admin-users-brain > header strong {
+  color: #f1f1f1;
+  font-size: 0.92rem;
+}
+
+.brain-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 9px;
+  margin-top: 14px;
+}
+
+.brain-grid article {
+  min-width: 0;
+  padding: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.055);
+  border-radius: 12px;
+  display: flex;
+  gap: 10px;
+  background: rgba(255, 255, 255, 0.018);
+}
+
+.brain-grid article > span {
+  flex: 0 0 auto;
+  color: #696969;
+  font-size: 0.66rem;
+  font-weight: 900;
+}
+
+.brain-grid article > div {
+  min-width: 0;
+}
+
+.brain-grid article strong {
+  color: #e8e8e8;
+  font-size: 0.78rem;
+}
+
+.brain-grid article p {
+  margin: 4px 0 0;
+  color: #8a8a8a;
+  font-size: 0.73rem;
+  line-height: 1.45;
+}
+
+.brain-grid article.attention {
+  border-color: rgba(230, 155, 69, 0.16);
+}
+
+.brain-grid article.positive {
+  border-color: rgba(81, 201, 135, 0.16);
+}
+
+.domnai-admin-users-toolbar {
+  display: grid;
+  grid-template-columns: minmax(230px, 1.4fr) minmax(150px, 0.7fr) minmax(150px, 0.7fr) auto;
+  gap: 10px;
+  align-items: end;
+}
+
+.domnai-admin-users-toolbar label,
+.domnai-admin-users-toolbar .result-count {
+  display: grid;
+  gap: 6px;
+}
+
+.domnai-admin-users-toolbar input,
+.domnai-admin-users-toolbar select {
+  width: 100%;
+  min-height: 40px;
+  padding: 0 12px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 10px;
+  outline: none;
+  background: #0d0d0d;
+  color: #e8e8e8;
+  font: inherit;
+  font-size: 0.78rem;
+}
+
+.domnai-admin-users-toolbar input:focus,
+.domnai-admin-users-toolbar select:focus {
+  border-color: rgba(231, 195, 94, 0.35);
+  box-shadow: 0 0 0 3px rgba(231, 195, 94, 0.06);
+}
+
+.domnai-admin-users-toolbar .result-count {
+  min-height: 40px;
+  padding: 7px 11px;
+  border: 1px solid rgba(255, 255, 255, 0.065);
+  border-radius: 10px;
+  align-content: center;
+}
+
+.domnai-admin-users-toolbar .result-count strong {
+  color: #dfdfdf;
+  font-size: 0.76rem;
+  white-space: nowrap;
+}
+
+.domnai-admin-users-table-wrap {
+  overflow-x: auto;
+  border: 1px solid rgba(255, 255, 255, 0.07);
+  border-radius: 15px;
+  background: rgba(10, 10, 10, 0.96);
+}
+
+.domnai-admin-users-table {
+  width: 100%;
+  min-width: 980px;
+  border-collapse: collapse;
+}
+
+.domnai-admin-users-table th,
+.domnai-admin-users-table td {
+  padding: 12px 14px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.055);
+  text-align: left;
+  vertical-align: middle;
+}
+
+.domnai-admin-users-table th {
+  color: #747474;
+  font-size: 0.65rem;
+  font-weight: 900;
+  letter-spacing: 0.055em;
+  text-transform: uppercase;
+}
+
+.domnai-admin-users-table td {
+  color: #b7b7b7;
+  font-size: 0.75rem;
+}
+
+.domnai-admin-users-table tbody tr:last-child td {
+  border-bottom: 0;
+}
+
+.domnai-admin-users-table tbody tr:hover {
+  background: rgba(255, 255, 255, 0.018);
+}
+
+.user-cell {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 240px;
+}
+
+.user-cell .avatar {
+  width: 34px;
+  height: 34px;
+  flex: 0 0 34px;
+  border: 1px solid rgba(231, 195, 94, 0.2);
+  border-radius: 10px;
+  display: grid;
+  place-items: center;
+  background: rgba(231, 195, 94, 0.06);
+  color: #d9ba5e;
+  font-size: 0.7rem;
+  font-weight: 900;
+}
+
+.user-cell > div,
+.plan-cell {
+  min-width: 0;
+  display: grid;
+  gap: 3px;
+}
+
+.user-cell strong,
+.plan-cell strong,
+.credits {
+  color: #ececec;
+  font-size: 0.78rem;
+}
+
+.user-cell small,
+.plan-cell small,
+.domnai-admin-users-table time {
+  color: #727272;
+  font-size: 0.68rem;
+}
+
+.user-cell small {
+  max-width: 220px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.role-badge,
+.profile-badge {
+  display: inline-flex;
+  align-items: center;
+  min-height: 24px;
+  padding: 0 8px;
+  border-radius: 999px;
+  font-size: 0.64rem;
+  font-weight: 850;
+}
+
+.role-badge {
+  background: rgba(255, 255, 255, 0.045);
+  color: #a0a0a0;
+}
+
+.role-badge.admin {
+  background: rgba(231, 195, 94, 0.09);
+  color: #dfbd59;
+}
+
+.profile-badge.complete {
+  background: rgba(81, 201, 135, 0.09);
+  color: #7dd9a3;
+}
+
+.profile-badge.pending {
+  background: rgba(230, 155, 69, 0.09);
+  color: #e3a85f;
+}
+
+.domnai-admin-users-state {
+  min-height: 190px;
+  padding: 24px;
+  border: 1px dashed rgba(255, 255, 255, 0.09);
+  border-radius: 15px;
+  display: grid;
+  place-items: center;
+  align-content: center;
+  gap: 8px;
+  color: #7c7c7c;
+  text-align: center;
+}
+
+.domnai-admin-users-state.compact {
+  min-height: 150px;
+}
+
+.domnai-admin-users-state p {
+  margin: 0;
+  font-size: 0.8rem;
+}
+
+.domnai-admin-users-state.error {
+  border-color: rgba(220, 80, 80, 0.2);
+  color: #ff9b9b;
+}
+
+.domnai-admin-users-state .spinner {
+  width: 28px;
+  height: 28px;
+  border: 3px solid rgba(231, 195, 94, 0.16);
+  border-top-color: #e7c35e;
+  border-radius: 50%;
+  animation: domnai-admin-users-spin 800ms linear infinite;
+}
+
+@keyframes domnai-admin-users-spin {
+  to { transform: rotate(360deg); }
+}
+
+@media (max-width: 1100px) {
+  .domnai-admin-users-summary {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .domnai-admin-users-analytics {
+    grid-template-columns: 1fr;
+  }
+
+  .domnai-admin-users-toolbar {
+    grid-template-columns: minmax(220px, 1fr) repeat(2, minmax(140px, 0.65fr));
+  }
+
+  .domnai-admin-users-toolbar .result-count {
+    grid-column: 1 / -1;
+  }
+}
+
+@media (max-width: 700px) {
+  .domnai-admin-users-heading {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .domnai-admin-users-heading .heading-actions {
+    width: 100%;
+  }
+
+  .domnai-admin-users-heading button {
+    flex: 1;
+  }
+
+  .domnai-admin-users-summary {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .brain-grid,
+  .plan-foot {
+    grid-template-columns: 1fr;
+  }
+
+  .domnai-admin-users-toolbar {
+    grid-template-columns: 1fr;
+  }
+
+  .domnai-admin-users-toolbar .result-count {
+    grid-column: auto;
+  }
+}
+
+@media (max-width: 440px) {
+  .domnai-admin-users-summary {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .domnai-admin-users-summary article {
+    min-height: 80px;
+  }
+
+  .domnai-admin-users-chart {
+    height: 190px;
+  }
+}
