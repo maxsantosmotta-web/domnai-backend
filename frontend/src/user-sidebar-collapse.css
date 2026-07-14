@@ -1,0 +1,44 @@
+.domnai-app-shell.user-sidebar-collapsed {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.user-sidebar-collapse-button {
+  width: 34px;
+  height: 34px;
+  flex: 0 0 34px;
+  display: grid;
+  place-items: center;
+  border: 1px solid rgba(225, 181, 77, 0.24);
+  border-radius: 10px;
+  background: #0d0d0d;
+  color: #d7b453;
+  font-size: 1.15rem;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.user-sidebar-collapse-button:hover,
+.user-sidebar-collapse-button:focus-visible {
+  background: #fff;
+  color: #111;
+  outline: none;
+}
+
+.domnai-app-shell.user-sidebar-collapsed .domnai-sidebar {
+  display: none;
+}
+
+.domnai-app-shell.user-sidebar-collapsed .mobile-menu-button {
+  display: grid;
+  place-items: center;
+}
+
+@media (max-width: 900px) {
+  .user-sidebar-collapse-button {
+    display: none;
+  }
+
+  .domnai-app-shell.user-sidebar-collapsed .domnai-sidebar.is-open {
+    display: flex;
+  }
+}
