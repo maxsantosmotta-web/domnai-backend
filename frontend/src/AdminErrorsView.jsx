@@ -27,6 +27,12 @@ const STATUS_FILTERS = [
   { value: 'resolved', label: 'Resolvido' },
 ];
 
+const SELECTED_MODULE_STYLE = {
+  borderColor: 'rgba(231, 195, 94, 0.3)',
+  background: 'rgba(231, 195, 94, 0.08)',
+  color: '#e7c35e',
+};
+
 function formatNumber(value) {
   return Number(value || 0).toLocaleString('pt-BR');
 }
@@ -214,16 +220,21 @@ export default function AdminErrorsView() {
 
       {status === 'ready' ? (
         <>
-          <section className="domnai-admin-errors-modules" aria-label="Módulos com erro">
+          <section className="domnai-admin-errors-list-card" aria-label="Módulos com erro">
             <header>
-              <span>Módulos com erro</span>
-              <strong>{affectedModules.length > 0 ? 'Selecione o módulo para ver os detalhes' : 'Nenhum módulo com falha'}</strong>
+              <div>
+                <span>Módulos com erro</span>
+                <strong>{affectedModules.length > 0 ? 'Selecione o módulo para ver os detalhes' : 'Nenhum módulo com falha'}</strong>
+              </div>
             </header>
             {affectedModules.length > 0 ? (
-              <div className="errors-module-buttons">
+              <div
+                className="errors-show-all-wrap"
+                style={{ justifyContent: 'flex-start', flexWrap: 'wrap', gap: '8px' }}
+              >
                 <button
                   type="button"
-                  className={moduleFilter === 'all' ? 'selected' : ''}
+                  style={moduleFilter === 'all' ? SELECTED_MODULE_STYLE : undefined}
                   onClick={(event) => selectModule(event, 'all')}
                 >
                   Todos os módulos
@@ -231,7 +242,7 @@ export default function AdminErrorsView() {
                 {affectedModules.map((moduleName) => (
                   <button
                     type="button"
-                    className={moduleFilter === moduleName ? 'selected' : ''}
+                    style={moduleFilter === moduleName ? SELECTED_MODULE_STYLE : undefined}
                     onClick={(event) => selectModule(event, moduleName)}
                     key={moduleName}
                   >
@@ -240,11 +251,16 @@ export default function AdminErrorsView() {
                 ))}
               </div>
             ) : (
-              <p>Quando surgir uma falha, o nome do módulo aparecerá aqui automaticamente.</p>
+              <p style={{ margin: 0, padding: '18px 16px', color: '#777', fontSize: '0.78rem' }}>
+                Quando surgir uma falha, o nome do módulo aparecerá aqui automaticamente.
+              </p>
             )}
           </section>
 
-          <div className="domnai-admin-errors-toolbar">
+          <div
+            className="domnai-admin-errors-toolbar"
+            style={{ gridTemplateColumns: 'minmax(150px, 0.75fr) minmax(150px, 0.75fr) auto' }}
+          >
             <label>
               <span>Gravidade</span>
               <select value={severityFilter} onChange={(event) => setSeverityFilter(event.target.value)}>
