@@ -35,7 +35,6 @@ COPY scripts/fix_chat_operation_delivery.py /tmp/fix_chat_operation_delivery.py
 COPY scripts/fix_mobile_chat_keyboard.py /tmp/fix_mobile_chat_keyboard.py
 COPY scripts/connect_user_sidebar_collapse.py /tmp/connect_user_sidebar_collapse.py
 COPY scripts/connect_single_chat_refresh_bottom.py /tmp/connect_single_chat_refresh_bottom.py
-COPY scripts/connect_persistent_chat_tasks.py /tmp/connect_persistent_chat_tasks.py
 RUN apk add --no-cache python3 \
     && python3 /tmp/connect_domnai_chat.py \
     && python3 /tmp/connect_operation_to_composer.py \
@@ -68,7 +67,6 @@ RUN apk add --no-cache python3 \
     && python3 /tmp/fix_mobile_chat_keyboard.py \
     && python3 /tmp/connect_user_sidebar_collapse.py \
     && python3 /tmp/connect_single_chat_refresh_bottom.py \
-    && python3 /tmp/connect_persistent_chat_tasks.py \
     && npm run build
 
 FROM python:3.13-slim AS runtime
@@ -83,11 +81,9 @@ COPY app ./app
 COPY scripts/tune_domnai_responses.py /tmp/tune_domnai_responses.py
 COPY scripts/guard_domnai_capabilities.py /tmp/guard_domnai_capabilities.py
 COPY scripts/apply_stages_9_11.py /tmp/apply_stages_9_11.py
-COPY scripts/apply_stage_10_core.py /tmp/apply_stage_10_core.py
 RUN python /tmp/tune_domnai_responses.py \
     && python /tmp/guard_domnai_capabilities.py \
-    && python /tmp/apply_stages_9_11.py \
-    && python /tmp/apply_stage_10_core.py
+    && python /tmp/apply_stages_9_11.py
 COPY --from=frontend-builder /frontend/dist ./frontend/dist
 EXPOSE 8080
 CMD ["sh", "-c", "alembic upgrade head && uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-8080}"]
