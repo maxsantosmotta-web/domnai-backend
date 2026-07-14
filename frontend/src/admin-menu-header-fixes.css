@@ -1,0 +1,58 @@
+.domnai-admin-sidebar {
+  gap: 14px;
+}
+
+.domnai-admin-brand {
+  min-height: 66px;
+  padding: 0 52px 16px;
+}
+
+.domnai-admin-brand img {
+  width: 158px;
+  max-width: 100%;
+}
+
+.domnai-admin-brand-back {
+  position: absolute;
+  top: 14px;
+  right: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: #ffffff;
+  font: 700 0.78rem/1 Inter, system-ui, sans-serif;
+  cursor: pointer;
+}
+
+.domnai-admin-brand-back:hover,
+.domnai-admin-brand-back:focus-visible {
+  color: #ffffff;
+  text-decoration: underline;
+  text-underline-offset: 4px;
+  outline: none;
+}
+
+.domnai-admin-section-label {
+  margin: 2px 8px -6px;
+  color: #777777;
+  font: 800 0.68rem/1 Inter, system-ui, sans-serif;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.domnai-admin-sidebar nav button.active {
+  border-color: transparent;
+  background: transparent;
+  color: #9a9a9a;
+}
+
+.domnai-admin-topbar {
+  justify-content: flex-start;
+}
+
+@media (max-width: 820px) {
+  .domnai-admin-brand {
+    padding-right: 52px;
+    padding-left: 52px;
+  }
+}
