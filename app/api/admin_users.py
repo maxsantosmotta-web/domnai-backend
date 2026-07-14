@@ -183,18 +183,24 @@ def _active_premium(account: BillingAccount | None, now: datetime) -> bool:
     return period_end is None or now <= period_end
 
 
+def _resolved_plan(account: BillingAccount | None, now: datetime) -> str:
+    if _active_premium(account, now):
+        return "premium"
+    if account and str(account.plan or "").lower() == "free":
+        return "free"
+    return "unselected"
+
+
 def _plan_label(value: str) -> str:
     return {
         "premium": "Plano Premium",
         "free": "Plano Free",
         "unselected": "Sem plano",
-        "admin": "Administrativo",
     }.get(value, "Sem plano")
 
 
 def _build_brain_insights(summary: dict) -> list[dict]:
     total = summary["totalUsers"]
-    customer_total = max(0, total - summary["adminUsers"])
     if total == 0:
         return [{
             "level": "info",
@@ -205,10 +211,7 @@ def _build_brain_insights(summary: dict) -> list[dict]:
     incomplete = total - summary["profileCompleted"]
     unselected = summary["unselectedUsers"]
     inactive = total - summary["activeLast7Days"]
-    premium_rate = round(
-        (summary["premiumUsers"] / customer_total) * 100,
-        1,
-    ) if customer_total else 0
+    premium_rate = round((summary["premiumUsers"] / total) * 100, 1)
 
     insights = []
     if incomplete:
@@ -232,7 +235,7 @@ def _build_brain_insights(summary: dict) -> list[dict]:
     insights.append({
         "level": "positive" if premium_rate >= 20 else "info",
         "title": "Conversão para Plano Premium",
-        "message": f"{premium_rate:.1f}% dos usuários clientes estão com o Plano Premium ativo.",
+        "message": f"{premium_rate:.1f}% da base está com o Plano Premium ativo.",
     })
     return insights[:4]
 
@@ -302,7 +305,7 @@ def list_admin_users(
 
     items = []
     growth_counts: defaultdict[str, int] = defaultdict(int)
-    plan_counts = {"premium": 0, "free": 0, "unselected": 0, "admin": 0}
+    plan_counts = {"premium": 0, "free": 0, "unselected": 0}
     new_this_week = 0
     new_this_month = 0
     active_last_7_days = 0
@@ -328,15 +331,7 @@ def list_admin_users(
             library_activity.get(user_id),
         )
 
-        raw_plan = str(account.plan if account else "unselected").lower()
-        if is_admin:
-            normalized_plan = "admin"
-        elif _active_premium(account, now):
-            normalized_plan = "premium"
-        elif raw_plan == "free":
-            normalized_plan = "free"
-        else:
-            normalized_plan = "unselected"
+        normalized_plan = _resolved_plan(account, now)
         plan_counts[normalized_plan] += 1
 
         credits = int((account.plan_credits + account.extra_credits) if account else 0)
@@ -406,7 +401,7 @@ def list_admin_users(
         "premiumUsers": plan_counts["premium"],
         "freeUsers": plan_counts["free"],
         "unselectedUsers": plan_counts["unselected"],
-        "adminUsers": plan_counts["admin"],
+        "adminUsers": len(admin_ids.intersection(user_ids)),
         "activeLast7Days": active_last_7_days,
         "totalCredits": total_credits,
     }
@@ -419,7 +414,6 @@ def list_admin_users(
             {"key": "premium", "label": "Plano Premium", "count": plan_counts["premium"]},
             {"key": "free", "label": "Plano Free", "count": plan_counts["free"]},
             {"key": "unselected", "label": "Sem plano", "count": plan_counts["unselected"]},
-            {"key": "admin", "label": "Administrativo", "count": plan_counts["admin"]},
         ],
         "brainInsights": _build_brain_insights(summary),
         "generatedAt": now.isoformat(),
