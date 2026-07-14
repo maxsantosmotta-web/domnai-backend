@@ -1,0 +1,28 @@
+.domnai-admin-users-brain {
+  display: none !important;
+}
+
+.domnai-admin-sidebar nav .domnai-admin-user-menu-entry {
+  width: 100%;
+}
+
+.sidebar-system-group {
+  display: flex !important;
+  flex-direction: column;
+}
+
+.sidebar-system-group > .domnai-feedback-menu-button {
+  order: 40;
+}
+
+.sidebar-system-group > .domnai-user-admin-button {
+  order: 50;
+}
+
+.sidebar-system-group > [data-domnai-settings-menu="true"] {
+  order: 60;
+}
+
+.domnai-user-admin-button {
+  width: 100%;
+}
