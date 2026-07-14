@@ -14,6 +14,31 @@ source = TARGET.read_text(encoding='utf-8')
 
 source = replace_once(
     source,
+    """const ADMIN_SECTIONS = [
+  'Visão geral',
+  'Saúde operacional',
+  'Usuários',
+  'Faturamento',
+  'Erros e alertas',
+  'Auditoria',
+  'Feedbacks',
+];
+""",
+    """const ADMIN_SECTIONS = [
+  'Visão geral',
+  'Usuários',
+  'Faturamento',
+  'Erros e alertas',
+  'Auditoria',
+  'Saúde operacional',
+  'Feedbacks',
+];
+""",
+    'Ordem da saúde operacional no menu administrativo',
+)
+
+source = replace_once(
+    source,
     "import DOMNAI_LOGO from './assets/domnai-logo-oficial-transparente.png';\n",
     "import DOMNAI_LOGO from './assets/domnai-logo-oficial-transparente.png';\nimport AdminFeedbacksView from './AdminFeedbacksView';\n",
     'Importação do módulo administrativo de feedbacks',
@@ -139,4 +164,4 @@ source = replace_once(
 )
 
 TARGET.write_text(source, encoding='utf-8')
-print('Feedbacks administrativos conectados com indicação pelo menu e sem títulos repetidos.')
+print('Feedbacks administrativos conectados com indicação pelo menu e Saúde operacional posicionada antes de Feedbacks.')
