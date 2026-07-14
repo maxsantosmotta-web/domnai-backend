@@ -114,7 +114,7 @@ function UserAdminEntry({ onOpen }) {
       <button type="button" className="domnai-user-admin-button" onClick={onOpen}>
         <span>◇</span>
         Painel Adm
-        <small>ADM</small>
+        <small>Adm</small>
       </button>
     </div>
   );
@@ -146,26 +146,18 @@ export default function AdminAccessBoundary({ children }) {
       return undefined;
     }
 
-    let cancelled = false;
-    let animationFrame = 0;
-
-    const findNavigation = (attempt = 0) => {
-      if (cancelled) return;
+    const syncSidebarTarget = () => {
       const navigation = document.querySelector('.sidebar-navigation');
-      if (navigation) {
-        setSidebarTarget(navigation);
-        return;
-      }
-      if (attempt < 20) animationFrame = window.requestAnimationFrame(() => findNavigation(attempt + 1));
+      setSidebarTarget((current) => {
+        if (navigation?.isConnected) return current === navigation ? current : navigation;
+        return current?.isConnected ? current : null;
+      });
     };
 
-    findNavigation();
+    syncSidebarTarget();
+    const interval = window.setInterval(syncSidebarTarget, 300);
 
-    return () => {
-      cancelled = true;
-      if (animationFrame) window.cancelAnimationFrame(animationFrame);
-      setSidebarTarget(null);
-    };
+    return () => window.clearInterval(interval);
   }, [adminRoute, isLoaded, isOwnerCandidate, isSignedIn, userLoaded]);
 
   useEffect(() => {
