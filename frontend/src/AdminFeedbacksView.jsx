@@ -81,12 +81,8 @@ export default function AdminFeedbacksView() {
   );
 
   return (
-    <section className="domnai-admin-feedbacks-view" aria-labelledby="admin-feedbacks-title">
+    <section className="domnai-admin-feedbacks-view" aria-label="Feedbacks recebidos">
       <header className="domnai-admin-feedbacks-heading">
-        <div>
-          <h2 id="admin-feedbacks-title">Feedbacks recebidos</h2>
-          <p>Acompanhe sugestões, problemas e elogios enviados pelos usuários.</p>
-        </div>
         <button type="button" onClick={loadFeedbacks} disabled={status === 'loading'}>
           {status === 'loading' ? 'Atualizando...' : 'Atualizar'}
         </button>
