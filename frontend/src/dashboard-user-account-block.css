@@ -1,0 +1,102 @@
+.domnai-user-account-block {
+  width: calc(100% - 16px);
+  margin: auto 8px 0;
+  overflow: hidden;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 12px;
+  background: rgba(12, 12, 12, 0.92);
+}
+
+.domnai-user-admin-slot,
+.domnai-user-logout-slot {
+  min-height: 0;
+}
+
+.domnai-user-admin-slot {
+  border-bottom: 1px solid rgba(255, 255, 255, 0.07);
+}
+
+.domnai-user-admin-entry {
+  margin: 0;
+  padding: 0;
+}
+
+.domnai-user-admin-button {
+  width: 100%;
+  min-height: 38px;
+  padding: 10px 12px;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  color: #d4d4d4;
+  display: flex;
+  align-items: center;
+  text-align: left;
+  font: 700 0.78rem/1.2 Inter, system-ui, sans-serif;
+  cursor: pointer;
+}
+
+.domnai-user-admin-button:hover,
+.domnai-user-admin-button:focus-visible {
+  background: transparent;
+  color: #ffffff;
+  outline: none;
+}
+
+.domnai-user-account-block > .sidebar-profile {
+  margin: 0 !important;
+  padding: 0 !important;
+  border: 0 !important;
+  background: transparent !important;
+}
+
+.domnai-user-account-block .domnai-profile-trigger {
+  min-height: 58px;
+  padding: 10px 12px;
+}
+
+.domnai-user-account-block .domnai-profile-trigger:hover,
+.domnai-user-account-block .domnai-profile-trigger:focus-visible {
+  background: transparent;
+  outline: none;
+}
+
+.domnai-user-logout-slot {
+  border-top: 1px solid rgba(255, 255, 255, 0.07);
+}
+
+.domnai-user-account-block .domnai-sidebar-logout {
+  width: 100%;
+  min-height: 36px;
+  margin: 0;
+  padding: 9px 12px;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  color: #b5b5b5;
+  display: flex;
+  align-items: center;
+  text-align: left;
+  font: 700 0.78rem/1.2 Inter, system-ui, sans-serif;
+  cursor: pointer;
+}
+
+.domnai-user-account-block .domnai-sidebar-logout > span {
+  display: none;
+}
+
+.domnai-user-account-block .domnai-sidebar-logout:hover,
+.domnai-user-account-block .domnai-sidebar-logout:focus-visible {
+  border: 0;
+  background: transparent;
+  color: #ffffff;
+  outline: none;
+}
+
+@media (max-width: 820px) {
+  .domnai-user-account-block {
+    width: calc(100% - 16px);
+    margin-right: 8px;
+    margin-left: 8px;
+  }
+}
