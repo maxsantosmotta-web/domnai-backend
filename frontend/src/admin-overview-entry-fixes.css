@@ -1,0 +1,71 @@
+.domnai-admin-premium-heading {
+  width: 100%;
+  min-height: 44px;
+  display: flex !important;
+  align-items: flex-start !important;
+  justify-content: space-between !important;
+  gap: 16px;
+}
+
+.domnai-admin-premium-heading > div:first-child {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+}
+
+.domnai-admin-premium-heading > div:first-child small {
+  display: block;
+  margin: 0;
+  color: #767983;
+  font-size: 0.66rem;
+  line-height: 1.35;
+}
+
+.domnai-admin-premium-heading > button {
+  flex: 0 0 auto;
+  min-height: 40px;
+  margin: 0 0 0 auto !important;
+  padding: 0 16px;
+  border: 1px solid rgba(255, 255, 255, 0.1) !important;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.035) !important;
+  color: #ffffff !important;
+  font-size: 0.72rem;
+  font-weight: 800;
+  text-decoration: none !important;
+  -webkit-tap-highlight-color: transparent;
+  transition: border-color 160ms ease, background 160ms ease, color 160ms ease, transform 160ms ease;
+}
+
+.domnai-admin-premium-heading > button:hover,
+.domnai-admin-premium-heading > button:focus,
+.domnai-admin-premium-heading > button:focus-visible {
+  border-color: rgba(255, 255, 255, 0.16) !important;
+  background: rgba(255, 255, 255, 0.055) !important;
+  color: #ffffff !important;
+  outline: none;
+}
+
+.domnai-admin-premium-heading > button:active:not(:disabled) {
+  border-color: rgba(244, 201, 93, 0.34) !important;
+  background: rgba(244, 201, 93, 0.1) !important;
+  color: #f4c95d !important;
+  transform: scale(0.985);
+}
+
+@media (max-width: 700px) {
+  .domnai-admin-premium-heading {
+    gap: 10px;
+  }
+
+  .domnai-admin-premium-heading > div:first-child {
+    max-width: calc(100% - 92px);
+  }
+
+  .domnai-admin-premium-heading > button {
+    min-height: 38px;
+    padding-inline: 13px;
+  }
+}
