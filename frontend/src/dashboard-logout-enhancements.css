@@ -105,7 +105,7 @@
 @media (max-width: 820px) {
   .domnai-sidebar-logout {
     width: calc(100% - 16px);
-    margin: 18px 8px 8px;
+    margin: auto 8px 8px;
   }
 
   .domnai-plan-logout {
