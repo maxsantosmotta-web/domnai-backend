@@ -177,6 +177,36 @@ export default function AdminBillingView() {
     });
   }, [items, planFilter, query, statusFilter]);
 
+  const visibleBrainInsights = useMemo(() => {
+    const customerIds = new Set(
+      items.filter((item) => item.role !== 'admin').map((item) => item.id),
+    );
+    const cutoff = Date.now() - (30 * 24 * 60 * 60 * 1000);
+    const consumption = transactions.filter((item) => {
+      const createdAt = new Date(item.createdAt || 0).getTime();
+      return item.kind === 'consumption'
+        && Number(item.amount || 0) < 0
+        && customerIds.has(item.userId)
+        && Number.isFinite(createdAt)
+        && createdAt >= cutoff;
+    });
+
+    if (consumption.length === 0) return brainInsights;
+
+    const consumedCredits = consumption.reduce(
+      (total, item) => total + Math.abs(Number(item.amount || 0)),
+      0,
+    );
+    const consumers = new Set(consumption.map((item) => item.userId)).size;
+    const consumptionInsight = {
+      level: 'info',
+      title: 'Consumo de créditos',
+      message: `${formatNumber(consumedCredits)} crédito(s) utilizados por ${formatNumber(consumers)} cliente(s) nos últimos 30 dias.`,
+    };
+
+    return [consumptionInsight, ...brainInsights].slice(0, 4);
+  }, [brainInsights, items, transactions]);
+
   function handleRefresh(event) {
     event.currentTarget.blur();
     loadBilling();
@@ -258,7 +288,7 @@ export default function AdminBillingView() {
               <div><span>IAttom Brain</span><strong>Leitura automática da operação financeira</strong></div>
             </header>
             <div className="billing-brain-grid">
-              {brainInsights.map((insight, index) => (
+              {visibleBrainInsights.map((insight, index) => (
                 <article className={insight.level || 'info'} key={`${insight.title}-${index}`}>
                   <span>{String(index + 1).padStart(2, '0')}</span>
                   <div><strong>{insight.title}</strong><p>{insight.message}</p></div>
@@ -323,22 +353,6 @@ export default function AdminBillingView() {
                   <thead><tr><th>Cliente</th><th>Fatura</th><th>Status</th><th>Pago</th><th>Pendente</th><th>Data</th></tr></thead>
                   <tbody>{invoices.map((item) => (
                     <tr key={item.id}><td><strong>{item.name}</strong><small>{item.email}</small></td><td>{item.number}</td><td><StatusBadge status={item.status} label={item.statusLabel} /></td><td>{formatMoney(item.amountPaidCents)}</td><td>{formatMoney(item.amountRemainingCents)}</td><td>{formatDate(item.createdAt, true)}</td></tr>
-                  ))}</tbody>
-                </table>
-              </div>
-            )}
-          </section>
-
-          <section className="domnai-admin-billing-section-card">
-            <header><div><span>Movimentações de créditos</span><strong>Entradas e consumos vinculados aos usuários atuais</strong></div><small>{formatNumber(transactions.length)} registro(s)</small></header>
-            {transactions.length === 0 ? (
-              <div className="domnai-admin-billing-empty">Nenhuma movimentação de crédito de cliente registrada.</div>
-            ) : (
-              <div className="domnai-admin-billing-table-wrap">
-                <table className="domnai-admin-billing-table transactions-table">
-                  <thead><tr><th>Cliente</th><th>Descrição</th><th>Movimento</th><th>Saldo do plano</th><th>Saldo extra</th><th>Data</th></tr></thead>
-                  <tbody>{transactions.map((item) => (
-                    <tr key={item.id}><td><strong>{item.name}</strong><small>{item.email}</small></td><td>{item.description}</td><td><strong className={item.amount >= 0 ? 'positive-amount' : 'negative-amount'}>{item.amount >= 0 ? '+' : ''}{formatNumber(item.amount)}</strong></td><td>{formatNumber(item.planBalance)}</td><td>{formatNumber(item.extraBalance)}</td><td>{formatDate(item.createdAt, true)}</td></tr>
                   ))}</tbody>
                 </table>
               </div>
