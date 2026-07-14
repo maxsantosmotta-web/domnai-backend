@@ -1,0 +1,31 @@
+.domnai-user-admin-group {
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px solid rgba(255, 255, 255, 0.07);
+}
+
+.domnai-user-admin-group > p {
+  margin-bottom: 6px;
+}
+
+.domnai-user-admin-button {
+  position: relative;
+}
+
+.domnai-user-admin-button small {
+  margin-left: auto;
+  padding: 3px 7px;
+  border: 1px solid rgba(216, 170, 52, 0.34);
+  border-radius: 999px;
+  background: rgba(216, 170, 52, 0.12);
+  color: #dfbd59;
+  font-size: 0.58rem;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+}
+
+.domnai-user-admin-button:hover small,
+.domnai-user-admin-button:focus-visible small {
+  background: rgba(216, 170, 52, 0.2);
+  color: #f2d370;
+}
