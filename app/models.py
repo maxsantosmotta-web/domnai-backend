@@ -120,6 +120,21 @@ class ActiveChatState(Base):
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc), nullable=False)
 
 
+class ChatTask(Base):
+    __tablename__ = "chat_tasks"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid4()))
+    user_id: Mapped[str] = mapped_column(String(128), nullable=False, index=True)
+    status: Mapped[str] = mapped_column(String(24), nullable=False, default="queued", index=True)
+    request_json: Mapped[str] = mapped_column(Text, nullable=False)
+    result_json: Mapped[str | None] = mapped_column(Text, nullable=True)
+    error_message: Mapped[str | None] = mapped_column(Text, nullable=True)
+    credit_transaction_key: Mapped[str | None] = mapped_column(String(255), nullable=True, unique=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), nullable=False, index=True)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc), nullable=False)
+    completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+
 class DiagnosisState(Base):
     __tablename__ = "diagnosis_states"
 
@@ -133,10 +148,7 @@ class UserFeedback(Base):
     __tablename__ = "user_feedbacks"
     __table_args__ = (
         CheckConstraint("rating >= 1 AND rating <= 5", name="ck_user_feedbacks_rating"),
-        CheckConstraint(
-            "category IN ('suggestion', 'problem', 'praise')",
-            name="ck_user_feedbacks_category",
-        ),
+        CheckConstraint("category IN ('suggestion', 'problem', 'praise')", name="ck_user_feedbacks_category"),
     )
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid4()))
