@@ -10,6 +10,14 @@ const FILTERS = [
   { value: 'praise', label: 'Elogios' },
 ];
 
+const EMPTY_SUMMARY = {
+  total: 0,
+  suggestions: 0,
+  problems: 0,
+  praises: 0,
+  average: 0,
+};
+
 function formatDate(value) {
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return '';
@@ -36,9 +44,12 @@ function Stars({ rating }) {
 export default function AdminFeedbacksView() {
   const { getToken } = useAuth();
   const [items, setItems] = useState([]);
+  const [summary, setSummary] = useState(EMPTY_SUMMARY);
   const [filter, setFilter] = useState('all');
   const [status, setStatus] = useState('loading');
   const [error, setError] = useState('');
+  const [deletingId, setDeletingId] = useState('');
+  const [deletingAll, setDeletingAll] = useState(false);
 
   const loadFeedbacks = useCallback(async () => {
     setStatus('loading');
@@ -52,7 +63,16 @@ export default function AdminFeedbacksView() {
       });
       const payload = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(payload.detail || 'Não foi possível carregar os feedbacks.');
-      setItems(Array.isArray(payload.items) ? payload.items : []);
+
+      const nextItems = Array.isArray(payload.items) ? payload.items : [];
+      setItems(nextItems);
+      setSummary({
+        total: Number(payload.summary?.total) || 0,
+        suggestions: Number(payload.summary?.suggestions) || 0,
+        problems: Number(payload.summary?.problems) || 0,
+        praises: Number(payload.summary?.praises) || 0,
+        average: Number(payload.summary?.average) || 0,
+      });
       setStatus('ready');
     } catch (loadError) {
       setError(loadError?.message || 'Não foi possível carregar os feedbacks.');
@@ -64,29 +84,79 @@ export default function AdminFeedbacksView() {
     loadFeedbacks();
   }, [loadFeedbacks]);
 
-  const summary = useMemo(() => {
-    const total = items.length;
-    const suggestions = items.filter((item) => item.category === 'suggestion').length;
-    const problems = items.filter((item) => item.category === 'problem').length;
-    const praises = items.filter((item) => item.category === 'praise').length;
-    const average = total
-      ? items.reduce((sum, item) => sum + (Number(item.rating) || 0), 0) / total
-      : 0;
-
-    return { total, suggestions, problems, praises, average };
-  }, [items]);
-
   const visibleItems = useMemo(
     () => (filter === 'all' ? items : items.filter((item) => item.category === filter)),
     [filter, items],
   );
 
+  async function deleteFeedback(item) {
+    const confirmed = window.confirm(
+      'Excluir este feedback da lista administrativa? Os números do relatório serão preservados.',
+    );
+    if (!confirmed) return;
+
+    setDeletingId(item.id);
+    try {
+      const token = await getToken();
+      const response = await fetch(`/api/feedback/admin/${encodeURIComponent(item.id)}`, {
+        method: 'DELETE',
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(payload.detail || 'Não foi possível excluir o feedback.');
+      setItems((current) => current.filter((currentItem) => currentItem.id !== item.id));
+    } catch (deleteError) {
+      window.alert(deleteError?.message || 'Não foi possível excluir o feedback.');
+    } finally {
+      setDeletingId('');
+    }
+  }
+
+  async function deleteAllFeedbacks() {
+    if (items.length === 0) return;
+    const confirmed = window.confirm(
+      'Excluir todos os feedbacks da lista administrativa? Os números do relatório serão preservados.',
+    );
+    if (!confirmed) return;
+
+    setDeletingAll(true);
+    try {
+      const token = await getToken();
+      const response = await fetch('/api/feedback/admin', {
+        method: 'DELETE',
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(payload.detail || 'Não foi possível excluir os feedbacks.');
+      setItems([]);
+    } catch (deleteError) {
+      window.alert(deleteError?.message || 'Não foi possível excluir os feedbacks.');
+    } finally {
+      setDeletingAll(false);
+    }
+  }
+
+  function refreshFeedbacks(event) {
+    event.currentTarget.blur();
+    loadFeedbacks();
+  }
+
   return (
     <section className="domnai-admin-feedbacks-view" aria-label="Feedbacks recebidos">
       <header className="domnai-admin-feedbacks-heading">
-        <button type="button" onClick={loadFeedbacks} disabled={status === 'loading'}>
-          {status === 'loading' ? 'Atualizando...' : 'Atualizar'}
-        </button>
+        <div className="domnai-admin-feedbacks-actions">
+          <button
+            type="button"
+            className="delete-all"
+            onClick={deleteAllFeedbacks}
+            disabled={status === 'loading' || deletingAll || items.length === 0}
+          >
+            {deletingAll ? 'Excluindo...' : 'Excluir todos'}
+          </button>
+          <button type="button" onClick={refreshFeedbacks} disabled={status === 'loading'}>
+            {status === 'loading' ? 'Atualizando...' : 'Atualizar'}
+          </button>
+        </div>
       </header>
 
       <div className="domnai-admin-feedbacks-summary" aria-label="Resumo dos feedbacks">
@@ -124,14 +194,14 @@ export default function AdminFeedbacksView() {
       ) : null}
 
       {status === 'ready' && visibleItems.length === 0 ? (
-        <div className="domnai-admin-feedbacks-state">
-          <strong>Nenhum feedback encontrado</strong>
-          <p>Os novos registros aparecerão aqui automaticamente após a atualização.</p>
+        <div className="domnai-admin-feedbacks-state compact">
+          <strong>Nenhum feedback na lista</strong>
+          <p>Os indicadores históricos permanecem preservados.</p>
         </div>
       ) : null}
 
       {status === 'ready' && visibleItems.length > 0 ? (
-        <div className="domnai-admin-feedbacks-list">
+        <div className="domnai-admin-feedbacks-list" aria-label="Lista de feedbacks recebidos">
           {visibleItems.map((item) => (
             <article className={`domnai-admin-feedback-item ${item.category || ''}`} key={item.id}>
               <div className="domnai-admin-feedback-item-top">
@@ -139,7 +209,16 @@ export default function AdminFeedbacksView() {
                   <span className="category">{item.categoryLabel || 'Feedback'}</span>
                   <span className="status">{item.statusLabel || 'Recebido'}</span>
                 </div>
-                <time dateTime={item.createdAt}>{formatDate(item.createdAt)}</time>
+                <div className="domnai-admin-feedback-item-actions">
+                  <time dateTime={item.createdAt}>{formatDate(item.createdAt)}</time>
+                  <button
+                    type="button"
+                    onClick={() => deleteFeedback(item)}
+                    disabled={deletingId === item.id || deletingAll}
+                  >
+                    {deletingId === item.id ? 'Excluindo...' : 'Excluir'}
+                  </button>
+                </div>
               </div>
 
               <div className="domnai-admin-feedback-user">
