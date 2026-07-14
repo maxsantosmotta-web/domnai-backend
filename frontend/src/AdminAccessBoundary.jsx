@@ -31,40 +31,7 @@ function AccessLoading() {
       <section className="domnai-admin-gate-card compact">
         <img src={DOMNAI_LOGO} alt="DomnAI" />
         <span className="domnai-admin-spinner" aria-hidden="true" />
-        <p>Validando seu tipo de acesso...</p>
-      </section>
-    </main>
-  );
-}
-
-function AccessChoice({ onAdmin, onUser, onSignOut }) {
-  return (
-    <main className="domnai-admin-gate-page">
-      <section className="domnai-admin-gate-card">
-        <img src={DOMNAI_LOGO} alt="DomnAI" />
-        <div className="domnai-admin-gate-heading">
-          <span>Conta administrativa reconhecida</span>
-          <h1>Como deseja acessar o DomnAI?</h1>
-          <p>Escolha o ambiente que deseja utilizar nesta sessão.</p>
-        </div>
-
-        <div className="domnai-admin-access-options">
-          <button type="button" className="domnai-admin-access-option primary" onClick={onAdmin}>
-            <span className="domnai-admin-access-icon">ADM</span>
-            <strong>Acesso Administrativo</strong>
-            <small>Monitoramento, usuários, faturamento, alertas e feedbacks.</small>
-          </button>
-
-          <button type="button" className="domnai-admin-access-option" onClick={onUser}>
-            <span className="domnai-admin-access-icon">USER</span>
-            <strong>Acesso Usuário</strong>
-            <small>Abra o DomnAI exatamente como a plataforma é exibida ao cliente.</small>
-          </button>
-        </div>
-
-        <button type="button" className="domnai-admin-signout-link" onClick={onSignOut}>
-          Sair da conta
-        </button>
+        <p>Validando seu acesso administrativo...</p>
       </section>
     </main>
   );
@@ -76,11 +43,11 @@ function AccessValidationError({ diagnostic, onRetry, onUser, onSignOut }) {
       <section className="domnai-admin-gate-card compact">
         <img src={DOMNAI_LOGO} alt="DomnAI" />
         <h1>Não foi possível validar o acesso administrativo.</h1>
-        <p>O ambiente administrativo permaneceu bloqueado. Você pode tentar novamente ou continuar no acesso de usuário.</p>
+        <p>O Painel ADM permaneceu bloqueado. Você pode tentar novamente ou retornar ao Painel Usuário.</p>
         {diagnostic ? <p><strong>Diagnóstico:</strong> {diagnostic}</p> : null}
         <div className="domnai-admin-error-actions">
           <button type="button" className="primary" onClick={onRetry}>Tentar novamente</button>
-          <button type="button" onClick={onUser}>Acessar como usuário</button>
+          <button type="button" onClick={onUser}>Painel Usuário</button>
         </div>
         <button type="button" className="domnai-admin-signout-link" onClick={onSignOut}>Sair da conta</button>
       </section>
@@ -107,7 +74,7 @@ function AdminPortalShell({ onUser, onSignOut }) {
         </nav>
 
         <div className="domnai-admin-sidebar-actions">
-          <button type="button" onClick={onUser}>Acesso Usuário</button>
+          <button type="button" onClick={onUser}>Painel Usuário</button>
           <button type="button" onClick={onSignOut}>Sair da conta</button>
         </div>
       </aside>
@@ -138,25 +105,17 @@ function AdminPortalShell({ onUser, onSignOut }) {
   );
 }
 
-function AdminReturnButton({ onAdmin }) {
-  return (
-    <button type="button" className="domnai-admin-return-button" onClick={onAdmin}>
-      Acesso Administrativo
-    </button>
-  );
-}
-
 export default function AdminAccessBoundary({ children }) {
   const { getToken, isLoaded, isSignedIn } = useAuth();
   const { isLoaded: userLoaded, user } = useUser();
   const { signOut } = useClerk();
   const [route, setRoute] = useState(currentHashPath);
-  const [accessMode, setAccessMode] = useState(() => sessionStorage.getItem(ACCESS_MODE_KEY) || '');
   const [verification, setVerification] = useState({ status: 'idle', isAdmin: false, message: '' });
   const [retryKey, setRetryKey] = useState(0);
 
   const primaryEmail = String(user?.primaryEmailAddress?.emailAddress || '').trim().toLowerCase();
   const isOwnerCandidate = primaryEmail === OWNER_EMAIL;
+  const adminRoute = route === '/admin' || route.startsWith('/admin/');
 
   useEffect(() => {
     const handleHashChange = () => setRoute(currentHashPath());
@@ -165,7 +124,24 @@ export default function AdminAccessBoundary({ children }) {
   }, []);
 
   useEffect(() => {
-    if (!isLoaded || !isSignedIn || !userLoaded || !isOwnerCandidate) {
+    if (!isOwnerCandidate) {
+      delete window.openDomnAIAdmin;
+      return undefined;
+    }
+
+    const openAdmin = () => {
+      sessionStorage.setItem(ACCESS_MODE_KEY, 'admin');
+      navigateTo('/admin');
+    };
+
+    window.openDomnAIAdmin = openAdmin;
+    return () => {
+      if (window.openDomnAIAdmin === openAdmin) delete window.openDomnAIAdmin;
+    };
+  }, [isOwnerCandidate]);
+
+  useEffect(() => {
+    if (!isLoaded || !isSignedIn || !userLoaded || !isOwnerCandidate || !adminRoute) {
       setVerification({ status: 'idle', isAdmin: false, message: '' });
       return undefined;
     }
@@ -197,50 +173,25 @@ export default function AdminAccessBoundary({ children }) {
     })();
 
     return () => { cancelled = true; };
-  }, [getToken, isLoaded, isOwnerCandidate, isSignedIn, retryKey, userLoaded]);
+  }, [adminRoute, getToken, isLoaded, isOwnerCandidate, isSignedIn, retryKey, userLoaded]);
 
   useEffect(() => {
-    if (!isSignedIn) {
-      sessionStorage.removeItem(ACCESS_MODE_KEY);
-      setAccessMode('');
-    }
+    if (!isSignedIn) sessionStorage.removeItem(ACCESS_MODE_KEY);
   }, [isSignedIn]);
-
-  function selectAdminAccess() {
-    sessionStorage.setItem(ACCESS_MODE_KEY, 'admin');
-    setAccessMode('admin');
-    navigateTo('/admin');
-  }
 
   function selectUserAccess() {
     sessionStorage.setItem(ACCESS_MODE_KEY, 'user');
-    setAccessMode('user');
     navigateTo('/');
   }
 
   async function leaveAccount() {
     sessionStorage.removeItem(ACCESS_MODE_KEY);
-    setAccessMode('');
     await signOut({ redirectUrl: '/#/' });
   }
 
-  if (!isLoaded || !isSignedIn) return children;
-  if (!userLoaded) return <AccessLoading />;
+  if (!adminRoute) return children;
+  if (!isLoaded || !isSignedIn || !userLoaded) return <AccessLoading />;
   if (!isOwnerCandidate) return children;
-
-  const adminRoute = route === '/admin' || route.startsWith('/admin/');
-
-  if (accessMode === 'user') {
-    return (
-      <>
-        {children}
-        {(verification.status === 'verified' && verification.isAdmin) || verification.status === 'error' ? (
-          <AdminReturnButton onAdmin={selectAdminAccess} />
-        ) : null}
-      </>
-    );
-  }
-
   if (verification.status === 'idle' || verification.status === 'checking') return <AccessLoading />;
 
   if (verification.status === 'error') {
@@ -254,11 +205,16 @@ export default function AdminAccessBoundary({ children }) {
     );
   }
 
-  if (!verification.isAdmin) return children;
-
-  if (adminRoute || accessMode === 'admin') {
-    return <AdminPortalShell onUser={selectUserAccess} onSignOut={leaveAccount} />;
+  if (!verification.isAdmin) {
+    return (
+      <AccessValidationError
+        diagnostic="A conta autenticada não possui autorização administrativa."
+        onRetry={() => setRetryKey((current) => current + 1)}
+        onUser={selectUserAccess}
+        onSignOut={leaveAccount}
+      />
+    );
   }
 
-  return <AccessChoice onAdmin={selectAdminAccess} onUser={selectUserAccess} onSignOut={leaveAccount} />;
+  return <AdminPortalShell onUser={selectUserAccess} onSignOut={leaveAccount} />;
 }
