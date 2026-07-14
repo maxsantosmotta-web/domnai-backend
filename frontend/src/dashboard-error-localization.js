@@ -1,5 +1,6 @@
 import './dashboard-access-control.css';
 import './dashboard-access-control.js';
+import './profile-checklist-mobile-no-zoom.css';
 
 function translateValidationMessage(text) {
   return String(text || '')
