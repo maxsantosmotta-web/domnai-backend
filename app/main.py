@@ -4,6 +4,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
+from app.api.admin_billing import router as admin_billing_router
 from app.api.admin_users import router as admin_users_router
 from app.api.auth import router as auth_router
 from app.api.billing import router as billing_router
@@ -42,6 +43,7 @@ app.include_router(health_router)
 app.include_router(config_router)
 app.include_router(auth_router)
 app.include_router(admin_users_router)
+app.include_router(admin_billing_router)
 app.include_router(chat_router)
 app.include_router(chat_state_router)
 app.include_router(decisions_router)
