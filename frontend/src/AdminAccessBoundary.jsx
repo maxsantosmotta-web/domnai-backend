@@ -309,19 +309,44 @@ export default function AdminAccessBoundary({ children }) {
     navigateTo('/');
   }
 
-  async function leaveAccount() {
+  function leaveAccount() {
     if (isSigningOut) return;
 
     setIsSigningOut(true);
     sessionStorage.removeItem(ADMIN_ENTRY_KEY);
+
     const landingUrl = `${window.location.origin}${window.location.pathname}#/`;
+    const activeSessionId = window.Clerk?.session?.id;
+    let redirected = false;
+
+    const finishRedirect = () => {
+      if (redirected) return;
+      redirected = true;
+      window.location.replace(landingUrl);
+    };
+
+    const fallbackTimer = window.setTimeout(finishRedirect, 2200);
 
     try {
-      await signOut();
-      window.location.replace(landingUrl);
+      const result = signOut({
+        ...(activeSessionId ? { sessionId: activeSessionId } : {}),
+        redirectUrl: landingUrl,
+      });
+
+      Promise.resolve(result)
+        .then(() => {
+          window.clearTimeout(fallbackTimer);
+          finishRedirect();
+        })
+        .catch((error) => {
+          console.error('Não foi possível encerrar a sessão do DomnAI.', error);
+          window.clearTimeout(fallbackTimer);
+          finishRedirect();
+        });
     } catch (error) {
-      console.error('Não foi possível encerrar a sessão do DomnAI.', error);
-      setIsSigningOut(false);
+      console.error('Não foi possível iniciar a saída do DomnAI.', error);
+      window.clearTimeout(fallbackTimer);
+      finishRedirect();
     }
   }
 
