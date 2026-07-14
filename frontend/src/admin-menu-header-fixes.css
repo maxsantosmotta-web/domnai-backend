@@ -21,14 +21,17 @@
   background: transparent;
   color: #ffffff;
   font: 700 0.78rem/1 Inter, system-ui, sans-serif;
+  text-decoration: none !important;
+  -webkit-tap-highlight-color: transparent;
   cursor: pointer;
 }
 
 .domnai-admin-brand-back:hover,
-.domnai-admin-brand-back:focus-visible {
+.domnai-admin-brand-back:focus,
+.domnai-admin-brand-back:focus-visible,
+.domnai-admin-brand-back:active {
   color: #ffffff;
-  text-decoration: underline;
-  text-underline-offset: 4px;
+  text-decoration: none !important;
   outline: none;
 }
 
