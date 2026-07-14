@@ -145,14 +145,6 @@ export default function AdminFeedbacksView() {
     <section className="domnai-admin-feedbacks-view" aria-label="Feedbacks recebidos">
       <header className="domnai-admin-feedbacks-heading">
         <div className="domnai-admin-feedbacks-actions">
-          <button
-            type="button"
-            className="delete-all"
-            onClick={deleteAllFeedbacks}
-            disabled={status === 'loading' || deletingAll || items.length === 0}
-          >
-            {deletingAll ? 'Excluindo...' : 'Excluir todos'}
-          </button>
           <button type="button" onClick={refreshFeedbacks} disabled={status === 'loading'}>
             {status === 'loading' ? 'Atualizando...' : 'Atualizar'}
           </button>
@@ -179,6 +171,17 @@ export default function AdminFeedbacksView() {
             {item.label}
           </button>
         ))}
+      </div>
+
+      <div className="domnai-admin-feedback-list-actions">
+        <button
+          type="button"
+          className="delete-all"
+          onClick={deleteAllFeedbacks}
+          disabled={status === 'loading' || deletingAll || items.length === 0}
+        >
+          {deletingAll ? 'Excluindo...' : 'Excluir todos'}
+        </button>
       </div>
 
       {status === 'loading' ? (
