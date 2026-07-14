@@ -19,6 +19,7 @@ COPY scripts/connect_admin_access_boundary.py /tmp/connect_admin_access_boundary
 COPY scripts/fix_admin_reload_persistence.py /tmp/fix_admin_reload_persistence.py
 COPY scripts/fix_admin_menu_header_layout.py /tmp/fix_admin_menu_header_layout.py
 COPY scripts/fix_user_account_footer_block.py /tmp/fix_user_account_footer_block.py
+COPY scripts/connect_admin_feedbacks_view.py /tmp/connect_admin_feedbacks_view.py
 COPY scripts/refactor_feedback_light_ui.py /tmp/refactor_feedback_light_ui.py
 COPY scripts/fix_feedback_back_button.py /tmp/fix_feedback_back_button.py
 RUN apk add --no-cache python3 \
@@ -37,6 +38,7 @@ RUN apk add --no-cache python3 \
     && python3 /tmp/fix_admin_reload_persistence.py \
     && python3 /tmp/fix_admin_menu_header_layout.py \
     && python3 /tmp/fix_user_account_footer_block.py \
+    && python3 /tmp/connect_admin_feedbacks_view.py \
     && python3 /tmp/refactor_feedback_light_ui.py \
     && python3 /tmp/fix_feedback_back_button.py \
     && npm run build
