@@ -36,6 +36,7 @@ COPY scripts/fix_mobile_chat_keyboard.py /tmp/fix_mobile_chat_keyboard.py
 COPY scripts/connect_user_sidebar_collapse.py /tmp/connect_user_sidebar_collapse.py
 COPY scripts/fix_chat_reload_scroll_bottom.py /tmp/fix_chat_reload_scroll_bottom.py
 COPY scripts/fix_chat_refresh_full_scroll.py /tmp/fix_chat_refresh_full_scroll.py
+COPY scripts/fix_browser_reload_scroll_complete.py /tmp/fix_browser_reload_scroll_complete.py
 RUN apk add --no-cache python3 \
     && python3 /tmp/connect_domnai_chat.py \
     && python3 /tmp/connect_operation_to_composer.py \
@@ -69,6 +70,7 @@ RUN apk add --no-cache python3 \
     && python3 /tmp/connect_user_sidebar_collapse.py \
     && python3 /tmp/fix_chat_reload_scroll_bottom.py \
     && python3 /tmp/fix_chat_refresh_full_scroll.py \
+    && python3 /tmp/fix_browser_reload_scroll_complete.py \
     && npm run build
 
 FROM python:3.13-slim AS runtime
