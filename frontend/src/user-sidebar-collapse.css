@@ -2,13 +2,22 @@
   grid-template-columns: minmax(0, 1fr);
 }
 
+/* No painel usuário, o controle de recolher segue o padrão do ADM:
+ * canto superior esquerdo, imediatamente antes do logo.
+ */
+.domnai-sidebar .sidebar-brand {
+  justify-content: flex-start;
+  gap: 10px;
+}
+
 .user-sidebar-collapse-button {
+  order: -1;
   width: 34px;
   height: 34px;
   flex: 0 0 34px;
   display: grid;
   place-items: center;
-  transform: translateY(-6px);
+  margin-top: -6px;
   border: 1px solid rgba(225, 181, 77, 0.24);
   border-radius: 10px;
   background: #0d0d0d;
@@ -68,6 +77,11 @@
 }
 
 @media (max-width: 900px) {
+  .domnai-sidebar .sidebar-brand {
+    justify-content: space-between;
+    gap: 0;
+  }
+
   .user-sidebar-collapse-button {
     display: none;
   }
