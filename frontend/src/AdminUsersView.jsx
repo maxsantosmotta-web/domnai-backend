@@ -10,15 +10,17 @@ const EMPTY_SUMMARY = {
   premiumUsers: 0,
   freeUsers: 0,
   unselectedUsers: 0,
+  adminUsers: 0,
   activeLast7Days: 0,
   totalCredits: 0,
 };
 
 const PLAN_FILTERS = [
   { value: 'all', label: 'Todos os planos' },
-  { value: 'premium', label: 'Premium' },
-  { value: 'free', label: 'Free' },
+  { value: 'free', label: 'Plano Free' },
+  { value: 'premium', label: 'Plano Premium' },
   { value: 'unselected', label: 'Sem plano' },
+  { value: 'admin', label: 'Administrativo' },
 ];
 
 const ROLE_FILTERS = [
@@ -72,7 +74,9 @@ function GrowthChart({ points }) {
     };
   });
 
-  const line = coordinates.map((point, index) => `${index === 0 ? 'M' : 'L'} ${point.x} ${point.y}`).join(' ');
+  const line = coordinates
+    .map((point, index) => `${index === 0 ? 'M' : 'L'} ${point.x} ${point.y}`)
+    .join(' ');
   const area = coordinates.length
     ? `${line} L ${coordinates[coordinates.length - 1].x} ${padding.top + innerHeight} L ${coordinates[0].x} ${padding.top + innerHeight} Z`
     : '';
@@ -101,9 +105,16 @@ function GrowthChart({ points }) {
         {coordinates.map((point, index) => (
           <g key={point.date || index}>
             {(index % 5 === 0 || index === coordinates.length - 1) ? (
-              <text x={point.x} y={height - 12} textAnchor="middle" className="axis-label">{point.label}</text>
+              <text x={point.x} y={height - 12} textAnchor="middle" className="axis-label">
+                {point.label}
+              </text>
             ) : null}
-            <circle cx={point.x} cy={point.y} r={point.value > 0 ? 4 : 2.2} className={point.value > 0 ? 'point active' : 'point'}>
+            <circle
+              cx={point.x}
+              cy={point.y}
+              r={point.value > 0 ? 4 : 2.2}
+              className={point.value > 0 ? 'point active' : 'point'}
+            >
               <title>{`${point.label}: ${point.value} novo(s) usuário(s)`}</title>
             </circle>
           </g>
@@ -117,7 +128,9 @@ function PlanDistribution({ items, total }) {
   return (
     <div className="domnai-admin-users-plan-chart" aria-label="Distribuição por plano">
       {(Array.isArray(items) ? items : []).map((item) => {
-        const percentage = total > 0 ? Math.round((Number(item.count || 0) / total) * 100) : 0;
+        const percentage = total > 0
+          ? Math.round((Number(item.count || 0) / total) * 100)
+          : 0;
         return (
           <div className="plan-row" key={item.key}>
             <div>
@@ -178,6 +191,16 @@ function exportUsersCsv(users) {
   URL.revokeObjectURL(url);
 }
 
+async function readResponse(response) {
+  const raw = await response.text();
+  if (!raw) return {};
+  try {
+    return JSON.parse(raw);
+  } catch {
+    return { detail: raw };
+  }
+}
+
 export default function AdminUsersView() {
   const { getToken } = useAuth();
   const [items, setItems] = useState([]);
@@ -186,6 +209,7 @@ export default function AdminUsersView() {
   const [planDistribution, setPlanDistribution] = useState([]);
   const [brainInsights, setBrainInsights] = useState([]);
   const [generatedAt, setGeneratedAt] = useState('');
+  const [dataWarning, setDataWarning] = useState('');
   const [query, setQuery] = useState('');
   const [planFilter, setPlanFilter] = useState('all');
   const [roleFilter, setRoleFilter] = useState('all');
@@ -198,12 +222,16 @@ export default function AdminUsersView() {
 
     try {
       const token = await getToken();
+      if (!token) throw new Error('Não foi possível validar a sessão administrativa.');
+
       const response = await fetch('/api/admin/users?limit=1000', {
         headers: { Authorization: `Bearer ${token}` },
         cache: 'no-store',
       });
-      const payload = await response.json().catch(() => ({}));
-      if (!response.ok) throw new Error(payload.detail || 'Não foi possível carregar os usuários.');
+      const payload = await readResponse(response);
+      if (!response.ok) {
+        throw new Error(payload.detail || `Falha ao carregar usuários (${response.status}).`);
+      }
 
       setItems(Array.isArray(payload.items) ? payload.items : []);
       setSummary({ ...EMPTY_SUMMARY, ...(payload.summary || {}) });
@@ -211,6 +239,7 @@ export default function AdminUsersView() {
       setPlanDistribution(Array.isArray(payload.planDistribution) ? payload.planDistribution : []);
       setBrainInsights(Array.isArray(payload.brainInsights) ? payload.brainInsights : []);
       setGeneratedAt(payload.generatedAt || new Date().toISOString());
+      setDataWarning(String(payload.dataWarning || ''));
       setStatus('ready');
     } catch (loadError) {
       if (!silent) {
@@ -253,10 +282,18 @@ export default function AdminUsersView() {
       <header className="domnai-admin-users-heading">
         <div>
           <span className="live-indicator"><i />Dados reais · atualização automática</span>
-          <small>{generatedAt ? `Última atualização: ${formatDate(generatedAt, true)}` : 'Conectando dados...'}</small>
+          <small>
+            {generatedAt
+              ? `Última atualização: ${formatDate(generatedAt, true)}`
+              : 'Conectando dados...'}
+          </small>
         </div>
         <div className="heading-actions">
-          <button type="button" onClick={handleExport} disabled={status !== 'ready' || visibleUsers.length === 0}>
+          <button
+            type="button"
+            onClick={handleExport}
+            disabled={status !== 'ready' || visibleUsers.length === 0}
+          >
             Exportar CSV
           </button>
           <button type="button" onClick={refreshUsers} disabled={status === 'loading'}>
@@ -265,16 +302,27 @@ export default function AdminUsersView() {
         </div>
       </header>
 
-      <div className="domnai-admin-users-summary" aria-label="Resumo de usuários">
+      <div className="domnai-admin-users-summary six-cards" aria-label="Resumo de usuários">
         <article><span>Total de usuários</span><strong>{formatNumber(summary.totalUsers)}</strong></article>
         <article><span>Novos esta semana</span><strong>{formatNumber(summary.newThisWeek)}</strong></article>
         <article><span>Novos este mês</span><strong>{formatNumber(summary.newThisMonth)}</strong></article>
         <article><span>Ativos em 7 dias</span><strong>{formatNumber(summary.activeLast7Days)}</strong></article>
-        <article><span>Premium</span><strong>{formatNumber(summary.premiumUsers)}</strong></article>
+        <article><span>Plano Free</span><strong>{formatNumber(summary.freeUsers)}</strong></article>
+        <article><span>Plano Premium</span><strong>{formatNumber(summary.premiumUsers)}</strong></article>
       </div>
 
+      {dataWarning ? (
+        <div className="domnai-admin-users-data-warning" role="status">
+          <strong>Atualização parcial</strong>
+          <span>{dataWarning}</span>
+        </div>
+      ) : null}
+
       {status === 'loading' ? (
-        <div className="domnai-admin-users-state"><span className="spinner" />Carregando usuários reais...</div>
+        <div className="domnai-admin-users-state">
+          <span className="spinner" />
+          Carregando usuários reais...
+        </div>
       ) : null}
 
       {status === 'error' ? (
@@ -350,14 +398,18 @@ export default function AdminUsersView() {
             <label>
               <span>Plano</span>
               <select value={planFilter} onChange={(event) => setPlanFilter(event.target.value)}>
-                {PLAN_FILTERS.map((item) => <option value={item.value} key={item.value}>{item.label}</option>)}
+                {PLAN_FILTERS.map((item) => (
+                  <option value={item.value} key={item.value}>{item.label}</option>
+                ))}
               </select>
             </label>
 
             <label>
               <span>Função</span>
               <select value={roleFilter} onChange={(event) => setRoleFilter(event.target.value)}>
-                {ROLE_FILTERS.map((item) => <option value={item.value} key={item.value}>{item.label}</option>)}
+                {ROLE_FILTERS.map((item) => (
+                  <option value={item.value} key={item.value}>{item.label}</option>
+                ))}
               </select>
             </label>
 
@@ -411,8 +463,16 @@ export default function AdminUsersView() {
                           {item.profileCompleted ? 'Completo' : 'Pendente'}
                         </span>
                       </td>
-                      <td><time dateTime={item.createdAt || undefined}>{formatDate(item.createdAt)}</time></td>
-                      <td><time dateTime={item.lastActivityAt || undefined}>{formatDate(item.lastActivityAt, true)}</time></td>
+                      <td>
+                        <time dateTime={item.createdAt || undefined}>
+                          {formatDate(item.createdAt)}
+                        </time>
+                      </td>
+                      <td>
+                        <time dateTime={item.lastActivityAt || undefined}>
+                          {formatDate(item.lastActivityAt, true)}
+                        </time>
+                      </td>
                     </tr>
                   ))}
                 </tbody>

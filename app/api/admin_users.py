@@ -1,6 +1,7 @@
 from collections import defaultdict
 from datetime import datetime, timedelta, timezone
 import json
+import logging
 from urllib.error import HTTPError, URLError
 from urllib.parse import urlencode
 from urllib.request import Request, urlopen
@@ -23,6 +24,7 @@ from app.models import (
 )
 
 router = APIRouter(prefix="/api/admin/users", tags=["admin-users"])
+logger = logging.getLogger(__name__)
 
 CLERK_USERS_URL = "https://api.clerk.com/v1/users"
 CLERK_PAGE_SIZE = 100
@@ -36,9 +38,22 @@ def _require_admin(session: dict) -> str:
     return user_id
 
 
+def _normalize_datetime(value: datetime | None) -> datetime | None:
+    if value is None:
+        return None
+    if value.tzinfo is None:
+        return value.replace(tzinfo=timezone.utc)
+    return value.astimezone(timezone.utc)
+
+
 def _clerk_datetime(value) -> datetime | None:
     if value in (None, ""):
         return None
+    if isinstance(value, str) and not value.strip().isdigit():
+        try:
+            return _normalize_datetime(datetime.fromisoformat(value.replace("Z", "+00:00")))
+        except ValueError:
+            return None
     try:
         numeric = int(value)
         if numeric > 10_000_000_000:
@@ -49,11 +64,8 @@ def _clerk_datetime(value) -> datetime | None:
 
 
 def _iso(value: datetime | None) -> str | None:
-    if value is None:
-        return None
-    if value.tzinfo is None:
-        value = value.replace(tzinfo=timezone.utc)
-    return value.astimezone(timezone.utc).isoformat()
+    normalized = _normalize_datetime(value)
+    return normalized.isoformat() if normalized else None
 
 
 def _primary_email(user: dict) -> str:
@@ -70,7 +82,10 @@ def _primary_email(user: dict) -> str:
 def _clerk_users() -> list[dict]:
     secret = str(settings.clerk_secret_key or "").strip()
     if not secret:
-        raise HTTPException(status_code=503, detail="CLERK_SECRET_KEY não configurada para o módulo Usuários.")
+        raise HTTPException(
+            status_code=503,
+            detail="CLERK_SECRET_KEY não configurada. Exibindo somente a base persistida do DomnAI.",
+        )
 
     users: list[dict] = []
     offset = 0
@@ -105,14 +120,37 @@ def _clerk_users() -> list[dict]:
         detail = "Não foi possível consultar os usuários no Clerk."
         try:
             payload = json.loads(exc.read().decode("utf-8"))
-            detail = payload.get("errors", [{}])[0].get("long_message") or payload.get("message") or detail
+            errors = payload.get("errors") if isinstance(payload, dict) else None
+            if isinstance(errors, list) and errors:
+                detail = errors[0].get("long_message") or errors[0].get("message") or detail
+            elif isinstance(payload, dict):
+                detail = payload.get("message") or detail
         except Exception:
             pass
         raise HTTPException(status_code=502, detail=detail) from exc
     except (URLError, TimeoutError, ValueError, json.JSONDecodeError) as exc:
-        raise HTTPException(status_code=502, detail="Não foi possível consultar os usuários no Clerk.") from exc
+        raise HTTPException(
+            status_code=502,
+            detail="Não foi possível consultar os usuários no Clerk.",
+        ) from exc
 
     return users[:MAX_CLERK_USERS]
+
+
+def _database_user_ids(db) -> set[str]:
+    user_ids: set[str] = set()
+    for model in (
+        BillingAccount,
+        UserProfile,
+        CreditTransaction,
+        ActiveChatState,
+        DiagnosisState,
+        UserFeedback,
+        LibraryAsset,
+    ):
+        values = db.scalars(select(model.user_id).distinct()).all()
+        user_ids.update(str(value).strip() for value in values if str(value).strip())
+    return user_ids
 
 
 def _activity_map(db, model, column, user_ids: set[str]) -> dict[str, datetime]:
@@ -123,31 +161,40 @@ def _activity_map(db, model, column, user_ids: set[str]) -> dict[str, datetime]:
         .where(model.user_id.in_(user_ids))
         .group_by(model.user_id)
     ).all()
-    return {str(user_id): value for user_id, value in rows if value is not None}
+    return {
+        str(user_id): _normalize_datetime(value)
+        for user_id, value in rows
+        if value is not None
+    }
 
 
 def _latest(*values: datetime | None) -> datetime | None:
-    normalized = []
-    for value in values:
-        if value is None:
-            continue
-        if value.tzinfo is None:
-            value = value.replace(tzinfo=timezone.utc)
-        normalized.append(value)
+    normalized = [_normalize_datetime(value) for value in values if value is not None]
+    normalized = [value for value in normalized if value is not None]
     return max(normalized) if normalized else None
+
+
+def _active_premium(account: BillingAccount | None, now: datetime) -> bool:
+    if account is None or account.plan != "premium":
+        return False
+    if account.subscription_status not in {"active", "trialing"}:
+        return False
+    period_end = _normalize_datetime(account.current_period_end)
+    return period_end is None or now <= period_end
 
 
 def _plan_label(value: str) -> str:
     return {
-        "premium": "Premium",
-        "free": "Free",
+        "premium": "Plano Premium",
+        "free": "Plano Free",
         "unselected": "Sem plano",
-        "free_demo": "Sem plano",
-    }.get(value, value.replace("_", " ").title() if value else "Sem plano")
+        "admin": "Administrativo",
+    }.get(value, "Sem plano")
 
 
 def _build_brain_insights(summary: dict) -> list[dict]:
     total = summary["totalUsers"]
+    customer_total = max(0, total - summary["adminUsers"])
     if total == 0:
         return [{
             "level": "info",
@@ -158,7 +205,10 @@ def _build_brain_insights(summary: dict) -> list[dict]:
     incomplete = total - summary["profileCompleted"]
     unselected = summary["unselectedUsers"]
     inactive = total - summary["activeLast7Days"]
-    premium_rate = round((summary["premiumUsers"] / total) * 100, 1)
+    premium_rate = round(
+        (summary["premiumUsers"] / customer_total) * 100,
+        1,
+    ) if customer_total else 0
 
     insights = []
     if incomplete:
@@ -171,7 +221,7 @@ def _build_brain_insights(summary: dict) -> list[dict]:
         insights.append({
             "level": "attention",
             "title": "Plano ainda não escolhido",
-            "message": f"{unselected} usuário(s) estão sem FREE ou PREMIUM definido.",
+            "message": f"{unselected} usuário(s) estão sem Plano Free ou Plano Premium definido.",
         })
     if inactive:
         insights.append({
@@ -181,8 +231,8 @@ def _build_brain_insights(summary: dict) -> list[dict]:
         })
     insights.append({
         "level": "positive" if premium_rate >= 20 else "info",
-        "title": "Conversão para Premium",
-        "message": f"{premium_rate:.1f}% da base está atualmente no plano Premium.",
+        "title": "Conversão para Plano Premium",
+        "message": f"{premium_rate:.1f}% dos usuários clientes estão com o Plano Premium ativo.",
     })
     return insights[:4]
 
@@ -192,12 +242,27 @@ def list_admin_users(
     limit: int = Query(default=500, ge=1, le=1000),
     session: dict = Depends(require_authenticated_user),
 ):
-    _require_admin(session)
-    clerk_users = _clerk_users()
-    user_ids = {str(item.get("id") or "").strip() for item in clerk_users}
-    user_ids.discard("")
+    admin_user_id = _require_admin(session)
+
+    clerk_warning = ""
+    try:
+        clerk_users = _clerk_users()
+    except HTTPException as exc:
+        clerk_users = []
+        clerk_warning = str(exc.detail or "Clerk indisponível.")
+        logger.warning("Módulo Usuários operando com base persistida: %s", clerk_warning)
+
+    clerk_by_id = {
+        str(item.get("id") or "").strip(): item
+        for item in clerk_users
+        if str(item.get("id") or "").strip()
+    }
 
     with session_scope() as db:
+        user_ids = set(clerk_by_id)
+        user_ids.update(_database_user_ids(db))
+        user_ids.add(admin_user_id)
+
         accounts = {
             item.user_id: item
             for item in db.scalars(
@@ -220,6 +285,7 @@ def list_admin_users(
                 .distinct()
             ).all()
         ) if user_ids else set()
+        admin_ids.add(admin_user_id)
 
         billing_activity = _activity_map(db, BillingAccount, BillingAccount.updated_at, user_ids)
         profile_activity = _activity_map(db, UserProfile, UserProfile.updated_at, user_ids)
@@ -236,20 +302,19 @@ def list_admin_users(
 
     items = []
     growth_counts: defaultdict[str, int] = defaultdict(int)
-    plan_counts = {"premium": 0, "free": 0, "unselected": 0}
+    plan_counts = {"premium": 0, "free": 0, "unselected": 0, "admin": 0}
     new_this_week = 0
     new_this_month = 0
     active_last_7_days = 0
     profile_completed = 0
     total_credits = 0
 
-    for clerk_user in clerk_users:
-        user_id = str(clerk_user.get("id") or "").strip()
-        if not user_id:
-            continue
-
+    for user_id in user_ids:
+        clerk_user = clerk_by_id.get(user_id, {})
         profile = profiles.get(user_id)
         account = accounts.get(user_id)
+        is_admin = user_id in admin_ids
+
         created_at = _clerk_datetime(clerk_user.get("created_at"))
         clerk_last_sign_in = _clerk_datetime(clerk_user.get("last_sign_in_at"))
         last_activity = _latest(
@@ -264,9 +329,14 @@ def list_admin_users(
         )
 
         raw_plan = str(account.plan if account else "unselected").lower()
-        if raw_plan == "free_demo":
-            raw_plan = "unselected"
-        normalized_plan = raw_plan if raw_plan in plan_counts else "unselected"
+        if is_admin:
+            normalized_plan = "admin"
+        elif _active_premium(account, now):
+            normalized_plan = "premium"
+        elif raw_plan == "free":
+            normalized_plan = "free"
+        else:
+            normalized_plan = "unselected"
         plan_counts[normalized_plan] += 1
 
         credits = int((account.plan_credits + account.extra_credits) if account else 0)
@@ -288,13 +358,14 @@ def list_admin_users(
         clerk_name = " ".join(part for part in (first_name, last_name) if part).strip()
         name = clerk_name or (profile.full_name if profile else "") or "Usuário DomnAI"
         blocked = bool(clerk_user.get("banned") or clerk_user.get("locked"))
+        has_clerk_record = bool(clerk_user)
 
         items.append({
             "id": user_id,
             "name": name,
             "email": _primary_email(clerk_user),
-            "role": "admin" if user_id in admin_ids else "user",
-            "roleLabel": "Admin" if user_id in admin_ids else "Usuário",
+            "role": "admin" if is_admin else "user",
+            "roleLabel": "Admin" if is_admin else "Usuário",
             "plan": normalized_plan,
             "planLabel": _plan_label(normalized_plan),
             "subscriptionStatus": str(account.subscription_status if account else "inactive"),
@@ -302,13 +373,19 @@ def list_admin_users(
             "extraCredits": int(account.extra_credits if account else 0),
             "totalCredits": credits,
             "profileCompleted": completed,
-            "accountStatus": "blocked" if blocked else "active",
-            "accountStatusLabel": "Bloqueado" if blocked else "Ativo",
+            "accountStatus": "blocked" if blocked else ("active" if has_clerk_record else "persisted"),
+            "accountStatusLabel": "Bloqueado" if blocked else ("Ativo" if has_clerk_record else "Base interna"),
             "createdAt": _iso(created_at),
             "lastActivityAt": _iso(last_activity),
         })
 
-    items.sort(key=lambda item: item.get("createdAt") or "", reverse=True)
+    items.sort(
+        key=lambda item: (
+            item.get("createdAt") or "",
+            item.get("lastActivityAt") or "",
+        ),
+        reverse=True,
+    )
     items = items[:limit]
 
     growth = []
@@ -322,13 +399,14 @@ def list_admin_users(
         })
 
     summary = {
-        "totalUsers": len(clerk_users),
+        "totalUsers": len(user_ids),
         "newThisWeek": new_this_week,
         "newThisMonth": new_this_month,
         "profileCompleted": profile_completed,
         "premiumUsers": plan_counts["premium"],
         "freeUsers": plan_counts["free"],
         "unselectedUsers": plan_counts["unselected"],
+        "adminUsers": plan_counts["admin"],
         "activeLast7Days": active_last_7_days,
         "totalCredits": total_credits,
     }
@@ -338,11 +416,18 @@ def list_admin_users(
         "summary": summary,
         "growth": growth,
         "planDistribution": [
-            {"key": "premium", "label": "Premium", "count": plan_counts["premium"]},
-            {"key": "free", "label": "Free", "count": plan_counts["free"]},
+            {"key": "premium", "label": "Plano Premium", "count": plan_counts["premium"]},
+            {"key": "free", "label": "Plano Free", "count": plan_counts["free"]},
             {"key": "unselected", "label": "Sem plano", "count": plan_counts["unselected"]},
+            {"key": "admin", "label": "Administrativo", "count": plan_counts["admin"]},
         ],
         "brainInsights": _build_brain_insights(summary),
         "generatedAt": now.isoformat(),
-        "source": "clerk+database",
+        "source": "database-fallback" if clerk_warning else "clerk+database",
+        "dataWarning": (
+            "O Clerk não respondeu nesta atualização. A tela está exibindo os dados reais "
+            "já persistidos no DomnAI; e-mails e datas de cadastro podem ficar incompletos."
+            if clerk_warning
+            else ""
+        ),
     }

@@ -8,10 +8,18 @@
 .domnai-admin-signout-button,
 .domnai-admin-feedbacks-actions button,
 .domnai-admin-feedback-list-actions button,
-.domnai-admin-feedback-item-actions button {
+.domnai-admin-feedback-item-actions button,
+.domnai-admin-users-heading button,
+.domnai-admin-users-state button {
   color: #ffffff !important;
   text-decoration: none !important;
   -webkit-tap-highlight-color: transparent !important;
+}
+
+.domnai-admin-users-heading button,
+.domnai-admin-users-state button {
+  border-color: rgba(255, 255, 255, 0.1) !important;
+  background: rgba(255, 255, 255, 0.03) !important;
 }
 
 .domnai-feedback-back:hover,
@@ -34,7 +42,13 @@
 .domnai-admin-feedback-list-actions button:focus-visible,
 .domnai-admin-feedback-item-actions button:hover,
 .domnai-admin-feedback-item-actions button:focus,
-.domnai-admin-feedback-item-actions button:focus-visible {
+.domnai-admin-feedback-item-actions button:focus-visible,
+.domnai-admin-users-heading button:hover,
+.domnai-admin-users-heading button:focus,
+.domnai-admin-users-heading button:focus-visible,
+.domnai-admin-users-state button:hover,
+.domnai-admin-users-state button:focus,
+.domnai-admin-users-state button:focus-visible {
   color: #ffffff !important;
   text-decoration: none !important;
   outline: none !important;
@@ -46,10 +60,18 @@
 .domnai-admin-signout-button:active,
 .domnai-admin-feedbacks-actions button:active,
 .domnai-admin-feedback-list-actions button:active,
-.domnai-admin-feedback-item-actions button:active {
+.domnai-admin-feedback-item-actions button:active,
+.domnai-admin-users-heading button:active:not(:disabled),
+.domnai-admin-users-state button:active:not(:disabled) {
   color: #e7c35e !important;
   text-decoration: none !important;
   outline: none !important;
+}
+
+.domnai-admin-users-heading button:active:not(:disabled),
+.domnai-admin-users-state button:active:not(:disabled) {
+  border-color: rgba(231, 195, 94, 0.3) !important;
+  background: rgba(231, 195, 94, 0.08) !important;
 }
 
 /* Feedback selecionado permanece dourado enquanto a função estiver aberta. */
@@ -71,4 +93,44 @@
 .domnai-feedback-menu-button.is-active > span,
 .domnai-admin-sidebar nav button.active-section > span {
   color: #e7c35e !important;
+}
+
+/* Ajustes finais e responsivos dos seis indicadores do módulo Usuários. */
+.domnai-admin-users-summary.six-cards {
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+}
+
+.domnai-admin-users-data-warning {
+  padding: 12px 14px;
+  border: 1px solid rgba(231, 195, 94, 0.2);
+  border-radius: 12px;
+  display: flex;
+  align-items: flex-start;
+  gap: 9px;
+  background: rgba(231, 195, 94, 0.055);
+  color: #a9a9a9;
+  font-size: 0.75rem;
+  line-height: 1.45;
+}
+
+.domnai-admin-users-data-warning strong {
+  flex: 0 0 auto;
+  color: #e7c35e;
+  font-size: 0.72rem;
+}
+
+@media (max-width: 1100px) {
+  .domnai-admin-users-summary.six-cards {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 700px) {
+  .domnai-admin-users-summary.six-cards {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .domnai-admin-users-data-warning {
+    display: grid;
+  }
 }
