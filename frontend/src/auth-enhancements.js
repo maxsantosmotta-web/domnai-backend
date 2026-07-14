@@ -14,7 +14,14 @@ const EYE_CLOSED = `
   </svg>
 `;
 
+const ALREADY_SIGNED_IN_PATTERN = /you(?:'re| are) already signed in|already signed in|session (?:is )?already active/i;
+let recoveringExistingSession = false;
+
 const AUTH_ERROR_TRANSLATIONS = [
+  {
+    pattern: ALREADY_SIGNED_IN_PATTERN,
+    message: 'Sua conta já está conectada. Abrindo o Painel Usuário...',
+  },
   {
     pattern: /could(?:n't| not) find (?:your )?account|account (?:was )?not found|identifier.*not found|no account found/i,
     message: 'Não encontramos uma conta com esses dados.',
@@ -93,7 +100,7 @@ const AUTH_ERROR_TRANSLATIONS = [
   },
 ];
 
-const ENGLISH_AUTH_ERROR_MARKERS = /\b(couldn['’]?t|cannot|can['’]?t|your account|password|incorrect|invalid|failed|verification|expired|attempts|try again|not found|already exists|not allowed|required|something went wrong)\b/i;
+const ENGLISH_AUTH_ERROR_MARKERS = /\b(couldn['’]?t|cannot|can['’]?t|your account|password|incorrect|invalid|failed|verification|expired|attempts|try again|not found|already exists|already signed in|not allowed|required|something went wrong)\b/i;
 
 function translateAuthErrorMessage(value) {
   const text = String(value || '').replace(/\s+/g, ' ').trim();
@@ -115,6 +122,26 @@ function normalizeAuthError(card) {
     const translated = translateAuthErrorMessage(current);
     if (translated && translated !== current) element.textContent = translated;
   });
+}
+
+function activeClerkSessionExists() {
+  const session = window.Clerk?.session;
+  return Boolean(session && (!session.status || session.status === 'active'));
+}
+
+function recoverExistingSession(card) {
+  if (recoveringExistingSession) return true;
+
+  const currentError = String(card.querySelector('.custom-auth-error')?.textContent || '').trim();
+  if (!activeClerkSessionExists() && !ALREADY_SIGNED_IN_PATTERN.test(currentError)) return false;
+
+  recoveringExistingSession = true;
+  const closeButton = card.querySelector('.custom-auth-close');
+  closeButton?.click();
+
+  const userPanelUrl = `${window.location.origin}${window.location.pathname}#/`;
+  window.setTimeout(() => window.location.replace(userPanelUrl), 40);
+  return true;
 }
 
 function normalizeTitle(card) {
@@ -159,6 +186,7 @@ function enhanceAuthModal() {
   const card = document.querySelector('.custom-auth-card');
   if (!card) return;
 
+  if (recoverExistingSession(card)) return;
   normalizeTitle(card);
   normalizeAuthError(card);
   card.querySelectorAll('input[type="password"]').forEach(addPasswordToggle);
