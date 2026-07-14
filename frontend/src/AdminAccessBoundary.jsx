@@ -70,13 +70,14 @@ function AccessChoice({ onAdmin, onUser, onSignOut }) {
   );
 }
 
-function AccessValidationError({ onRetry, onUser, onSignOut }) {
+function AccessValidationError({ diagnostic, onRetry, onUser, onSignOut }) {
   return (
     <main className="domnai-admin-gate-page">
       <section className="domnai-admin-gate-card compact">
         <img src={DOMNAI_LOGO} alt="DomnAI" />
         <h1>Não foi possível validar o acesso administrativo.</h1>
         <p>O ambiente administrativo permaneceu bloqueado. Você pode tentar novamente ou continuar no acesso de usuário.</p>
+        {diagnostic ? <p><strong>Diagnóstico:</strong> {diagnostic}</p> : null}
         <div className="domnai-admin-error-actions">
           <button type="button" className="primary" onClick={onRetry}>Tentar novamente</button>
           <button type="button" onClick={onUser}>Acessar como usuário</button>
@@ -151,7 +152,7 @@ export default function AdminAccessBoundary({ children }) {
   const { signOut } = useClerk();
   const [route, setRoute] = useState(currentHashPath);
   const [accessMode, setAccessMode] = useState(() => sessionStorage.getItem(ACCESS_MODE_KEY) || '');
-  const [verification, setVerification] = useState({ status: 'idle', isAdmin: false });
+  const [verification, setVerification] = useState({ status: 'idle', isAdmin: false, message: '' });
   const [retryKey, setRetryKey] = useState(0);
 
   const primaryEmail = String(user?.primaryEmailAddress?.emailAddress || '').trim().toLowerCase();
@@ -165,12 +166,12 @@ export default function AdminAccessBoundary({ children }) {
 
   useEffect(() => {
     if (!isLoaded || !isSignedIn || !userLoaded || !isOwnerCandidate) {
-      setVerification({ status: 'idle', isAdmin: false });
+      setVerification({ status: 'idle', isAdmin: false, message: '' });
       return undefined;
     }
 
     let cancelled = false;
-    setVerification({ status: 'checking', isAdmin: false });
+    setVerification({ status: 'checking', isAdmin: false, message: '' });
 
     (async () => {
       try {
@@ -181,9 +182,17 @@ export default function AdminAccessBoundary({ children }) {
         });
         const payload = await response.json().catch(() => ({}));
         if (!response.ok) throw new Error(payload.detail || 'Não foi possível validar o acesso administrativo.');
-        if (!cancelled) setVerification({ status: 'verified', isAdmin: payload.isAdmin === true });
-      } catch {
-        if (!cancelled) setVerification({ status: 'error', isAdmin: false });
+        if (!cancelled) {
+          setVerification({ status: 'verified', isAdmin: payload.isAdmin === true, message: '' });
+        }
+      } catch (error) {
+        if (!cancelled) {
+          setVerification({
+            status: 'error',
+            isAdmin: false,
+            message: error?.message || 'Não foi possível validar o acesso administrativo.',
+          });
+        }
       }
     })();
 
@@ -225,7 +234,7 @@ export default function AdminAccessBoundary({ children }) {
     return (
       <>
         {children}
-        {verification.status === 'verified' && verification.isAdmin ? (
+        {(verification.status === 'verified' && verification.isAdmin) || verification.status === 'error' ? (
           <AdminReturnButton onAdmin={selectAdminAccess} />
         ) : null}
       </>
@@ -235,16 +244,14 @@ export default function AdminAccessBoundary({ children }) {
   if (verification.status === 'idle' || verification.status === 'checking') return <AccessLoading />;
 
   if (verification.status === 'error') {
-    if (accessMode === 'admin' || adminRoute) {
-      return (
-        <AccessValidationError
-          onRetry={() => setRetryKey((current) => current + 1)}
-          onUser={selectUserAccess}
-          onSignOut={leaveAccount}
-        />
-      );
-    }
-    return children;
+    return (
+      <AccessValidationError
+        diagnostic={verification.message}
+        onRetry={() => setRetryKey((current) => current + 1)}
+        onUser={selectUserAccess}
+        onSignOut={leaveAccount}
+      />
+    );
   }
 
   if (!verification.isAdmin) return children;
