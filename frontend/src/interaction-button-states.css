@@ -119,6 +119,11 @@
   font-size: 0.72rem;
 }
 
+/* O IAttom Brain continua disponível internamente, mas não é exibido no Faturamento. */
+.domnai-admin-billing-brain {
+  display: none !important;
+}
+
 @media (max-width: 1100px) {
   .domnai-admin-users-summary.six-cards {
     grid-template-columns: repeat(3, minmax(0, 1fr));
