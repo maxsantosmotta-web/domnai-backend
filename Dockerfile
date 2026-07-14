@@ -86,4 +86,4 @@ RUN python /tmp/tune_domnai_responses.py \
     && python /tmp/apply_stages_9_11.py
 COPY --from=frontend-builder /frontend/dist ./frontend/dist
 EXPOSE 8080
-CMD ["sh", "-c", "alembic upgrade head && uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-8080}"]
+CMD ["sh", "-c", "alembic upgrade heads && uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-8080}"]
