@@ -99,4 +99,10 @@ def create_pdf_report(
             "createdAt": asset.created_at.isoformat(),
             "contentUrl": f"/api/library/{asset.id}/content",
             "savedToLibrary": True,
+            "artifactType": "pdf",
+            "capabilityEvidence": {
+                "local_artifact_created": True,
+                "external_link_generated": False,
+                "email_sent": False,
+            },
         }
