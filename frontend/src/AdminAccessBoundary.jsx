@@ -9,6 +9,7 @@ import './admin-profile-shell.css';
 const OWNER_EMAIL = 'maxsantosmotta@gmail.com';
 const ADMIN_ENTRY_KEY = 'domnai:admin-requested:v1';
 const PROFILE_CACHE_KEY = 'domnai:profile:v1';
+const ADMIN_WIDE_QUERY = '(min-width: 821px)';
 
 const ADMIN_SECTIONS = [
   'Visão geral',
@@ -35,6 +36,10 @@ function readCachedProfile() {
   } catch {
     return {};
   }
+}
+
+function isWideAdminViewport() {
+  return window.matchMedia(ADMIN_WIDE_QUERY).matches;
 }
 
 function AccessLoading({ message = 'Abrindo Painel Adm...', showMessage = true }) {
@@ -92,25 +97,67 @@ function AdminProfileCard({ profile, user, avatarUrl }) {
 }
 
 function AdminPortalShell({ onUser, onSignOut, profile, user, avatarUrl }) {
+  const [menuOpen, setMenuOpen] = useState(isWideAdminViewport);
+
+  useEffect(() => {
+    const media = window.matchMedia(ADMIN_WIDE_QUERY);
+    const handleViewportChange = (event) => setMenuOpen(event.matches);
+    media.addEventListener('change', handleViewportChange);
+    return () => media.removeEventListener('change', handleViewportChange);
+  }, []);
+
+  useEffect(() => {
+    const handleKeyDown = (event) => {
+      if (event.key === 'Escape' && menuOpen) setMenuOpen(false);
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [menuOpen]);
+
+  useEffect(() => {
+    if (!menuOpen || isWideAdminViewport()) return undefined;
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => { document.body.style.overflow = previousOverflow; };
+  }, [menuOpen]);
+
+  function selectOverview() {
+    if (!isWideAdminViewport()) setMenuOpen(false);
+  }
+
   return (
-    <main className="domnai-admin-shell">
-      <aside className="domnai-admin-sidebar">
+    <main className={`domnai-admin-shell ${menuOpen ? 'menu-open' : 'menu-closed'}`}>
+      <button
+        type="button"
+        className="domnai-admin-backdrop"
+        aria-label="Fechar menu administrativo"
+        tabIndex={menuOpen ? 0 : -1}
+        onClick={() => setMenuOpen(false)}
+      />
+
+      <aside className="domnai-admin-sidebar" aria-label="Menu do Painel Adm" aria-hidden={!menuOpen}>
         <div className="domnai-admin-brand">
+          <button
+            type="button"
+            className="domnai-admin-close-menu"
+            aria-label="Fechar menu"
+            onClick={() => setMenuOpen(false)}
+          >
+            ×
+          </button>
           <img src={DOMNAI_LOGO} alt="DomnAI" />
           <span>Painel Adm</span>
         </div>
 
-        <button type="button" className="domnai-admin-user-switch" onClick={onUser}>
-          <span className="domnai-admin-user-switch-icon">↩</span>
-          <span>
-            <strong>Painel Usuário</strong>
-            <small>Voltar ao ambiente de uso</small>
-          </span>
-        </button>
-
         <nav aria-label="Monitoramento administrativo">
           {ADMIN_SECTIONS.map((section, index) => (
-            <button type="button" className={index === 0 ? 'active' : ''} key={section} disabled={index !== 0}>
+            <button
+              type="button"
+              className={index === 0 ? 'active' : ''}
+              key={section}
+              disabled={index !== 0}
+              onClick={index === 0 ? selectOverview : undefined}
+            >
               <span>{String(index + 1).padStart(2, '0')}</span>
               {section}
             </button>
@@ -128,11 +175,24 @@ function AdminPortalShell({ onUser, onSignOut, profile, user, avatarUrl }) {
 
       <section className="domnai-admin-workspace">
         <header className="domnai-admin-topbar">
-          <div>
-            <span>DomnAI · Administração</span>
-            <h1>Visão geral</h1>
+          <div className="domnai-admin-topbar-leading">
+            {!menuOpen ? (
+              <button
+                type="button"
+                className="domnai-admin-open-menu"
+                aria-label="Abrir menu administrativo"
+                aria-expanded="false"
+                onClick={() => setMenuOpen(true)}
+              >
+                ☰
+              </button>
+            ) : null}
+            <div>
+              <span>DomnAI · Administração</span>
+              <h1>Visão geral</h1>
+            </div>
           </div>
-          <span className="domnai-admin-protected-badge">Acesso protegido</span>
+          <button type="button" className="domnai-admin-back-user" onClick={onUser}>Voltar</button>
         </header>
 
         <section className="domnai-admin-foundation-card">
