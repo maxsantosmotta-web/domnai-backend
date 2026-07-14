@@ -65,9 +65,12 @@ source = replace_once(
 """,
     """          {ADMIN_SECTIONS.map((section, index) => {
             const enabled = index === 0 || section === 'Feedbacks';
+            const selected = activeSection === section;
             return (
               <button
                 type="button"
+                className={selected ? 'active-section' : ''}
+                aria-current={selected ? 'page' : undefined}
                 key={section}
                 disabled={!enabled}
                 onClick={enabled ? () => selectSection(section) : undefined}
@@ -83,16 +86,21 @@ source = replace_once(
 
 source = replace_once(
     source,
+    '<header className="domnai-admin-topbar">\n',
+    '<header className={`domnai-admin-topbar ${menuOpen ? \'is-empty\' : \'\'}`}>\n',
+    'Estado visual do cabeçalho administrativo',
+)
+
+source = replace_once(
+    source,
     """            <div>
               <span>DomnAI · Administração</span>
               <h1>Visão geral</h1>
             </div>
 """,
-    """            <div>
-              <h1>{activeSection}</h1>
-            </div>
+    """            <div className="domnai-admin-context-spacer" aria-hidden="true" />
 """,
-    'Título dinâmico do conteúdo administrativo',
+    'Remoção do título repetido do conteúdo administrativo',
 )
 
 source = replace_once(
@@ -131,4 +139,4 @@ source = replace_once(
 )
 
 TARGET.write_text(source, encoding='utf-8')
-print('Feedbacks administrativos conectados em modo leitura.')
+print('Feedbacks administrativos conectados com indicação pelo menu e sem títulos repetidos.')
