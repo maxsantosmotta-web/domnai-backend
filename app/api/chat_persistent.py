@@ -15,6 +15,7 @@ from app.database import session_scope
 from app.models import ActiveChatState, ChatTask, LibraryAsset
 from app.services.artifact_decision import resolve_pending_artifact_acceptance
 from app.services.credit_meter import ensure_minimum_credit
+from app.services.signed_file_links import create_signed_file_path
 
 
 router = APIRouter(prefix="/api/chat", tags=["chat-persistent"])
@@ -206,8 +207,8 @@ def persistent_respond(payload: ChatRequest, session: dict = Depends(require_aut
     task_status = "queued"
     if existing_file is not None:
         base_url = os.getenv("DOMNAI_PUBLIC_URL", "https://domnai.iattomassist.com.br").rstrip("/")
-        content_url = str(existing_file["contentUrl"])
-        absolute_url = f"{base_url}{content_url}"
+        signed_path = create_signed_file_path(str(existing_file["libraryId"]))
+        absolute_url = f"{base_url}{signed_path}"
         reply = (
             f"Aqui está o link do arquivo **{existing_file['name']}**:\n\n"
             f"[Abrir arquivo]({absolute_url})"
