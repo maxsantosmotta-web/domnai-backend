@@ -4,6 +4,7 @@ import os
 import time
 import unicodedata
 
+from app.services.artifact_decision import resolve_pending_artifact_acceptance
 from app.services.diagnosis_memory import diagnosis_context
 from app.services.domnai_brain import _normalized_history
 from app.services.intelligence_orchestrator import (
@@ -45,42 +46,17 @@ def _simple_conversation_response(message: str, attachments: list[dict]) -> str 
         return None
 
     greeting_messages = {
-        "oi",
-        "ola",
-        "bom dia",
-        "boa tarde",
-        "boa noite",
-        "e ai",
-        "chat tudo bem",
-        "chat, tudo bem",
-        "tudo bem",
-        "como voce esta",
-        "como vai",
+        "oi", "ola", "bom dia", "boa tarde", "boa noite", "e ai",
+        "chat tudo bem", "chat, tudo bem", "tudo bem", "como voce esta", "como vai",
     }
     thanks_messages = {
-        "obrigado",
-        "obrigada",
-        "muito obrigado",
-        "muito obrigada",
-        "valeu",
-        "agradecido",
-        "agradecida",
+        "obrigado", "obrigada", "muito obrigado", "muito obrigada", "valeu", "agradecido", "agradecida",
     }
     confirmation_messages = {
-        "ok",
-        "certo",
-        "entendi",
-        "beleza",
-        "perfeito",
-        "combinado",
-        "pode continuar",
+        "ok", "certo", "entendi", "beleza", "perfeito", "combinado", "pode continuar",
     }
     farewell_messages = {
-        "tchau",
-        "ate mais",
-        "boa noite chat",
-        "falamos depois",
-        "ate logo",
+        "tchau", "ate mais", "boa noite chat", "falamos depois", "ate logo",
     }
 
     if normalized in greeting_messages:
@@ -128,6 +104,20 @@ def generate_orchestrated_response(
     diagnosis_state: dict | None = None,
 ) -> MeteredBrainResult:
     safe_attachments = attachments or []
+
+    accepted_artifact = resolve_pending_artifact_acceptance(message, history)
+    if accepted_artifact:
+        return MeteredBrainResult(
+            text=accepted_artifact["source_answer"],
+            provider="local-artifact",
+            model="local",
+            input_tokens=0,
+            output_tokens=0,
+            cached_input_tokens=0,
+            diagnosis_state=diagnosis_state,
+            timings={"orchestrator_ms": 0, "generation_ms": 0},
+        )
+
     simple_reply = _simple_conversation_response(message, safe_attachments)
     if simple_reply is not None:
         return MeteredBrainResult(
@@ -140,9 +130,6 @@ def generate_orchestrated_response(
             diagnosis_state=diagnosis_state,
         )
 
-    # O plano de orquestração só é consumido para selecionar um motor especializado.
-    # Mensagens gerais seguem diretamente para a geração principal, evitando uma chamada
-    # sequencial cujo resultado seria descartado.
     if _specialized_engine({}, operation, message) is None:
         base_result = generate_metered_response(
             message=message,
