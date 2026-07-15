@@ -4,7 +4,7 @@ import os
 import time
 import unicodedata
 
-from app.services.artifact_decision import resolve_pending_artifact_acceptance
+from app.services.artifact_source import resolve_local_artifact_request
 from app.services.diagnosis_memory import diagnosis_context
 from app.services.domnai_brain import _normalized_history
 from app.services.intelligence_orchestrator import (
@@ -105,10 +105,10 @@ def generate_orchestrated_response(
 ) -> MeteredBrainResult:
     safe_attachments = attachments or []
 
-    accepted_artifact = resolve_pending_artifact_acceptance(message, history)
-    if accepted_artifact:
+    local_artifact = resolve_local_artifact_request(message, history)
+    if local_artifact:
         return MeteredBrainResult(
-            text=accepted_artifact["source_answer"],
+            text=local_artifact["source_answer"],
             provider="local-artifact",
             model="local",
             input_tokens=0,
