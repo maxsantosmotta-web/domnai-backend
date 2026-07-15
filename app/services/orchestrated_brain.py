@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import os
 import unicodedata
+from concurrent.futures import ThreadPoolExecutor
 
 from app.services.diagnosis_memory import diagnosis_context
 from app.services.domnai_brain import _normalized_history
@@ -61,6 +62,44 @@ def _specialized_engine(plan: dict, operation: str | None, message: str) -> str 
     return None
 
 
+def _build_plan(
+    api_key: str,
+    model: str,
+    message: str,
+    history: list[dict],
+    operation: str | None,
+    diagnosis_state: dict | None,
+    attachments: list[dict],
+) -> tuple[dict, dict]:
+    try:
+        raw_plan, plan_usage = _openai_request(
+            api_key,
+            {
+                "model": os.getenv("DOMNAI_ORCHESTRATOR_MODEL", model).strip() or model,
+                "instructions": planning_instructions(),
+                "input": [{
+                    "role": "user",
+                    "content": [{
+                        "type": "input_text",
+                        "text": build_plan_input(
+                            message=message,
+                            history=_normalized_history(history),
+                            operation=operation,
+                            memory_context=diagnosis_context(diagnosis_state),
+                            attachment_names=[str(item.get("name") or "arquivo") for item in attachments],
+                        ),
+                    }],
+                }],
+                "temperature": 0.0,
+                "max_output_tokens": 700,
+            },
+        )
+        return parse_plan(raw_plan), plan_usage
+    except Exception:
+        # O Orquestrador melhora a decisão, mas nunca pode impedir a resposta.
+        return {}, {}
+
+
 def generate_orchestrated_response(
     message: str,
     history: list[dict],
@@ -80,61 +119,47 @@ def generate_orchestrated_response(
 
     model = os.getenv("DOMNAI_OPENAI_MODEL", "gpt-4.1-mini").strip()
     safe_attachments = attachments or []
-    plan: dict = {}
-    plan_usage: dict = {}
 
-    try:
-        raw_plan, plan_usage = _openai_request(
+    # O planejamento e a geração principal são independentes no início do fluxo.
+    # Executá-los em paralelo mantém todas as camadas de inteligência disponíveis,
+    # mas elimina a espera sequencial para respostas comuns.
+    with ThreadPoolExecutor(max_workers=2, thread_name_prefix="domnai-intelligence") as executor:
+        plan_future = executor.submit(
+            _build_plan,
             api_key,
-            {
-                "model": os.getenv("DOMNAI_ORCHESTRATOR_MODEL", model).strip() or model,
-                "instructions": planning_instructions(),
-                "input": [{
-                    "role": "user",
-                    "content": [{
-                        "type": "input_text",
-                        "text": build_plan_input(
-                            message=message,
-                            history=_normalized_history(history),
-                            operation=operation,
-                            memory_context=diagnosis_context(diagnosis_state),
-                            attachment_names=[str(item.get("name") or "arquivo") for item in safe_attachments],
-                        ),
-                    }],
-                }],
-                "temperature": 0.0,
-                "max_output_tokens": 700,
-            },
+            model,
+            message,
+            history,
+            operation,
+            diagnosis_state,
+            safe_attachments,
         )
-        plan = parse_plan(raw_plan)
-    except Exception:
-        # O Orquestrador melhora a decisão, mas nunca pode impedir a resposta.
-        plan = {}
-        plan_usage = {}
-
-    engine = _specialized_engine(plan, operation, message)
-    if engine == "labor_termination":
-        from app.services.labor_pipeline import generate_labor_response
-
-        return generate_labor_response(
+        base_future = executor.submit(
+            generate_metered_response,
             message=message,
             history=history,
+            operation=operation,
             attachments=safe_attachments,
             diagnosis_state=diagnosis_state,
-            orchestration_plan=plan or None,
-            orchestration_usage=plan_usage,
         )
 
-    # A camada principal já executa resposta, revisão, auditoria e memória quando
-    # aplicáveis. Repetir refinamento e memória aqui mantinha a mesma conexão
-    # aberta por tempo excessivo e podia resultar em "Failed to fetch".
-    base_result = generate_metered_response(
-        message=message,
-        history=history,
-        operation=operation,
-        attachments=safe_attachments,
-        diagnosis_state=diagnosis_state,
-    )
+        plan, plan_usage = plan_future.result()
+        engine = _specialized_engine(plan, operation, message)
+
+        if engine == "labor_termination":
+            base_future.cancel()
+            from app.services.labor_pipeline import generate_labor_response
+
+            return generate_labor_response(
+                message=message,
+                history=history,
+                attachments=safe_attachments,
+                diagnosis_state=diagnosis_state,
+                orchestration_plan=plan or None,
+                orchestration_usage=plan_usage,
+            )
+
+        base_result = base_future.result()
 
     return MeteredBrainResult(
         text=base_result.text,
