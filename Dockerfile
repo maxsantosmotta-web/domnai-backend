@@ -83,8 +83,7 @@ COPY alembic.ini ./
 COPY migrations ./migrations
 COPY app ./app
 COPY scripts/connect_chat_sources_backend.py /tmp/connect_chat_sources_backend.py
-RUN python /tmp/connect_chat_sources_backend.py \
-
+RUN python /tmp/connect_chat_sources_backend.py
 COPY --from=frontend-builder /frontend/dist ./frontend/dist
 EXPOSE 8080
 CMD ["sh", "-c", "alembic upgrade heads && uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-8080}"]
