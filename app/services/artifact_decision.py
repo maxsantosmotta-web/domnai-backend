@@ -17,9 +17,13 @@ _NONE = {
 }
 
 _OFFER_MARKERS = (
+    "posso gerar este conteúdo em pdf",
+    "posso gerar esse conteúdo em pdf",
     "posso transformar este conteúdo em pdf",
     "posso organizar esse resultado em um pdf",
     "posso organizar este resultado em um pdf",
+    "posso compilar esse resultado em um pdf",
+    "posso compilar este resultado em um pdf",
     "pdf profissional",
     "planilha editável",
     "arquivo csv editável",
@@ -107,6 +111,62 @@ def _accepted_offer(value: str) -> bool:
     )
 
 
+def _artifact_type_from_offer(text: str) -> str:
+    normalized = _normalize(text)
+    if "planilha" in normalized or "xlsx" in normalized or "excel" in normalized:
+        return "xlsx"
+    if "csv" in normalized:
+        return "csv"
+    return "pdf"
+
+
+def _remove_offer_from_answer(text: str) -> str:
+    paragraphs = [part.strip() for part in str(text or "").split("\n\n") if part.strip()]
+    kept = [part for part in paragraphs if not _contains_any(_normalize(part), _OFFER_MARKERS)]
+    return "\n\n".join(kept).strip()
+
+
+def resolve_pending_artifact_acceptance(message: str, history: list[dict]) -> dict | None:
+    """Resolve um aceite usando o conteúdo já concluído, sem nova chamada de IA."""
+    if not _accepted_offer(message):
+        return None
+
+    for index in range(len(history) - 1, -1, -1):
+        item = history[index]
+        if str(item.get("role") or "").strip().lower() != "assistant":
+            continue
+        content = str(item.get("content") or "").strip()
+        if not _contains_any(_normalize(content), _OFFER_MARKERS):
+            continue
+
+        source_answer = _remove_offer_from_answer(content)
+        if len(source_answer) < 120:
+            for previous_index in range(index - 1, -1, -1):
+                previous = history[previous_index]
+                if str(previous.get("role") or "").strip().lower() != "assistant":
+                    continue
+                candidate = _remove_offer_from_answer(str(previous.get("content") or ""))
+                if len(candidate) >= 120:
+                    source_answer = candidate
+                    break
+
+        if len(source_answer) < 120:
+            return None
+
+        artifact_type = _artifact_type_from_offer(content)
+        return {
+            "action": "create",
+            "artifact_type": artifact_type,
+            "title": "Documento DomnAI",
+            "sheet_name": "Dados",
+            "headers": [],
+            "rows": [],
+            "source_answer": source_answer,
+            "local_artifact_followup": True,
+        }
+    return None
+
+
 def _strip_code_fence(text: str) -> str:
     value = str(text or "").strip()
     if value.startswith("```"):
@@ -175,8 +235,6 @@ def _requires_artifact_decision(
     offer_already_made = _contains_any(recent_text, _OFFER_MARKERS)
     artifact_already_created = _contains_any(recent_text, _CREATED_MARKERS)
 
-    # Abrir, baixar ou pedir o link de um arquivo existente não deve iniciar
-    # uma nova geração. Esse pedido será tratado pelo fluxo de reutilização.
     if artifact_already_created and _contains_any(normalized, _REUSE_MARKERS):
         return False
 
@@ -185,14 +243,8 @@ def _requires_artifact_decision(
 
     if explicit_request or accepted_previous_offer:
         return True
-
-    # Depois de uma oferta, qualquer outra mensagem que não seja aceite ou
-    # pedido explícito não pode disparar nova oferta naquela conversa.
     if offer_already_made:
         return False
-
-    # A oferta espontânea só é avaliada no final de uma resposta substancial
-    # de uma operação, e apenas enquanto ainda não houve oferta anterior.
     return bool(operation and len(str(answer or "").strip()) >= 1000)
 
 
@@ -203,6 +255,10 @@ def decide_artifact(
     history: list[dict],
     answer: str,
 ) -> dict:
+    accepted = resolve_pending_artifact_acceptance(message, history)
+    if accepted:
+        return accepted
+
     if not _requires_artifact_decision(message, operation, history, answer):
         return dict(_NONE)
 
@@ -232,7 +288,7 @@ Retorne somente JSON válido com:
 
 Regras:
 - Não escolha formato por uma lista fixa de operações. Analise o pedido, o histórico e o conteúdo concluído.
-- Use create quando o usuário pediu naturalmente um arquivo ou aceitou claramente uma oferta anterior.
+- Use create quando o usuário pediu naturalmente um arquivo.
 - Use offer somente quando um arquivo agregaria valor relevante, a explicação estiver concluída e não existir oferta anterior no histórico.
 - Uma oferta de arquivo pode acontecer no máximo uma vez por conversa.
 - Use none quando texto é a melhor entrega, não há conteúdo suficiente ou uma oferta anterior não foi aceita.

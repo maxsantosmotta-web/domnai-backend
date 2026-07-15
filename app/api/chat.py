@@ -8,7 +8,7 @@ from app.audit import record_audit_event
 from app.auth import require_authenticated_user
 from app.database import session_scope
 from app.models import LibraryAsset
-from app.services.artifact_decision import decide_artifact
+from app.services.artifact_decision import decide_artifact, resolve_pending_artifact_acceptance
 from app.services.credit_meter import charge_usage, ensure_minimum_credit
 from app.services.diagnosis_memory import load_diagnosis_state, save_diagnosis_state
 from app.services.orchestrated_brain import generate_orchestrated_response
@@ -67,11 +67,11 @@ def _load_attachments(user_id: str, attachment_ids: list[str]) -> list[dict]:
 
 def _artifact_offer(artifact_type: str | None) -> str:
     if artifact_type == "pdf":
-        return "Posso organizar esse resultado em um PDF profissional e salvar na sua Biblioteca."
+        return "Posso gerar este conteúdo em PDF e enviar o arquivo aqui no chat."
     if artifact_type == "csv":
-        return "Posso transformar esses dados em um arquivo CSV editável e salvar na sua Biblioteca."
+        return "Posso transformar estes dados em CSV e enviar o arquivo aqui no chat."
     if artifact_type == "xlsx":
-        return "Posso transformar esse resultado em uma planilha editável e salvar na sua Biblioteca."
+        return "Posso transformar este resultado em uma planilha e enviar o arquivo aqui no chat."
     return ""
 
 
@@ -176,8 +176,10 @@ def respond(payload: ChatRequest, session: dict = Depends(require_authenticated_
     )
     diagnosis_state = load_diagnosis_state(user_id, operation)
     history = [item.model_dump() for item in payload.history]
+    local_artifact_followup = resolve_pending_artifact_acceptance(message, history) is not None
 
-    ensure_minimum_credit(user_id)
+    if not local_artifact_followup:
+        ensure_minimum_credit(user_id)
 
     try:
         result = generate_orchestrated_response(
@@ -216,12 +218,15 @@ def respond(payload: ChatRequest, session: dict = Depends(require_authenticated_
             artifact = _create_artifact(
                 user_id=user_id,
                 operation=operation,
-                answer=reply,
+                answer=decision.get("source_answer") or reply,
                 decision=decision,
             )
-            reply = f"{reply.rstrip()}\n\nArquivo criado e salvo na sua Biblioteca."
+            if result.provider == "local-artifact":
+                reply = "PDF criado e enviado aqui no chat. O mesmo arquivo também foi salvo automaticamente na Biblioteca."
+            else:
+                reply = f"{reply.rstrip()}\n\nArquivo criado e enviado aqui no chat."
         except Exception:
-            reply = f"{reply.rstrip()}\n\nNão foi possível gerar o arquivo nesta tentativa."
+            reply = "Não foi possível gerar o arquivo nesta tentativa."
 
     return {
         "reply": reply,

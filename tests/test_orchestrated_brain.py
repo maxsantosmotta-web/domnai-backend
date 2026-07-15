@@ -4,7 +4,12 @@ from urllib import error
 
 import pytest
 
-from app.services.artifact_decision import _requires_artifact_decision
+from app.services.artifact_decision import (
+    _requires_artifact_decision,
+    decide_artifact,
+    resolve_pending_artifact_acceptance,
+)
+from app.services.credit_meter import calculate_usage_cost
 from app.services.domnai_brain import _post_json
 from app.services.metered_brain import MeteredBrainResult
 from app.services.orchestrated_brain import (
@@ -243,3 +248,87 @@ def test_existing_artifact_link_request_does_not_start_new_generation():
         history,
         "Arquivo já existente",
     ) is False
+
+
+def _pdf_offer_history():
+    completed = (
+        "Plano de ação concluído com objetivos, responsáveis, prazos, indicadores e riscos. "
+        "Este conteúdo tem detalhes suficientes para ser transformado em documento profissional. "
+        "As ações foram organizadas em etapas práticas para acompanhamento semanal."
+    )
+    return [{
+        "role": "assistant",
+        "content": f"{completed}\n\nPosso compilar esse resultado em um PDF profissional e enviar aqui no chat.",
+    }]
+
+
+def test_plain_sim_resolves_pending_pdf_with_previous_content():
+    resolved = resolve_pending_artifact_acceptance("Sim", _pdf_offer_history())
+    assert resolved is not None
+    assert resolved["action"] == "create"
+    assert resolved["artifact_type"] == "pdf"
+    assert "Plano de ação concluído" in resolved["source_answer"]
+    assert "Posso compilar" not in resolved["source_answer"]
+
+
+def test_pdf_acceptance_skips_all_intelligence_calls(monkeypatch):
+    history = _pdf_offer_history()
+    monkeypatch.setattr(
+        "app.services.orchestrated_brain.generate_metered_response",
+        lambda **_kwargs: (_ for _ in ()).throw(AssertionError("não deve chamar IA")),
+    )
+    monkeypatch.setattr(
+        "app.services.orchestrated_brain._openai_request",
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(AssertionError("não deve chamar IA")),
+    )
+
+    result = generate_orchestrated_response(
+        message="Sim",
+        history=history,
+        operation="Plano de Ação Empresarial",
+        attachments=[],
+        diagnosis_state={"status": "kept"},
+    )
+
+    assert result.provider == "local-artifact"
+    assert result.model == "local"
+    assert result.input_tokens == 0
+    assert result.output_tokens == 0
+    assert "Plano de ação concluído" in result.text
+
+
+def test_pdf_acceptance_returns_create_without_artifact_ai(monkeypatch):
+    monkeypatch.setattr(
+        "app.services.artifact_decision._openai_request",
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(AssertionError("não deve decidir por IA")),
+    )
+    decision = decide_artifact(
+        message="Sim",
+        operation="Plano de Ação Empresarial",
+        history=_pdf_offer_history(),
+        answer="não deve ser usado",
+    )
+    assert decision["action"] == "create"
+    assert decision["artifact_type"] == "pdf"
+    assert decision["local_artifact_followup"] is True
+
+
+def test_local_pdf_delivery_has_zero_measured_credits():
+    usage = calculate_usage_cost(MeteredBrainResult(
+        text="PDF criado",
+        provider="local-artifact",
+        model="local",
+        input_tokens=0,
+        output_tokens=0,
+        cached_input_tokens=0,
+        diagnosis_state=None,
+    ))
+    assert usage["credits"] == 0
+    assert usage["cost_usd"] == 0
+
+
+def test_unrelated_sentence_with_quero_is_not_pdf_acceptance():
+    assert resolve_pending_artifact_acceptance(
+        "Agora quero falar de outro assunto",
+        _pdf_offer_history(),
+    ) is None
