@@ -32,6 +32,9 @@ def _safe_messages(items: list[dict]) -> list[dict]:
         if role not in {"user", "assistant", "operation"}:
             continue
 
+        task_id = str(item.get("taskId") or "")[:180] or None
+        processing = bool(item.get("processing"))
+
         if role == "operation":
             safe.append({
                 "id": item.get("id"),
@@ -40,6 +43,8 @@ def _safe_messages(items: list[dict]) -> list[dict]:
                 "operationId": str(item.get("operationId") or "")[:120] or None,
                 "attachments": [],
                 "isError": False,
+                "taskId": task_id,
+                "processing": False,
             })
             continue
 
@@ -59,6 +64,8 @@ def _safe_messages(items: list[dict]) -> list[dict]:
             "text": text,
             "attachments": attachments,
             "isError": bool(item.get("isError")),
+            "taskId": task_id,
+            "processing": processing if role == "assistant" else False,
         })
     return safe
 
@@ -106,6 +113,5 @@ def clear_chat_state(session: dict = Depends(require_authenticated_user)):
     try:
         clear_diagnosis_state(user_id)
     except Exception:
-        # Limpar a conversa não deve falhar por indisponibilidade da memória auxiliar.
         pass
     return Response(status_code=204)
