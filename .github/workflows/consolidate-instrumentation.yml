@@ -1,0 +1,106 @@
+name: One-time instrumentation consolidation
+
+on:
+  pull_request:
+    branches:
+      - main
+    paths:
+      - .github/workflows/consolidate-instrumentation.yml
+
+permissions:
+  contents: write
+
+jobs:
+  consolidate-once:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: audit/consolidate-runtime-patches
+          fetch-depth: 0
+
+      - name: Apply current production instrumentation exactly once
+        run: |
+          sudo mkdir -p /app
+          sudo ln -sfn "$GITHUB_WORKSPACE/app" /app/app
+          python scripts/instrument_chat_pipeline.py
+
+      - name: Stop applying instrumentation during Docker build
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          path = Path("Dockerfile")
+          source = path.read_text(encoding="utf-8")
+          source = source.replace("COPY scripts/instrument_chat_pipeline.py /tmp/instrument_chat_pipeline.py\n", "", 1)
+          source = source.replace("    && python /tmp/instrument_chat_pipeline.py \\\n", "", 1)
+          if "/tmp/instrument_chat_pipeline.py" in source:
+              raise SystemExit("Dockerfile ainda executa a instrumentação em build.")
+          path.write_text(source, encoding="utf-8")
+          PY
+
+      - name: Validate instrumentation exactly once
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          worker = Path("app/services/chat_task_worker.py").read_text(encoding="utf-8")
+          metered = Path("app/services/metered_brain.py").read_text(encoding="utf-8")
+          orchestrated = Path("app/services/orchestrated_brain.py").read_text(encoding="utf-8")
+
+          required = {
+              "worker": ["queue_ms", "preparation_ms", "research_ms", "intelligence_ms", "artifact_ms", "billing_ms", "persistence_ms", "total_ms"],
+              "metered": ["preflight_ms", "generation_ms", "calculation_ms", "review_ms", "memory_ms", "timings: dict | None = None"],
+              "orchestrated": ["orchestrator_ms", "base_result.timings"],
+          }
+          values = {"worker": worker, "metered": metered, "orchestrated": orchestrated}
+          missing = {
+              name: [marker for marker in markers if marker not in values[name]]
+              for name, markers in required.items()
+          }
+          missing = {name: markers for name, markers in missing.items() if markers}
+          if missing:
+              raise SystemExit(f"Instrumentação incompleta: {missing}")
+
+          unique_markers = {
+              "worker": [
+                  "        created_at = task.created_at",
+                  "        intelligence_started_at = time.perf_counter()",
+                  "        artifact_started_at = time.perf_counter()",
+                  "    billing_started_at = time.perf_counter()",
+                  "    persistence_started_at = time.perf_counter()",
+              ],
+              "metered": [
+                  "    timings: dict | None = None",
+                  "    stage_timings: dict[str, int] = {}",
+                  "    draft_started_at = time.perf_counter()",
+                  "    calculation_started_at = time.perf_counter()",
+              ],
+              "orchestrated": [
+                  "    orchestrator_started_at = time.perf_counter()",
+              ],
+          }
+          duplicates = {}
+          for name, markers in unique_markers.items():
+              for marker in markers:
+                  count = values[name].count(marker)
+                  if count != 1:
+                      duplicates[f"{name}:{marker}"] = count
+          if duplicates:
+              raise SystemExit(f"Instrumentação duplicada ou ausente: {duplicates}")
+          PY
+
+      - name: Run backend tests
+        run: |
+          python -m compileall -q app
+          pytest -q
+
+      - name: Commit safe consolidation and remove this one-time workflow
+        run: |
+          git rm .github/workflows/consolidate-instrumentation.yml
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add Dockerfile app/services/chat_task_worker.py app/services/metered_brain.py app/services/orchestrated_brain.py
+          git commit -m "refactor(chat): consolidate instrumentation without behavior changes"
+          git push origin HEAD:audit/consolidate-runtime-patches
