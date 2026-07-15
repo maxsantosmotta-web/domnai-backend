@@ -84,7 +84,6 @@ COPY migrations ./migrations
 COPY app ./app
 COPY scripts/connect_chat_sources_backend.py /tmp/connect_chat_sources_backend.py
 COPY scripts/instrument_chat_pipeline.py /tmp/instrument_chat_pipeline.py
-COPY scripts/defer_diagnosis_memory.py /tmp/defer_diagnosis_memory.py
 COPY scripts/tune_domnai_responses.py /tmp/tune_domnai_responses.py
 COPY scripts/guard_domnai_capabilities.py /tmp/guard_domnai_capabilities.py
 COPY scripts/apply_stages_9_11.py /tmp/apply_stages_9_11.py
@@ -92,8 +91,7 @@ RUN python /tmp/connect_chat_sources_backend.py \
     && python /tmp/instrument_chat_pipeline.py \
     && python /tmp/tune_domnai_responses.py \
     && python /tmp/guard_domnai_capabilities.py \
-    && python /tmp/apply_stages_9_11.py \
-    && python /tmp/defer_diagnosis_memory.py
+    && python /tmp/apply_stages_9_11.py
 COPY --from=frontend-builder /frontend/dist ./frontend/dist
 EXPOSE 8080
 CMD ["sh", "-c", "alembic upgrade heads && uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-8080}"]
