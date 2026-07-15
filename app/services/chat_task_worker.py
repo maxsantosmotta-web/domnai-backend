@@ -74,7 +74,13 @@ def _load_attachments(user_id: str, attachment_ids: list[str]) -> list[dict]:
         ]
 
 
-def _append_completed_response(user_id: str, payload: dict, reply: str, artifacts: list[dict]) -> None:
+def _append_completed_response(
+    user_id: str,
+    payload: dict,
+    reply: str,
+    artifacts: list[dict],
+    sources: list[dict],
+) -> None:
     task_id = str(payload.get("task_id") or "")
     if not task_id:
         return
@@ -103,6 +109,7 @@ def _append_completed_response(user_id: str, payload: dict, reply: str, artifact
                 **item,
                 "text": reply,
                 "attachments": artifacts,
+                "sources": sources,
                 "isError": False,
                 "processing": False,
                 "taskId": task_id,
@@ -122,6 +129,7 @@ def _append_completed_response(user_id: str, payload: dict, reply: str, artifact
                     "role": "user",
                     "text": str(payload.get("message") or ""),
                     "attachments": [],
+                    "sources": [],
                     "isError": False,
                     "taskId": task_id,
                     "processing": False,
@@ -131,6 +139,7 @@ def _append_completed_response(user_id: str, payload: dict, reply: str, artifact
                 "role": "assistant",
                 "text": reply,
                 "attachments": artifacts,
+                "sources": sources,
                 "isError": False,
                 "taskId": task_id,
                 "processing": False,
@@ -242,6 +251,7 @@ def _process_task(task_id: str) -> None:
         payload,
         existing_result["reply"],
         existing_result.get("artifacts") or [],
+        existing_result.get("sources") or [],
     )
     with session_scope() as db:
         task = db.get(ChatTask, task_id)
