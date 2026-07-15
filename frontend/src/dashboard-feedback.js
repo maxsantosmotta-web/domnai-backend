@@ -7,6 +7,35 @@ const FEEDBACK_TYPES = {
   praise: { label: 'Elogio', description: 'Conte o que funcionou bem para você.' },
 };
 
+let feedbackAccessCache = null;
+
+async function feedbackAccess(force = false) {
+  if (!force && feedbackAccessCache !== null) return feedbackAccessCache;
+  const payload = await feedbackFetch('/api/feedback/access');
+  feedbackAccessCache = Boolean(payload?.allowed);
+  return feedbackAccessCache;
+}
+
+function renderFeedbackMenuAccess(button, allowed) {
+  if (!button) return;
+  button.classList.toggle('is-premium-locked', !allowed);
+  button.setAttribute('aria-label', allowed ? 'Feedback' : 'Feedback, recurso PREMIUM');
+  button.innerHTML = allowed
+    ? '<span>★</span><span class="domnai-feedback-menu-label">Feedback</span>'
+    : '<span>★</span><span class="domnai-feedback-menu-label">Feedback</span><small>PREMIUM</small>';
+}
+
+function showFeedbackPremiumNotice() {
+  document.querySelector('[data-feedback-premium-notice]')?.remove();
+  const notice = document.createElement('div');
+  notice.dataset.feedbackPremiumNotice = 'true';
+  notice.className = 'domnai-feedback-premium-notice';
+  notice.setAttribute('role', 'status');
+  notice.textContent = 'Feedback disponível exclusivamente no plano PREMIUM.';
+  document.body.appendChild(notice);
+  window.setTimeout(() => notice.remove(), 3200);
+}
+
 function feedbackEscape(value) {
   return String(value ?? '')
     .replaceAll('&', '&amp;')
@@ -312,11 +341,25 @@ function installFeedbackMenu() {
   button.type = 'button';
   button.dataset.domnaiFeedbackMenu = 'true';
   button.className = 'domnai-feedback-menu-button';
-  button.innerHTML = '<span>★</span> Feedback';
-  button.addEventListener('click', (event) => {
+  renderFeedbackMenuAccess(button, false);
+  feedbackAccess()
+    .then((allowed) => renderFeedbackMenuAccess(button, allowed))
+    .catch(() => renderFeedbackMenuAccess(button, false));
+  button.addEventListener('click', async (event) => {
     event.preventDefault();
     event.stopPropagation();
-    openFeedbackPage();
+    try {
+      const allowed = await feedbackAccess(true);
+      renderFeedbackMenuAccess(button, allowed);
+      if (!allowed) {
+        showFeedbackPremiumNotice();
+        return;
+      }
+      openFeedbackPage();
+    } catch (_error) {
+      renderFeedbackMenuAccess(button, false);
+      showFeedbackPremiumNotice();
+    }
   });
 
   const billingButton = [...group.querySelectorAll(':scope > button')]
