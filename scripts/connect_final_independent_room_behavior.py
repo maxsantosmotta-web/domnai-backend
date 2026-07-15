@@ -149,7 +149,7 @@ profile_back_path.write_text(profile_back, encoding='utf-8')
 
 
 # ---------------------------------------------------------------------------
-# FREE: restringe somente operações/chat; libera módulos de sistema.
+# FREE: restringe operações/chat e mantém somente Feedback como recurso PREMIUM.
 # ---------------------------------------------------------------------------
 access_path = Path('/frontend/src/dashboard-access-control.js')
 access = access_path.read_text(encoding='utf-8')
@@ -160,13 +160,16 @@ access = access.replace(
 
 old_restriction = '''  const operationButton = target.closest('.operations-only button');
   const systemButton = target.closest('.sidebar-system-group button');
-  const restrictedSystem = systemButton && (text.includes('Biblioteca') || text.includes('Lixeira'));
+  const restrictedSystem = systemButton && (text.includes('Biblioteca') || text.includes('Lixeira') || text.includes('Feedback'));
   const composer = target.closest('.chat-composer, .composer-plus-menu');
   return Boolean(operationButton || restrictedSystem || composer || target.closest('.conversation-options-menu'));'''
 new_restriction = '''  const operationButton = target.closest('.operations-only button');
+  const systemButton = target.closest('.sidebar-system-group button');
+  const restrictedSystem = systemButton && text.includes('Feedback');
   const composer = target.closest('.chat-composer, .composer-plus-menu');
-  return Boolean(operationButton || composer || target.closest('.conversation-options-menu'));'''
-access = replace_once(access, old_restriction, new_restriction, 'a regra de bloqueio do plano FREE')
+  return Boolean(operationButton || restrictedSystem || composer || target.closest('.conversation-options-menu'));'''
+if new_restriction not in access:
+    access = replace_once(access, old_restriction, new_restriction, 'a regra de bloqueio do plano FREE')
 access_path.write_text(access, encoding='utf-8')
 
 access_css_path = Path('/frontend/src/dashboard-access-control.css')
