@@ -5,9 +5,15 @@ worker = worker_path.read_text(encoding='utf-8')
 
 old_signature = 'def _append_completed_response(user_id: str, payload: dict, reply: str, artifacts: list[dict]) -> None:'
 new_signature = 'def _append_completed_response(user_id: str, payload: dict, reply: str, artifacts: list[dict], sources: list[dict]) -> None:'
+multiline_signature_markers = (
+    'def _append_completed_response(',
+    '    artifacts: list[dict],',
+    '    sources: list[dict],',
+    ') -> None:',
+)
 if old_signature in worker:
     worker = worker.replace(old_signature, new_signature, 1)
-elif new_signature not in worker:
+elif new_signature not in worker and not all(marker in worker for marker in multiline_signature_markers):
     raise RuntimeError('Assinatura da persistência final não encontrada.')
 
 old_assistant_payload = '                "attachments": artifacts,\n                "isError": False,'
@@ -37,7 +43,7 @@ elif new_call not in worker:
     raise RuntimeError('Persistência final da resposta não encontrada.')
 
 required_worker_markers = (
-    new_signature,
+    '    sources: list[dict],',
     '"sources": sources,',
     'existing_result.get("sources") or [],',
 )
