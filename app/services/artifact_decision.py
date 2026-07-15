@@ -74,6 +74,46 @@ def _parse_decision(raw_text: str) -> dict:
     }
 
 
+def _requires_artifact_decision(
+    message: str,
+    operation: str | None,
+    history: list[dict],
+    answer: str,
+) -> bool:
+    normalized = " ".join(str(message or "").casefold().split())
+    explicit_markers = (
+        "pdf",
+        "planilha",
+        "xlsx",
+        "excel",
+        "csv",
+        "arquivo",
+        "documento",
+        "baixar",
+        "download",
+        "abrir arquivo",
+        "manda o link",
+        "envia o link",
+        "salvar na biblioteca",
+        "gere um relatório",
+        "crie um relatório",
+    )
+    if any(marker in normalized for marker in explicit_markers):
+        return True
+
+    recent_text = " ".join(str(item.get("content") or "").casefold() for item in history[-4:])
+    previous_offer_markers = (
+        "posso organizar",
+        "salvar na sua biblioteca",
+        "pdf profissional",
+        "planilha editável",
+    )
+    if any(marker in recent_text for marker in previous_offer_markers):
+        return True
+
+    return bool(operation and len(str(answer or "").strip()) >= 1000)
+
+
 def decide_artifact(
     *,
     message: str,
@@ -81,6 +121,9 @@ def decide_artifact(
     history: list[dict],
     answer: str,
 ) -> dict:
+    if not _requires_artifact_decision(message, operation, history, answer):
+        return dict(_NONE)
+
     api_key = os.getenv("OPENAI_API_KEY", "").strip()
     if not api_key:
         return dict(_NONE)
