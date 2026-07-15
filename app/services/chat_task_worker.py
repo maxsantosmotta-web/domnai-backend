@@ -176,7 +176,8 @@ def _process_task(task_id: str) -> None:
 
     if existing_result is None:
         preparation_started_at = time.perf_counter()
-        ensure_minimum_credit(user_id)
+        if not payload.get("local_artifact_followup"):
+            ensure_minimum_credit(user_id)
         original_message = str(payload.get("message") or "").strip()
         operation = payload.get("operation")
         history = payload.get("history") or []
@@ -185,7 +186,7 @@ def _process_task(task_id: str) -> None:
         timings["preparation_ms"] = _elapsed_ms(preparation_started_at)
         sources: list[dict] = []
         message_for_brain = original_message
-        if should_research_web(original_message, operation):
+        if not payload.get("local_artifact_followup") and should_research_web(original_message, operation):
             research_started_at = time.perf_counter()
             research = research_web(original_message)
             timings["research_ms"] = _elapsed_ms(research_started_at)
@@ -219,13 +220,16 @@ def _process_task(task_id: str) -> None:
                 artifact = _create_artifact(
                     user_id=user_id,
                     operation=operation,
-                    answer=reply,
+                    answer=decision.get("source_answer") or reply,
                     decision=decision,
                 )
                 artifacts.append(artifact)
-                reply = f"{reply.rstrip()}\n\nArquivo criado e salvo na sua Biblioteca."
+                if result.provider == "local-artifact":
+                    reply = "PDF criado e enviado aqui no chat. O mesmo arquivo também foi salvo automaticamente na Biblioteca."
+                else:
+                    reply = f"{reply.rstrip()}\n\nArquivo criado e enviado aqui no chat."
             except Exception:
-                reply = f"{reply.rstrip()}\n\nNão foi possível gerar o arquivo nesta tentativa."
+                reply = "Não foi possível gerar o arquivo nesta tentativa."
         elif decision.get("action") == "offer":
             from app.api.chat import _artifact_offer
             offer = _artifact_offer(decision.get("artifact_type"))
