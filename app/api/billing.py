@@ -160,13 +160,23 @@ def _stripe_user_id(db, obj) -> str | None:
 def billing_status(session: dict = Depends(require_authenticated_user)):
     user_id = session.get("sub")
     with session_scope() as db:
-        account = _get_or_create_account(db, user_id)
-        if account.plan == "free_demo":
-            account.plan = "unselected"
-            db.flush()
+        account = db.get(BillingAccount, user_id)
         profile = db.get(UserProfile, user_id)
+        if account is None:
+            return {
+                "plan": "unselected",
+                "subscriptionStatus": "inactive",
+                "planCredits": 0,
+                "extraCredits": 0,
+                "totalCredits": 0,
+                "premiumActive": False,
+                "currentPeriodEnd": None,
+                "profileCompleted": bool(profile and profile.completed),
+                "financialAccountExists": False,
+            }
         payload = _serialize_account(account)
         payload["profileCompleted"] = bool(profile and profile.completed)
+        payload["financialAccountExists"] = True
         return payload
 
 
