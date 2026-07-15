@@ -24,6 +24,10 @@ def _now():
     return datetime.now(timezone.utc)
 
 
+def _elapsed_ms(started_at: float) -> int:
+    return max(0, round((time.perf_counter() - started_at) * 1000))
+
+
 def recover_interrupted_tasks() -> None:
     with session_scope() as db:
         db.execute(
@@ -151,6 +155,8 @@ def _append_completed_response(
 
 
 def _process_task(task_id: str) -> None:
+    task_started_at = time.perf_counter()
+    timings: dict[str, int] = {}
     with session_scope() as db:
         task = db.get(ChatTask, task_id)
         if task is None:
@@ -159,23 +165,36 @@ def _process_task(task_id: str) -> None:
         payload["task_id"] = task_id
         existing_result = json.loads(task.result_json) if task.result_json else None
         user_id = task.user_id
+        created_at = task.created_at
+
+    if created_at is not None:
+        try:
+            created_utc = created_at if created_at.tzinfo else created_at.replace(tzinfo=timezone.utc)
+            timings["queue_ms"] = max(0, round((_now() - created_utc).total_seconds() * 1000))
+        except Exception:
+            pass
 
     if existing_result is None:
+        preparation_started_at = time.perf_counter()
         ensure_minimum_credit(user_id)
         original_message = str(payload.get("message") or "").strip()
         operation = payload.get("operation")
         history = payload.get("history") or []
         attachments = _load_attachments(user_id, payload.get("attachment_ids") or [])
         diagnosis_state = load_diagnosis_state(user_id, operation)
+        timings["preparation_ms"] = _elapsed_ms(preparation_started_at)
         sources: list[dict] = []
         message_for_brain = original_message
         if should_research_web(original_message, operation):
+            research_started_at = time.perf_counter()
             research = research_web(original_message)
+            timings["research_ms"] = _elapsed_ms(research_started_at)
             sources = research.sources
             message_for_brain = (
                 f"{original_message}\n\nPESQUISA WEB VERIFICADA:\n{research.text}\n\n"
                 "Use os fatos pesquisados e não invente fontes ou URLs."
             )
+        intelligence_started_at = time.perf_counter()
         result = generate_orchestrated_response(
             message=message_for_brain,
             operation=operation,
@@ -183,8 +202,11 @@ def _process_task(task_id: str) -> None:
             attachments=attachments,
             diagnosis_state=diagnosis_state,
         )
+        timings["intelligence_ms"] = _elapsed_ms(intelligence_started_at)
+        timings.update(getattr(result, "timings", None) or {})
         reply = result.text
         artifacts: list[dict] = []
+        artifact_started_at = time.perf_counter()
         decision = decide_artifact(
             message=original_message,
             operation=operation,
@@ -210,6 +232,8 @@ def _process_task(task_id: str) -> None:
             if offer and offer.casefold() not in reply.casefold():
                 reply = f"{reply.rstrip()}\n\n{offer}"
 
+        timings["artifact_ms"] = _elapsed_ms(artifact_started_at)
+        timings["generation_total_ms"] = _elapsed_ms(task_started_at)
         existing_result = {
             "reply": reply,
             "artifacts": artifacts,
@@ -220,6 +244,7 @@ def _process_task(task_id: str) -> None:
             "cached_input_tokens": result.cached_input_tokens,
             "diagnosis_state": result.diagnosis_state,
             "sources": sources,
+            "timings": timings,
         }
         with session_scope() as db:
             task = db.get(ChatTask, task_id)
@@ -239,13 +264,17 @@ def _process_task(task_id: str) -> None:
         cached_input_tokens=int(existing_result.get("cached_input_tokens") or 0),
         diagnosis_state=existing_result.get("diagnosis_state"),
     )
+    billing_started_at = time.perf_counter()
     usage = charge_usage(user_id, meter_result, idempotency_key=f"chat-task:{task_id}")
+    timings = dict(existing_result.get("timings") or timings)
+    timings["billing_ms"] = _elapsed_ms(billing_started_at)
     if meter_result.diagnosis_state is not None:
         try:
             save_diagnosis_state(user_id, payload.get("operation"), meter_result.diagnosis_state)
         except Exception:
             pass
     existing_result["usage"] = usage
+    persistence_started_at = time.perf_counter()
     _append_completed_response(
         user_id,
         payload,
@@ -253,6 +282,9 @@ def _process_task(task_id: str) -> None:
         existing_result.get("artifacts") or [],
         existing_result.get("sources") or [],
     )
+    timings["persistence_ms"] = _elapsed_ms(persistence_started_at)
+    timings["total_ms"] = _elapsed_ms(task_started_at)
+    existing_result["timings"] = timings
     with session_scope() as db:
         task = db.get(ChatTask, task_id)
         if task is None:

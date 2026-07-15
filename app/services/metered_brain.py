@@ -1,5 +1,6 @@
 import base64
 import os
+import time
 from dataclasses import dataclass
 
 from app.services.calculation_audit import (
@@ -41,6 +42,7 @@ class MeteredBrainResult:
     output_tokens: int
     cached_input_tokens: int = 0
     diagnosis_state: dict | None = None
+    timings: dict | None = None
 
 
 def _as_int(value) -> int:
@@ -270,8 +272,10 @@ def _openai_response(
         raise RuntimeError("OPENAI_API_KEY não configurada.")
 
     model = os.getenv("DOMNAI_OPENAI_MODEL", "gpt-4.1-mini").strip()
+    stage_timings: dict[str, int] = {}
     preflight_text, preflight_usage = (None, {})
     if not attachments:
+        preflight_started_at = time.perf_counter()
         preflight_text, preflight_usage = _preflight_response(
             api_key,
             model,
@@ -280,8 +284,10 @@ def _openai_response(
             operation,
             diagnosis_state,
         )
+        stage_timings["preflight_ms"] = max(0, round((time.perf_counter() - preflight_started_at) * 1000))
 
     if preflight_text:
+        memory_started_at = time.perf_counter()
         updated_state, memory_usage = _update_diagnosis_memory(
             api_key,
             model,
@@ -291,6 +297,7 @@ def _openai_response(
             preflight_text,
             attachments,
         )
+        stage_timings["memory_ms"] = max(0, round((time.perf_counter() - memory_started_at) * 1000))
         input_tokens, output_tokens, cached_tokens = _usage_totals(preflight_usage, memory_usage)
         return MeteredBrainResult(
             text=preflight_text,
@@ -300,6 +307,7 @@ def _openai_response(
             output_tokens=output_tokens,
             cached_input_tokens=cached_tokens,
             diagnosis_state=updated_state,
+            timings=stage_timings,
         )
 
     input_messages = _normalized_history(history)
@@ -312,6 +320,7 @@ def _openai_response(
     if memory_context:
         instructions = f"{instructions}\n\n{memory_context}"
 
+    draft_started_at = time.perf_counter()
     draft_text, draft_usage = _openai_request(
         api_key,
         {
@@ -322,13 +331,17 @@ def _openai_response(
             "max_output_tokens": 2400,
         },
     )
+    stage_timings["generation_ms"] = max(0, round((time.perf_counter() - draft_started_at) * 1000))
 
+    calculation_started_at = time.perf_counter()
     calculation_report, calculation_usage = _calculation_audit(api_key, model, message, draft_text, operation)
+    stage_timings["calculation_ms"] = max(0, round((time.perf_counter() - calculation_started_at) * 1000))
     final_text = draft_text
     review_usage: dict = {}
     reviewed = needs_independent_review(operation, message, attachments)
 
     if reviewed:
+        review_started_at = time.perf_counter()
         review_model = os.getenv("DOMNAI_REVIEW_MODEL", model).strip() or model
         final_text, review_usage = _openai_request(
             api_key,
@@ -346,7 +359,11 @@ def _openai_response(
                 "max_output_tokens": 2400,
             },
         )
+        stage_timings["review_ms"] = max(0, round((time.perf_counter() - review_started_at) * 1000))
+    else:
+        stage_timings["review_ms"] = 0
 
+    memory_started_at = time.perf_counter()
     updated_state, memory_usage = _update_diagnosis_memory(
         api_key,
         model,
@@ -356,6 +373,7 @@ def _openai_response(
         final_text,
         attachments,
     )
+    stage_timings["memory_ms"] = max(0, round((time.perf_counter() - memory_started_at) * 1000))
 
     input_tokens, output_tokens, cached_tokens = _usage_totals(
         preflight_usage,
@@ -372,6 +390,7 @@ def _openai_response(
         output_tokens=output_tokens,
         cached_input_tokens=cached_tokens,
         diagnosis_state=updated_state,
+        timings=stage_timings,
     )
 
 
