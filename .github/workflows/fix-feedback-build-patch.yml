@@ -1,0 +1,76 @@
+name: Fix Feedback build patch
+
+on:
+  pull_request:
+    branches:
+      - main
+    paths:
+      - .github/workflows/fix-feedback-build-patch.yml
+
+permissions:
+  contents: write
+
+jobs:
+  fix:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: fix/feedback-build-patch
+          fetch-depth: 0
+
+      - name: Make old runtime patch compatible with Feedback Premium
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          path = Path('scripts/connect_final_independent_room_behavior.py')
+          source = path.read_text(encoding='utf-8')
+
+          old_block = """old_restriction = '''  const operationButton = target.closest('.operations-only button');
+  const systemButton = target.closest('.sidebar-system-group button');
+  const restrictedSystem = systemButton && (text.includes('Biblioteca') || text.includes('Lixeira'));
+  const composer = target.closest('.chat-composer, .composer-plus-menu');
+  return Boolean(operationButton || restrictedSystem || composer || target.closest('.conversation-options-menu'));'''
+new_restriction = '''  const operationButton = target.closest('.operations-only button');
+  const composer = target.closest('.chat-composer, .composer-plus-menu');
+  return Boolean(operationButton || composer || target.closest('.conversation-options-menu'));'''"""
+
+          new_block = """old_restriction = '''  const operationButton = target.closest('.operations-only button');
+  const systemButton = target.closest('.sidebar-system-group button');
+  const restrictedSystem = systemButton && (text.includes('Biblioteca') || text.includes('Lixeira') || text.includes('Feedback'));
+  const composer = target.closest('.chat-composer, .composer-plus-menu');
+  return Boolean(operationButton || restrictedSystem || composer || target.closest('.conversation-options-menu'));'''
+new_restriction = '''  const operationButton = target.closest('.operations-only button');
+  const systemButton = target.closest('.sidebar-system-group button');
+  const restrictedSystem = systemButton && text.includes('Feedback');
+  const composer = target.closest('.chat-composer, .composer-plus-menu');
+  return Boolean(operationButton || restrictedSystem || composer || target.closest('.conversation-options-menu'));'''"""
+
+          if new_block not in source:
+              if old_block not in source:
+                  raise SystemExit('Bloco de restrição antigo não encontrado')
+              source = source.replace(old_block, new_block, 1)
+
+          path.write_text(source, encoding='utf-8')
+          PY
+
+      - name: Validate patch against current frontend
+        run: |
+          rm -rf /tmp/frontend-test
+          cp -R frontend /tmp/frontend-test
+          sed 's#/frontend#/tmp/frontend-test#g' scripts/connect_final_independent_room_behavior.py > /tmp/test_patch.py
+          python /tmp/test_patch.py
+          grep -F "const restrictedSystem = systemButton && text.includes('Feedback');" /tmp/frontend-test/src/dashboard-access-control.js
+          cd /tmp/frontend-test
+          npm install
+          npm run build
+
+      - name: Commit source fix
+        run: |
+          git rm .github/workflows/fix-feedback-build-patch.yml
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add scripts/connect_final_independent_room_behavior.py
+          git commit -m "fix(build): preserve Feedback Premium in legacy patch"
+          git push origin HEAD:fix/feedback-build-patch
