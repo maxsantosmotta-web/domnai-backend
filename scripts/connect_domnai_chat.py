@@ -20,6 +20,13 @@ source = source.replace(
     1,
 )
 
+if "const pollingTasksRef" not in source:
+    source = source.replace(
+        "  const fileInputRef = useRef(null);",
+        "  const fileInputRef = useRef(null);\n  const pollingTasksRef = useRef(new Set());",
+        1,
+    )
+
 if "const [responding, setResponding]" not in source:
     source = source.replace(
         "  const [uploading, setUploading] = useState(false);",
@@ -34,6 +41,87 @@ if "const [conversationReady, setConversationReady]" not in source:
         1,
     )
 
+polling_block = '''
+  async function pollChatTask(taskId) {
+    if (!taskId || pollingTasksRef.current.has(taskId)) return;
+    pollingTasksRef.current.add(taskId);
+    setResponding(true);
+
+    try {
+      for (let attempt = 0; attempt < 240; attempt += 1) {
+        const response = await authorizedFetch(`/api/chat/tasks/${taskId}`);
+        const payload = await response.json().catch(() => ({}));
+        if (!response.ok) throw new Error(payload.detail || 'Não foi possível acompanhar a resposta do DomnAI.');
+
+        if (payload.status === 'completed') {
+          const result = payload.result || {};
+          const artifacts = result.artifacts || [];
+          setMessages((current) => current.map((message) => (
+            message.taskId === taskId && message.role === 'assistant'
+              ? {
+                  ...message,
+                  text: result.reply || 'O DomnAI não retornou uma resposta em texto.',
+                  attachments: artifacts,
+                  processing: false,
+                  isError: false,
+                }
+              : message
+          )));
+          return;
+        }
+
+        if (payload.status === 'failed') {
+          setMessages((current) => current.map((message) => (
+            message.taskId === taskId && message.role === 'assistant'
+              ? {
+                  ...message,
+                  text: payload.error || 'Não foi possível concluir a resposta.',
+                  processing: false,
+                  isError: true,
+                }
+              : message
+          )));
+          return;
+        }
+
+        await new Promise((resolve) => window.setTimeout(resolve, 1200));
+      }
+
+      setMessages((current) => current.map((message) => (
+        message.taskId === taskId && message.role === 'assistant'
+          ? {
+              ...message,
+              text: 'A resposta continua sendo processada. Ela será restaurada quando você voltar.',
+              processing: true,
+              isError: false,
+            }
+          : message
+      )));
+    } catch (error) {
+      setMessages((current) => current.map((message) => (
+        message.taskId === taskId && message.role === 'assistant'
+          ? {
+              ...message,
+              text: error.message || 'Não foi possível acompanhar a resposta.',
+              processing: false,
+              isError: true,
+            }
+          : message
+      )));
+    } finally {
+      pollingTasksRef.current.delete(taskId);
+      setResponding(false);
+    }
+  }
+
+'''
+
+if "async function pollChatTask(taskId)" not in source:
+    marker = "  async function buildImagePreviewMap(items, basePath) {"
+    if marker not in source:
+        raise RuntimeError('Não foi possível localizar o ponto de inserção do polling.')
+    source = source.replace(marker, polling_block + marker, 1)
+
 persistence_block = '''
   useEffect(() => {
     if (!userId) return undefined;
@@ -47,9 +135,15 @@ persistence_block = '''
       })
       .then((payload) => {
         if (cancelled) return;
-        setMessages(Array.isArray(payload.messages) ? payload.messages : []);
+        const restoredMessages = Array.isArray(payload.messages) ? payload.messages : [];
+        setMessages(restoredMessages);
         setActiveOperation(payload.activeOperation || null);
         setConversationReady(true);
+        const pendingTasks = restoredMessages.filter(
+          (message) => message.role === 'assistant' && message.processing && message.taskId,
+        );
+        if (pendingTasks.length) setResponding(true);
+        pendingTasks.forEach((message) => pollChatTask(message.taskId));
       })
       .catch(() => {
         if (!cancelled) setConversationReady(true);
@@ -67,6 +161,8 @@ persistence_block = '''
         text: message.text || '',
         operationId: message.operationId || null,
         isError: Boolean(message.isError),
+        taskId: message.taskId || null,
+        processing: Boolean(message.processing),
         attachments: (message.attachments || []).map((item) => ({
           id: item.id,
           libraryId: item.libraryId || null,
@@ -127,11 +223,13 @@ send_block = '''  async function sendMessage(event) {
     if ((!text && attachments.length === 0) || uploading || responding) return;
 
     const sentAttachments = [...attachments];
+    const localMessageId = Date.now();
     const userMessage = {
-      id: Date.now(),
+      id: localMessageId,
       role: 'user',
       text,
       attachments: sentAttachments,
+      processing: false,
     };
 
     const lastOperationIndex = messages.reduce(
@@ -140,7 +238,7 @@ send_block = '''  async function sendMessage(event) {
     );
     const currentBlockMessages = lastOperationIndex >= 0 ? messages.slice(lastOperationIndex + 1) : messages;
     const history = currentBlockMessages
-      .filter((message) => ['user', 'assistant'].includes(message.role) && message.text?.trim())
+      .filter((message) => ['user', 'assistant'].includes(message.role) && message.text?.trim() && !message.processing)
       .slice(-40)
       .map((message) => ({ role: message.role, content: message.text.trim() }));
 
@@ -161,18 +259,32 @@ send_block = '''  async function sendMessage(event) {
           message: messageForApi,
           operation: operationName,
           history,
+          attachments: sentAttachments
+            .filter((item) => item.libraryId)
+            .map((item) => ({ library_id: item.libraryId })),
         }),
       });
       const payload = await response.json().catch(() => ({}));
-      if (!response.ok) {
-        throw new Error(payload.detail || 'Não foi possível obter a resposta do DomnAI.');
-      }
-      setMessages((current) => [...current, {
-        id: Date.now() + 1,
-        role: 'assistant',
-        text: payload.reply || 'O DomnAI não retornou uma resposta em texto.',
-        attachments: [],
-      }]);
+      if (!response.ok) throw new Error(payload.detail || 'Não foi possível iniciar a resposta do DomnAI.');
+
+      const taskId = payload.taskId;
+      if (!taskId) throw new Error('A tarefa persistente não foi criada corretamente.');
+
+      setMessages((current) => [
+        ...current.map((message) => (
+          message.id === localMessageId ? { ...message, taskId } : message
+        )),
+        {
+          id: `assistant-${taskId}`,
+          role: 'assistant',
+          text: 'DomnAI está analisando...',
+          attachments: [],
+          taskId,
+          processing: true,
+          isError: false,
+        },
+      ]);
+      pollChatTask(taskId);
     } catch (error) {
       setMessages((current) => [...current, {
         id: Date.now() + 1,
@@ -180,8 +292,8 @@ send_block = '''  async function sendMessage(event) {
         text: error.message || 'Não foi possível concluir a análise. Tente novamente.',
         attachments: [],
         isError: true,
+        processing: false,
       }]);
-    } finally {
       setResponding(false);
     }
   }
@@ -217,14 +329,6 @@ render_end = source.find(render_end_marker, render_start)
 if render_start == -1 or render_end == -1:
     raise RuntimeError('Não foi possível localizar a renderização das mensagens.')
 source = source[:render_start] + operation_render + "\n" + source[render_end:]
-
-analyzing = "              {responding ? <article className=\"chat-message assistant analyzing\"><span className=\"message-author\">DomnAI</span><p>DomnAI está analisando...</p></article> : null}"
-if analyzing not in source:
-    target = "            </div>\n            <form className=\"chat-composer simplified-composer composer-with-plus\" onSubmit={sendMessage}>"
-    replacement = f"{analyzing}\n            </div>\n            <form className=\"chat-composer simplified-composer composer-with-plus\" onSubmit={{sendMessage}}>"
-    if target not in source:
-        raise RuntimeError('Não foi possível localizar o compositor do chat.')
-    source = source.replace(target, replacement, 1)
 
 source = source.replace(
     "placeholder={uploading ? 'Salvando na biblioteca...' : 'Digite sua mensagem...'} rows=\"3\" disabled={uploading} /><button type=\"submit\" className=\"send-message-button\" aria-label=\"Enviar mensagem\" disabled={uploading}>➤</button>",
