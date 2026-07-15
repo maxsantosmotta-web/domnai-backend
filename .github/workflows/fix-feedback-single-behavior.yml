@@ -1,0 +1,124 @@
+name: Fix Feedback single behavior
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - .github/workflows/fix-feedback-single-behavior.yml
+
+permissions:
+  contents: write
+
+jobs:
+  fix:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+
+      - name: Remove duplicate Feedback behavior
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          js_path = Path('frontend/src/dashboard-feedback.js')
+          js = js_path.read_text(encoding='utf-8')
+
+          notice = '''function showFeedbackPremiumNotice() {
+  document.querySelector('[data-feedback-premium-notice]')?.remove();
+  const notice = document.createElement('div');
+  notice.dataset.feedbackPremiumNotice = 'true';
+  notice.className = 'domnai-feedback-premium-notice';
+  notice.setAttribute('role', 'status');
+  notice.textContent = 'Feedback disponível exclusivamente no plano PREMIUM.';
+  document.body.appendChild(notice);
+  window.setTimeout(() => notice.remove(), 3200);
+}
+
+'''
+          js = js.replace(notice, '', 1)
+
+          old_listener = '''  button.addEventListener('click', async (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+    try {
+      const allowed = await feedbackAccess(true);
+      renderFeedbackMenuAccess(button, allowed);
+      if (!allowed) {
+        showFeedbackPremiumNotice();
+        return;
+      }
+      openFeedbackPage();
+    } catch (_error) {
+      renderFeedbackMenuAccess(button, false);
+      showFeedbackPremiumNotice();
+    }
+  });'''
+          new_listener = '''  button.addEventListener('click', async (event) => {
+    try {
+      const allowed = await feedbackAccess(true);
+      renderFeedbackMenuAccess(button, allowed);
+      if (!allowed) return;
+      event.preventDefault();
+      event.stopPropagation();
+      openFeedbackPage();
+    } catch (_error) {
+      renderFeedbackMenuAccess(button, false);
+    }
+  });'''
+          if new_listener not in js:
+              if old_listener not in js:
+                  raise SystemExit('Listener antigo do Feedback não encontrado')
+              js = js.replace(old_listener, new_listener, 1)
+          if 'showFeedbackPremiumNotice' in js:
+              raise SystemExit('Notificação própria do Feedback ainda presente')
+          js_path.write_text(js, encoding='utf-8')
+
+          css_path = Path('frontend/src/dashboard-feedback.css')
+          css = css_path.read_text(encoding='utf-8')
+          start = css.find('.domnai-feedback-premium-notice {')
+          if start != -1:
+              end = css.find('\n}', start)
+              if end == -1:
+                  raise SystemExit('Fim do CSS da notificação não encontrado')
+              css = css[:start] + css[end + 2:]
+
+          marker = '/* Feedback bloqueado usa somente o padrão visual central PREMIUM. */'
+          if marker not in css:
+              css = css.rstrip() + '''
+
+/* Feedback bloqueado usa somente o padrão visual central PREMIUM. */
+.domnai-feedback-menu-button.is-premium-locked,
+.domnai-feedback-menu-button.is-premium-locked:hover,
+.domnai-feedback-menu-button.is-premium-locked:focus,
+.domnai-feedback-menu-button.is-premium-locked:active {
+  border-color: transparent !important;
+  background: transparent !important;
+  color: #ffffff !important;
+  box-shadow: none !important;
+}
+
+.domnai-feedback-menu-button.is-premium-locked .domnai-feedback-menu-label {
+  color: #ffffff !important;
+}
+'''
+          css_path.write_text(css, encoding='utf-8')
+          PY
+
+      - name: Validate frontend build
+        working-directory: frontend
+        run: |
+          npm install
+          npm run build
+
+      - name: Commit source correction and remove workflow
+        run: |
+          git rm .github/workflows/fix-feedback-single-behavior.yml
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add frontend/src/dashboard-feedback.js frontend/src/dashboard-feedback.css
+          git commit -m "fix(feedback): remover comportamento duplicado no plano Free"
+          git push origin main
