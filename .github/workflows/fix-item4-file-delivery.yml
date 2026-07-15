@@ -1,0 +1,59 @@
+name: Fix item 4 file delivery
+
+on:
+  push:
+    branches: [fix/item4-remove-links-and-pdf-source]
+    paths: [.github/workflows/fix-item4-file-delivery.yml]
+
+permissions:
+  contents: write
+
+jobs:
+  fix-and-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: fix/item4-remove-links-and-pdf-source
+          fetch-depth: 0
+
+      - name: Remove cancelled link flow
+        run: |
+          git revert -m 1 --no-edit a894db2ccea46a5f267e56b8faf9f5008c5dbce5
+          git revert -m 1 --no-edit c9e4670a4cdc104b075e1ef895e48eafe37f9532
+
+      - name: Fix direct PDF source selection
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          path = Path('app/services/artifact_decision.py')
+          source = path.read_text(encoding='utf-8')
+
+          marker = '''def resolve_pending_artifact_acceptance(message: str, history: list[dict]) -> dict | None:\n    """Resolve um aceite usando o conteúdo já concluído, sem nova chamada de IA."""\n    if not _accepted_offer(message):\n        return None\n'''
+          replacement = '''def _direct_pdf_request(value: str) -> bool:\n    normalized = _normalize(value)\n    if any(term in normalized for term in ("link", "url", "abrir", "download", "baixar")):\n        return False\n    return "pdf" in normalized and any(\n        term in normalized\n        for term in ("gera", "gere", "gerar", "cria", "crie", "criar", "manda", "envia", "transforma", "transforme")\n    )\n\n\ndef _last_substantive_assistant_answer(history: list[dict]) -> str:\n    blocked = (\n        "não consigo gerar", "nao consigo gerar", "não tenho como gerar", "nao tenho como gerar",\n        "não posso gerar", "nao posso gerar", "arquivo criado", "pdf criado",\n        "domnai está analisando", "domnai esta analisando",\n    )\n    for item in reversed(history):\n        if str(item.get("role") or "").strip().lower() != "assistant":\n            continue\n        candidate = _remove_offer_from_answer(str(item.get("content") or "")).strip()\n        normalized = _normalize(candidate)\n        if len(candidate) >= 120 and not any(term in normalized for term in blocked):\n            return candidate\n    return ""\n\n\ndef resolve_pending_artifact_acceptance(message: str, history: list[dict]) -> dict | None:\n    """Resolve aceite ou pedido direto de PDF usando conteúdo já concluído."""\n    if _direct_pdf_request(message):\n        source_answer = _last_substantive_assistant_answer(history)\n        if source_answer:\n            return {\n                "action": "create",\n                "artifact_type": "pdf",\n                "title": "Documento DomnAI",\n                "sheet_name": "Dados",\n                "headers": [],\n                "rows": [],\n                "source_answer": source_answer,\n                "local_artifact_followup": True,\n            }\n\n    if not _accepted_offer(message):\n        return None\n'''
+          if marker not in source:
+              raise SystemExit('Ponto de decisão de PDF não encontrado')
+          source = source.replace(marker, replacement, 1)
+          path.write_text(source, encoding='utf-8')
+
+          test_path = Path('tests/test_orchestrated_brain.py')
+          tests = test_path.read_text(encoding='utf-8')
+          addition = '''\n\ndef test_direct_pdf_request_uses_previous_substantive_answer():\n    history = [\n        {"role": "assistant", "content": "Plano semanal completo com prioridades, horários, responsáveis e acompanhamento. " * 4},\n    ]\n    resolved = resolve_pending_artifact_acceptance("Manda o PDF", history)\n    assert resolved is not None\n    assert resolved["artifact_type"] == "pdf"\n    assert "Plano semanal completo" in resolved["source_answer"]\n\n\ndef test_direct_pdf_request_does_not_export_denial_message():\n    history = [\n        {"role": "assistant", "content": "Plano útil e detalhado com ações, horários, prioridades e responsáveis. " * 4},\n        {"role": "assistant", "content": "Não tenho como gerar ou enviar arquivos PDF diretamente. Posso preparar o texto."},\n    ]\n    resolved = resolve_pending_artifact_acceptance("Gera o PDF", history)\n    assert resolved is not None\n    assert "Não tenho como gerar" not in resolved["source_answer"]\n    assert "Plano útil e detalhado" in resolved["source_answer"]\n\n\ndef test_link_request_is_not_treated_as_pdf_generation():\n    history = [{"role": "assistant", "content": "Plano completo e detalhado. " * 10}]\n    assert resolve_pending_artifact_acceptance("Manda o link desse PDF", history) is None\n'''
+          if 'test_direct_pdf_request_uses_previous_substantive_answer' not in tests:
+              test_path.write_text(tests + addition, encoding='utf-8')
+          PY
+
+      - name: Run tests
+        run: |
+          python -m pip install -e . pytest
+          python -m pytest -q tests/test_orchestrated_brain.py tests/test_chat_state.py tests/test_chat_persistence.py
+
+      - name: Commit validated source
+        run: |
+          git rm .github/workflows/fix-item4-file-delivery.yml
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add app/services/artifact_decision.py tests/test_orchestrated_brain.py app/api/chat_persistent.py app/api/library.py app/services/signed_file_links.py || true
+          git commit -m "fix(arquivos): remover links e usar conteúdo correto no PDF"
+          git push origin HEAD:fix/item4-remove-links-and-pdf-source
