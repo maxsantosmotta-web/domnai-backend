@@ -74,3 +74,5 @@ new_restriction = '''  const operationButton = target.closest('.operations-only 
           git add scripts/connect_final_independent_room_behavior.py
           git commit -m "fix(build): preserve Feedback Premium in legacy patch"
           git push origin main
+
+# Reexecução solicitada para substituir o build preso na fila do Railway.
