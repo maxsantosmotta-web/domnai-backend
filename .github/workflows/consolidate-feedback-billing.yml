@@ -20,24 +20,62 @@ jobs:
           ref: fix/consolidate-feedback-billing
           fetch-depth: 0
 
-      - name: Apply current production rules exactly once
-        run: |
-          sudo mkdir -p /app
-          sudo ln -sfn "$GITHUB_WORKSPACE/app" /app/app
-          python scripts/apply_stages_9_11.py
-
-      - name: Remove runtime patch from Docker build
+      - name: Consolidate billing status without duplicating feedback guard
         run: |
           python - <<'PY'
           from pathlib import Path
-          path = Path('Dockerfile')
-          source = path.read_text(encoding='utf-8')
-          source = source.replace('COPY scripts/apply_stages_9_11.py /tmp/apply_stages_9_11.py\n', '', 1)
-          source = source.replace('    && python /tmp/apply_stages_9_11.py\n', '\n', 1)
-          source = source.replace('    && python /tmp/apply_stages_9_11.py \\\n', '', 1)
-          if '/tmp/apply_stages_9_11.py' in source:
+
+          billing_path = Path('app/api/billing.py')
+          billing = billing_path.read_text(encoding='utf-8')
+          old_status = '''@router.get("/status")
+def billing_status(session: dict = Depends(require_authenticated_user)):
+    user_id = session.get("sub")
+    with session_scope() as db:
+        account = _get_or_create_account(db, user_id)
+        if account.plan == "free_demo":
+            account.plan = "unselected"
+            db.flush()
+        profile = db.get(UserProfile, user_id)
+        payload = _serialize_account(account)
+        payload["profileCompleted"] = bool(profile and profile.completed)
+        return payload
+'''
+          new_status = '''@router.get("/status")
+def billing_status(session: dict = Depends(require_authenticated_user)):
+    user_id = session.get("sub")
+    with session_scope() as db:
+        account = db.get(BillingAccount, user_id)
+        profile = db.get(UserProfile, user_id)
+        if account is None:
+            return {
+                "plan": "unselected",
+                "subscriptionStatus": "inactive",
+                "planCredits": 0,
+                "extraCredits": 0,
+                "totalCredits": 0,
+                "premiumActive": False,
+                "currentPeriodEnd": None,
+                "profileCompleted": bool(profile and profile.completed),
+                "financialAccountExists": False,
+            }
+        payload = _serialize_account(account)
+        payload["profileCompleted"] = bool(profile and profile.completed)
+        payload["financialAccountExists"] = True
+        return payload
+'''
+          if new_status not in billing:
+              if old_status not in billing:
+                  raise SystemExit('Rota de status financeiro não encontrada')
+              billing = billing.replace(old_status, new_status, 1)
+          billing_path.write_text(billing, encoding='utf-8')
+
+          docker_path = Path('Dockerfile')
+          docker = docker_path.read_text(encoding='utf-8')
+          docker = docker.replace('COPY scripts/apply_stages_9_11.py /tmp/apply_stages_9_11.py\n', '', 1)
+          docker = docker.replace('RUN python /tmp/connect_chat_sources_backend.py \\\n    && python /tmp/apply_stages_9_11.py\n', 'RUN python /tmp/connect_chat_sources_backend.py\n', 1)
+          if '/tmp/apply_stages_9_11.py' in docker:
               raise SystemExit('Dockerfile ainda executa apply_stages_9_11.py')
-          path.write_text(source, encoding='utf-8')
+          docker_path.write_text(docker, encoding='utf-8')
           PY
 
       - name: Validate consolidated rules
