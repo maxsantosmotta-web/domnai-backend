@@ -16,6 +16,96 @@ _NONE = {
     "rows": [],
 }
 
+_OFFER_MARKERS = (
+    "posso transformar este conteúdo em pdf",
+    "posso organizar esse resultado em um pdf",
+    "posso organizar este resultado em um pdf",
+    "pdf profissional",
+    "planilha editável",
+    "arquivo csv editável",
+)
+
+_ACCEPTANCE_EXACT = {
+    "sim",
+    "pode",
+    "quero",
+    "ok",
+    "claro",
+    "perfeito",
+}
+
+_ACCEPTANCE_PHRASES = (
+    "sim, pode",
+    "sim pode",
+    "pode gerar",
+    "pode criar",
+    "quero o pdf",
+    "quero a planilha",
+    "gere o pdf",
+    "gera o pdf",
+    "crie o pdf",
+    "cria o pdf",
+    "faça o pdf",
+    "transforme em pdf",
+    "transforma em pdf",
+    "gere a planilha",
+    "crie a planilha",
+)
+
+_EXPLICIT_ARTIFACT_MARKERS = (
+    "pdf",
+    "planilha",
+    "xlsx",
+    "excel",
+    "csv",
+    "gere um relatório",
+    "crie um relatório",
+    "crie o arquivo",
+    "gere o arquivo",
+    "transforme em arquivo",
+    "transforma em arquivo",
+)
+
+_REUSE_MARKERS = (
+    "abrir arquivo",
+    "abre o arquivo",
+    "baixar",
+    "download",
+    "manda o link",
+    "envia o link",
+    "me passa o link",
+    "salvar na galeria",
+)
+
+_CREATED_MARKERS = (
+    "arquivo criado",
+    "pdf criado",
+    "planilha criada",
+    "enviado no chat",
+)
+
+
+def _normalize(value: str) -> str:
+    return " ".join(str(value or "").casefold().split())
+
+
+def _history_text(history: list[dict], limit: int = 12) -> str:
+    return " ".join(_normalize(item.get("content") or "") for item in history[-limit:])
+
+
+def _contains_any(value: str, markers: tuple[str, ...]) -> bool:
+    return any(marker in value for marker in markers)
+
+
+def _accepted_offer(value: str) -> bool:
+    normalized = _normalize(value).strip(" .,!?:;")
+    if normalized in _ACCEPTANCE_EXACT:
+        return True
+    return any(
+        normalized == phrase or normalized.startswith(f"{phrase} ")
+        for phrase in _ACCEPTANCE_PHRASES
+    )
+
 
 def _strip_code_fence(text: str) -> str:
     value = str(text or "").strip()
@@ -80,37 +170,29 @@ def _requires_artifact_decision(
     history: list[dict],
     answer: str,
 ) -> bool:
-    normalized = " ".join(str(message or "").casefold().split())
-    explicit_markers = (
-        "pdf",
-        "planilha",
-        "xlsx",
-        "excel",
-        "csv",
-        "arquivo",
-        "documento",
-        "baixar",
-        "download",
-        "abrir arquivo",
-        "manda o link",
-        "envia o link",
-        "salvar na biblioteca",
-        "gere um relatório",
-        "crie um relatório",
-    )
-    if any(marker in normalized for marker in explicit_markers):
+    normalized = _normalize(message)
+    recent_text = _history_text(history)
+    offer_already_made = _contains_any(recent_text, _OFFER_MARKERS)
+    artifact_already_created = _contains_any(recent_text, _CREATED_MARKERS)
+
+    # Abrir, baixar ou pedir o link de um arquivo existente não deve iniciar
+    # uma nova geração. Esse pedido será tratado pelo fluxo de reutilização.
+    if artifact_already_created and _contains_any(normalized, _REUSE_MARKERS):
+        return False
+
+    explicit_request = _contains_any(normalized, _EXPLICIT_ARTIFACT_MARKERS)
+    accepted_previous_offer = offer_already_made and _accepted_offer(normalized)
+
+    if explicit_request or accepted_previous_offer:
         return True
 
-    recent_text = " ".join(str(item.get("content") or "").casefold() for item in history[-4:])
-    previous_offer_markers = (
-        "posso organizar",
-        "salvar na sua biblioteca",
-        "pdf profissional",
-        "planilha editável",
-    )
-    if any(marker in recent_text for marker in previous_offer_markers):
-        return True
+    # Depois de uma oferta, qualquer outra mensagem que não seja aceite ou
+    # pedido explícito não pode disparar nova oferta naquela conversa.
+    if offer_already_made:
+        return False
 
+    # A oferta espontânea só é avaliada no final de uma resposta substancial
+    # de uma operação, e apenas enquanto ainda não houve oferta anterior.
     return bool(operation and len(str(answer or "").strip()) >= 1000)
 
 
@@ -150,14 +232,15 @@ Retorne somente JSON válido com:
 
 Regras:
 - Não escolha formato por uma lista fixa de operações. Analise o pedido, o histórico e o conteúdo concluído.
-- Use create quando o usuário pediu naturalmente um arquivo, pediu para baixar, aceitou uma oferta anterior ou deixou claro que quer a entrega agora.
-- Use offer quando um arquivo agregaria valor relevante, mas o usuário ainda não pediu nem confirmou.
-- Use none quando texto é a melhor entrega ou não há conteúdo suficiente para um arquivo útil.
+- Use create quando o usuário pediu naturalmente um arquivo ou aceitou claramente uma oferta anterior.
+- Use offer somente quando um arquivo agregaria valor relevante, a explicação estiver concluída e não existir oferta anterior no histórico.
+- Uma oferta de arquivo pode acontecer no máximo uma vez por conversa.
+- Use none quando texto é a melhor entrega, não há conteúdo suficiente ou uma oferta anterior não foi aceita.
 - PDF é adequado para relatório, parecer, análise narrativa, plano ou documento de leitura.
 - XLSX/CSV é adequado quando os dados precisam ser editados, calculados, filtrados, comparados ou reutilizados em linhas e colunas.
 - Para XLSX/CSV com action=create, produza headers e rows completos usando apenas dados sustentados pela conversa e pela resposta. Não invente números.
 - Prefira XLSX para uso humano e CSV quando o usuário pedir CSV ou quando o foco for importação de dados.
-- Não escolha e-mail nem link externo. O sistema cria um arquivo interno e fornece o link autenticado somente depois da geração real.
+- Não escolha e-mail nem link externo. O arquivo é entregue diretamente no chat e salvo automaticamente na Biblioteca após a geração real.
 """.strip()
 
     try:

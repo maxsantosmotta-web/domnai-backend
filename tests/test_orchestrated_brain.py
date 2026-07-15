@@ -4,6 +4,7 @@ from urllib import error
 
 import pytest
 
+from app.services.artifact_decision import _requires_artifact_decision
 from app.services.domnai_brain import _post_json
 from app.services.metered_brain import MeteredBrainResult
 from app.services.orchestrated_brain import (
@@ -194,3 +195,51 @@ def test_provider_400_is_not_retried_or_exposed():
     assert urlopen.call_count == 1
     assert str(raised.value) == "Não foi possível processar esta solicitação no momento. Tente novamente."
     assert "sensitive detail" not in str(raised.value)
+
+
+def test_completed_operation_can_offer_artifact_once():
+    assert _requires_artifact_decision(
+        "Conclua meu plano",
+        "Plano de Ação Empresarial",
+        [],
+        "x" * 1200,
+    ) is True
+
+
+def test_previous_pdf_offer_is_not_repeated_when_user_changes_subject():
+    history = [{
+        "role": "assistant",
+        "content": "Posso transformar este conteúdo em PDF e enviar aqui no chat.",
+    }]
+    assert _requires_artifact_decision(
+        "Agora quero falar de outro assunto",
+        "Plano de Ação Empresarial",
+        history,
+        "x" * 1200,
+    ) is False
+
+
+def test_accepting_previous_offer_allows_pdf_creation():
+    history = [{
+        "role": "assistant",
+        "content": "Posso transformar este conteúdo em PDF e enviar aqui no chat.",
+    }]
+    assert _requires_artifact_decision(
+        "Sim, pode gerar",
+        "Plano de Ação Empresarial",
+        history,
+        "Conteúdo concluído",
+    ) is True
+
+
+def test_existing_artifact_link_request_does_not_start_new_generation():
+    history = [{
+        "role": "assistant",
+        "content": "Arquivo criado e enviado no chat.",
+    }]
+    assert _requires_artifact_decision(
+        "Manda o link do arquivo",
+        "Plano de Ação Empresarial",
+        history,
+        "Arquivo já existente",
+    ) is False
