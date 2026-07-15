@@ -122,3 +122,5 @@ jobs:
           git add frontend/src/dashboard-feedback.js frontend/src/dashboard-feedback.css
           git commit -m "fix(feedback): remover comportamento duplicado no plano Free"
           git push origin HEAD:fix/feedback-single-behavior
+
+# sincronização para disparar a validação após o gatilho existir na main
