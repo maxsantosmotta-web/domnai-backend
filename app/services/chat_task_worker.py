@@ -74,6 +74,10 @@ def _load_attachments(user_id: str, attachment_ids: list[str]) -> list[dict]:
 
 
 def _append_completed_response(user_id: str, payload: dict, reply: str, artifacts: list[dict]) -> None:
+    task_id = str(payload.get("task_id") or "")
+    if not task_id:
+        return
+
     with session_scope() as db:
         state = db.get(ActiveChatState, user_id)
         if state is None:
@@ -85,25 +89,53 @@ def _append_completed_response(user_id: str, payload: dict, reply: str, artifact
                 messages = []
         except json.JSONDecodeError:
             messages = []
-        marker = f"task:{payload.get('task_id', '')}"
-        if any(str(item.get("taskId") or "") == marker for item in messages if isinstance(item, dict)):
-            return
-        messages.append({
-            "id": f"user-{payload.get('task_id')}",
-            "role": "user",
-            "text": str(payload.get("message") or ""),
-            "attachments": [],
-            "isError": False,
-            "taskId": marker,
-        })
-        messages.append({
-            "id": f"assistant-{payload.get('task_id')}",
-            "role": "assistant",
-            "text": reply,
-            "attachments": artifacts,
-            "isError": False,
-            "taskId": marker,
-        })
+
+        replaced = False
+        for index, item in enumerate(messages):
+            if not isinstance(item, dict):
+                continue
+            if str(item.get("taskId") or "") != task_id:
+                continue
+            if item.get("role") != "assistant":
+                continue
+            messages[index] = {
+                **item,
+                "text": reply,
+                "attachments": artifacts,
+                "isError": False,
+                "processing": False,
+                "taskId": task_id,
+            }
+            replaced = True
+            break
+
+        if not replaced:
+            has_user_message = any(
+                isinstance(item, dict)
+                and item.get("role") == "user"
+                and str(item.get("taskId") or "") == task_id
+                for item in messages
+            )
+            if not has_user_message:
+                messages.append({
+                    "id": f"user-{task_id}",
+                    "role": "user",
+                    "text": str(payload.get("message") or ""),
+                    "attachments": [],
+                    "isError": False,
+                    "taskId": task_id,
+                    "processing": False,
+                })
+            messages.append({
+                "id": f"assistant-{task_id}",
+                "role": "assistant",
+                "text": reply,
+                "attachments": artifacts,
+                "isError": False,
+                "taskId": task_id,
+                "processing": False,
+            })
+
         state.messages_json = json.dumps(messages[-300:], ensure_ascii=False)
         state.active_operation = payload.get("operation")
         state.updated_at = _now()
