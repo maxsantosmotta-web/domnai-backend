@@ -2,10 +2,11 @@ import json
 
 from fastapi import APIRouter, Depends, HTTPException, Response
 from pydantic import BaseModel, Field
+from sqlalchemy import select
 
 from app.auth import require_authenticated_user
 from app.database import session_scope
-from app.models import ActiveChatState
+from app.models import ActiveChatState, ChatTask
 from app.services.diagnosis_memory import clear_diagnosis_state
 
 
@@ -83,6 +84,86 @@ def _safe_messages(items: list[dict]) -> list[dict]:
     return safe
 
 
+def _load_messages(state: ActiveChatState | None) -> list[dict]:
+    if state is None:
+        return []
+    try:
+        messages = json.loads(state.messages_json or "[]")
+    except json.JSONDecodeError:
+        return []
+    return messages if isinstance(messages, list) else []
+
+
+def _task_key(item: dict) -> tuple[str, str] | None:
+    task_id = str(item.get("taskId") or "").strip()
+    role = str(item.get("role") or "").strip()
+    if not task_id or role not in {"user", "assistant"}:
+        return None
+    return task_id, role
+
+
+def _completed_assistant(task: ChatTask, fallback: dict | None) -> dict | None:
+    if task.status != "completed" or not task.result_json:
+        return fallback
+    try:
+        result = json.loads(task.result_json)
+    except json.JSONDecodeError:
+        return fallback
+    return {
+        "id": (fallback or {}).get("id") or f"assistant-{task.id}",
+        "role": "assistant",
+        "text": str(result.get("reply") or ""),
+        "attachments": result.get("artifacts") or [],
+        "sources": result.get("sources") or [],
+        "isError": False,
+        "taskId": task.id,
+        "processing": False,
+    }
+
+
+def _merge_server_task_messages(db, user_id: str, incoming: list[dict], existing: list[dict]) -> list[dict]:
+    incoming_by_key = {key: item for item in incoming if (key := _task_key(item))}
+    existing_by_key = {key: item for item in existing if (key := _task_key(item))}
+    task_ids = {task_id for task_id, _role in set(incoming_by_key) | set(existing_by_key)}
+    if not task_ids:
+        return incoming
+
+    tasks = db.scalars(
+        select(ChatTask).where(ChatTask.user_id == user_id, ChatTask.id.in_(task_ids))
+    ).all()
+    tasks_by_id = {task.id: task for task in tasks}
+
+    merged = list(incoming)
+    positions = {key: index for index, item in enumerate(merged) if (key := _task_key(item))}
+
+    for key in set(incoming_by_key) | set(existing_by_key):
+        task_id, role = key
+        task = tasks_by_id.get(task_id)
+        existing_item = existing_by_key.get(key)
+        incoming_item = incoming_by_key.get(key)
+        authoritative = incoming_item
+
+        if role == "assistant" and task is not None:
+            if task.status == "completed":
+                authoritative = _completed_assistant(task, existing_item or incoming_item)
+            elif existing_item and not existing_item.get("processing") and not existing_item.get("isError"):
+                authoritative = existing_item
+            elif task.status in {"queued", "processing", "generated"} and existing_item:
+                authoritative = existing_item
+        elif incoming_item is None and existing_item is not None and task is not None:
+            authoritative = existing_item
+
+        if authoritative is None:
+            continue
+        if key in positions:
+            merged[positions[key]] = authoritative
+        else:
+            positions[key] = len(merged)
+            merged.append(authoritative)
+
+    return merged[-300:]
+
+
 @router.get("")
 def get_chat_state(session: dict = Depends(require_authenticated_user)):
     user_id = _user_id(session)
@@ -90,12 +171,9 @@ def get_chat_state(session: dict = Depends(require_authenticated_user)):
         state = db.get(ActiveChatState, user_id)
         if state is None:
             return {"messages": [], "activeOperation": None}
-        try:
-            messages = json.loads(state.messages_json or "[]")
-        except json.JSONDecodeError:
-            messages = []
+        messages = _load_messages(state)
         return {
-            "messages": messages if isinstance(messages, list) else [],
+            "messages": messages,
             "activeOperation": state.active_operation,
             "updatedAt": state.updated_at.isoformat(),
         }
@@ -104,9 +182,11 @@ def get_chat_state(session: dict = Depends(require_authenticated_user)):
 @router.put("")
 def save_chat_state(payload: ChatStatePayload, session: dict = Depends(require_authenticated_user)):
     user_id = _user_id(session)
-    messages = _safe_messages(payload.messages)
+    incoming = _safe_messages(payload.messages)
     with session_scope() as db:
         state = db.get(ActiveChatState, user_id)
+        existing = _load_messages(state)
+        messages = _merge_server_task_messages(db, user_id, incoming, existing)
         if state is None:
             state = ActiveChatState(user_id=user_id)
             db.add(state)
