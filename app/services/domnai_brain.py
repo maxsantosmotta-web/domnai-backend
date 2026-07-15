@@ -27,6 +27,11 @@ REGRAS CENTRAIS
 15. Não prometa resultado garantido.
 16. Responda em português do Brasil, salvo pedido explícito em outro idioma.
 17. Seja objetivo, mas aprofunde quando a decisão exigir.
+18. Para pedidos simples, responda em até 6 parágrafos curtos. Não repita contexto, conclusão ou oferta de ajuda.
+19. Encerre assim que o pedido estiver resolvido. Não prolongue a conversa com sugestões em cadeia.
+20. Nunca afirme que criou, enviou ou compartilhou e-mail, planilha, arquivo ou link externo sem confirmação técnica.
+21. Nunca invente URL. Só apresente links recebidos de ferramenta ou integração real.
+22. Não prometa retornar depois ou concluir algo em instantes. Entregue o que for possível na resposta atual.
 
 PROTOCOLO DE CONFIABILIDADE
 - Antes de responder, identifique quais dados são fatos, quais foram apenas declarados pelo usuário e quais precisam ser validados.
@@ -103,14 +108,14 @@ def build_system_prompt(operation: str | None) -> str:
     return f"{DOMNAI_CORE_INSTRUCTIONS}\n\nCONTEXTO DA OPERAÇÃO\n{_operation_instructions(operation)}"
 
 
-def _normalized_history(history: list[dict], limit: int = 16) -> list[dict]:
+def _normalized_history(history: list[dict], limit: int = 10) -> list[dict]:
     normalized = []
     for item in history[-limit:]:
         role = str(item.get("role", "")).strip().lower()
         content = str(item.get("content", "")).strip()
         if role not in {"user", "assistant"} or not content:
             continue
-        normalized.append({"role": role, "content": content[:12000]})
+        normalized.append({"role": role, "content": content[:6000]})
     return normalized
 
 
@@ -159,7 +164,7 @@ def _gateway_response(message: str, history: list[dict], operation: str | None) 
             "model": model,
             "messages": messages,
             "temperature": 0.2,
-            "max_tokens": 1800,
+            "max_tokens": 1200,
         },
     )
 
@@ -219,7 +224,7 @@ def _anthropic_response(message: str, history: list[dict], operation: str | None
         "system": build_system_prompt(operation),
         "messages": messages,
         "temperature": 0.2,
-        "max_tokens": 1800,
+        "max_tokens": 1200,
     }
     data = _post_json(
         "https://api.anthropic.com/v1/messages",
