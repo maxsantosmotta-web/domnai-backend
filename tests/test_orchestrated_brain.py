@@ -50,21 +50,13 @@ def test_unrelated_operation_does_not_route_to_labor_engine():
     ) is None
 
 
-def test_general_operation_uses_one_orchestrator_call_and_preserves_base_response(monkeypatch):
+def test_general_operation_skips_orchestrator_and_preserves_base_response(monkeypatch):
     monkeypatch.setenv("OPENAI_API_KEY", "test-key")
     calls = []
 
     def fake_openai_request(_api_key, payload):
         calls.append(payload)
-        return (
-            '{"intent":"analisar contrato","response_mode":"analysis",'
-            '"confidence_required":"high","requires_clarification":false,'
-            '"essential_missing":[],"specialized_engine":null,'
-            '"answer_focus":["riscos"],"material_risks":[],"style":"claro",'
-            '"operation_complete":true,"offer_pdf":false,'
-            '"pdf_sections":[],"chart_opportunities":[]}',
-            {"input_tokens": 3, "output_tokens": 2},
-        )
+        raise AssertionError("Operação geral não deve chamar o orquestrador")
 
     monkeypatch.setattr("app.services.orchestrated_brain._openai_request", fake_openai_request)
     monkeypatch.setattr(
@@ -80,17 +72,17 @@ def test_general_operation_uses_one_orchestrator_call_and_preserves_base_respons
         diagnosis_state=None,
     )
 
-    assert len(calls) == 1
+    assert calls == []
     assert result.text == "Resposta-base"
-    assert result.provider == "orchestrated:test-provider"
+    assert result.provider == "direct:test-provider"
     assert result.diagnosis_state == {"status": "kept"}
-    assert result.input_tokens == 13
-    assert result.output_tokens == 7
+    assert result.input_tokens == 10
+    assert result.output_tokens == 5
     assert result.timings["generation_ms"] == 12
-    assert result.timings["orchestrator_ms"] >= 0
+    assert result.timings["orchestrator_ms"] == 0
 
 
-def test_orchestrator_failure_does_not_block_general_response(monkeypatch):
+def test_general_response_does_not_depend_on_orchestrator_availability(monkeypatch):
     monkeypatch.setenv("OPENAI_API_KEY", "test-key")
     monkeypatch.setattr(
         "app.services.orchestrated_brain._openai_request",
@@ -110,9 +102,9 @@ def test_orchestrator_failure_does_not_block_general_response(monkeypatch):
     )
 
     assert result.text == "Resposta preservada"
-    assert result.provider == "orchestrated:test-provider"
+    assert result.provider == "direct:test-provider"
     assert result.diagnosis_state == {"status": "kept"}
-    assert result.timings["orchestrator_ms"] >= 0
+    assert result.timings["orchestrator_ms"] == 0
 
 
 def test_without_openai_key_uses_existing_base_flow(monkeypatch):
@@ -131,4 +123,5 @@ def test_without_openai_key_uses_existing_base_flow(monkeypatch):
     )
 
     assert result.text == "Fluxo-base sem chave"
-    assert result.provider == "test-provider"
+    assert result.provider == "direct:test-provider"
+    assert result.timings["orchestrator_ms"] == 0
