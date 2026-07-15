@@ -44,13 +44,15 @@ def _post(payload: dict) -> dict:
         method="POST",
     )
     try:
-        with request.urlopen(req, timeout=90) as response:
+        with request.urlopen(req, timeout=25) as response:
             return json.loads(response.read().decode("utf-8"))
     except error.HTTPError as exc:
         detail = exc.read().decode("utf-8", errors="replace")
         raise RuntimeError(f"Pesquisa web recusada ({exc.code}): {detail[:500]}") from exc
     except error.URLError as exc:
         raise RuntimeError("Não foi possível conectar ao serviço de pesquisa web.") from exc
+    except TimeoutError as exc:
+        raise RuntimeError("A pesquisa web excedeu o limite de 25 segundos.") from exc
 
 
 def _extract(data: dict) -> WebResearchResult:
@@ -79,16 +81,11 @@ def research_web(query: str) -> WebResearchResult:
         "Diferencie fatos de inferências. Inclua referências verificáveis e não invente URLs. "
         "Responda em português do Brasil."
     )
-    base = {
+    payload = {
         "model": model,
         "instructions": instructions,
         "input": query,
         "max_output_tokens": 1400,
+        "tools": [{"type": "web_search"}],
     }
-    last_error: Exception | None = None
-    for tool_type in ("web_search", "web_search_preview"):
-        try:
-            return _extract(_post({**base, "tools": [{"type": tool_type}]}))
-        except Exception as exc:
-            last_error = exc
-    raise RuntimeError(str(last_error or "Pesquisa web indisponível."))
+    return _extract(_post(payload))
