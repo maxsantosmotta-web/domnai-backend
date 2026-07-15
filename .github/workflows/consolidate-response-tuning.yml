@@ -1,0 +1,91 @@
+name: Consolidate response tuning
+
+on:
+  push:
+    branches:
+      - fix/consolidate-response-tuning
+    paths:
+      - .github/workflows/consolidate-response-tuning.yml
+
+permissions:
+  contents: write
+
+jobs:
+  consolidate:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: fix/consolidate-response-tuning
+          fetch-depth: 0
+
+      - name: Apply current production response tuning exactly once
+        run: |
+          sudo mkdir -p /app
+          sudo ln -sfn "$GITHUB_WORKSPACE/app" /app/app
+          python scripts/tune_domnai_responses.py
+
+      - name: Remove runtime patch from Docker build
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          path = Path('Dockerfile')
+          source = path.read_text(encoding='utf-8')
+          source = source.replace('COPY scripts/tune_domnai_responses.py /tmp/tune_domnai_responses.py\n', '', 1)
+          source = source.replace('    && python /tmp/tune_domnai_responses.py \\\n', '', 1)
+          if '/tmp/tune_domnai_responses.py' in source:
+              raise SystemExit('Dockerfile ainda executa tune_domnai_responses.py')
+          path.write_text(source, encoding='utf-8')
+          PY
+
+      - name: Validate exact consolidated behavior
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          source = Path('app/services/domnai_brain.py').read_text(encoding='utf-8')
+          required = [
+              '18. Para pedidos simples, responda em até 6 parágrafos curtos.',
+              '19. Encerre assim que o pedido estiver resolvido.',
+              '20. Nunca afirme que criou, enviou ou compartilhou e-mail, planilha, arquivo ou link externo sem confirmação técnica.',
+              '21. Nunca invente URL.',
+              '22. Não prometa retornar depois ou concluir algo em instantes.',
+              'def _normalized_history(history: list[dict], limit: int = 10)',
+              'content[:6000]',
+              '"max_tokens": 1200',
+          ]
+          missing = [marker for marker in required if marker not in source]
+          if missing:
+              raise SystemExit(f'Ajuste incompleto: {missing}')
+
+          forbidden = [
+              'def _normalized_history(history: list[dict], limit: int = 16)',
+              'content[:12000]',
+              '"max_tokens": 1800',
+          ]
+          present = [marker for marker in forbidden if marker in source]
+          if present:
+              raise SystemExit(f'Ajuste antigo ainda presente: {present}')
+
+          for marker in required[:5]:
+              if source.count(marker) != 1:
+                  raise SystemExit(f'Regra duplicada ou ausente: {marker}')
+          PY
+
+      - name: Verify imports and run backend tests
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt pytest
+          python -m compileall -q app
+          pytest -q
+
+      - name: Commit consolidated source
+        run: |
+          git rm .github/workflows/consolidate-response-tuning.yml
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add Dockerfile app/services/domnai_brain.py
+          git commit -m "refactor(chat): consolidate response tuning in source"
+          git push origin HEAD:fix/consolidate-response-tuning
