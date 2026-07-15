@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import os
+import time
 import unicodedata
 
 from app.services.diagnosis_memory import diagnosis_context
@@ -153,6 +154,7 @@ def generate_orchestrated_response(
     plan: dict = {}
     plan_usage: dict = {}
 
+    orchestrator_started_at = time.perf_counter()
     try:
         raw_plan, plan_usage = _openai_request(
             api_key,
@@ -181,6 +183,7 @@ def generate_orchestrated_response(
         plan = {}
         plan_usage = {}
 
+    orchestrator_ms = max(0, round((time.perf_counter() - orchestrator_started_at) * 1000))
     engine = _specialized_engine(plan, operation, message)
     if engine == "labor_termination":
         from app.services.labor_pipeline import generate_labor_response
@@ -210,4 +213,5 @@ def generate_orchestrated_response(
         output_tokens=base_result.output_tokens + _usage_value(plan_usage, "output_tokens"),
         cached_input_tokens=base_result.cached_input_tokens + _cached_value(plan_usage),
         diagnosis_state=base_result.diagnosis_state,
+        timings={"orchestrator_ms": orchestrator_ms, **(base_result.timings or {})},
     )
