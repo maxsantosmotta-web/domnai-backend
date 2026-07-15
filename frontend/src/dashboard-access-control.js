@@ -61,7 +61,7 @@ function isFreeRestrictedTarget(target) {
   const text = target.textContent?.trim() || '';
   const operationButton = target.closest('.operations-only button');
   const systemButton = target.closest('.sidebar-system-group button');
-  const restrictedSystem = systemButton && (text.includes('Biblioteca') || text.includes('Lixeira'));
+  const restrictedSystem = systemButton && (text.includes('Biblioteca') || text.includes('Lixeira') || text.includes('Feedback'));
   const composer = target.closest('.chat-composer, .composer-plus-menu');
   return Boolean(operationButton || restrictedSystem || composer || target.closest('.conversation-options-menu'));
 }
