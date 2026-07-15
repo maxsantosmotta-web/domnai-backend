@@ -17,17 +17,14 @@ function installFeedbackPremiumVisualGuard() {
     .domnai-feedback-menu-button:hover,
     .domnai-feedback-menu-button:focus,
     .domnai-feedback-menu-button:active,
-    .domnai-feedback-menu-button.is-active {
-      color: #ffffff !important;
-    }
-
+    .domnai-feedback-menu-button.is-active,
     .domnai-feedback-menu-button .domnai-feedback-menu-label,
     .domnai-feedback-menu-button:hover .domnai-feedback-menu-label,
     .domnai-feedback-menu-button:focus .domnai-feedback-menu-label,
     .domnai-feedback-menu-button:active .domnai-feedback-menu-label,
     .domnai-feedback-menu-button.is-active .domnai-feedback-menu-label,
     .domnai-feedback-menu-button.is-premium-locked .domnai-feedback-menu-label {
-      color: #ffffff !important;
+      color: rgba(255, 255, 255, 0.62) !important;
     }
 
     .domnai-feedback-menu-button > span:first-child {
@@ -44,8 +41,13 @@ function installFeedbackPremiumVisualGuard() {
     }
 
     .domnai-feedback-menu-button > small {
+      display: none !important;
       pointer-events: none !important;
       color: #e7c35e !important;
+    }
+
+    html.domnai-access-free .domnai-feedback-menu-button.is-premium-locked > small {
+      display: inline-flex !important;
     }
 
     .domnai-feedback-premium-notice,
