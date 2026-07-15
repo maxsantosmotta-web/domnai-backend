@@ -45,7 +45,7 @@ def _post(payload: dict) -> dict:
         method="POST",
     )
     try:
-        with request.urlopen(req, timeout=8) as response:
+        with request.urlopen(req, timeout=25) as response:
             return json.loads(response.read().decode("utf-8"))
     except error.HTTPError as exc:
         detail = exc.read().decode("utf-8", errors="replace")
@@ -53,7 +53,7 @@ def _post(payload: dict) -> dict:
     except error.URLError as exc:
         raise RuntimeError("Não foi possível conectar ao serviço de pesquisa web.") from exc
     except TimeoutError as exc:
-        raise RuntimeError("A pesquisa web excedeu o limite de 8 segundos.") from exc
+        raise RuntimeError("A pesquisa web excedeu o limite de 25 segundos.") from exc
 
 
 def _extract(data: dict) -> WebResearchResult:
