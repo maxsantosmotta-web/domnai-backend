@@ -42,6 +42,7 @@ def _safe_messages(items: list[dict]) -> list[dict]:
                 "text": text[:180],
                 "operationId": str(item.get("operationId") or "")[:120] or None,
                 "attachments": [],
+                "sources": [],
                 "isError": False,
                 "taskId": task_id,
                 "processing": False,
@@ -58,11 +59,23 @@ def _safe_messages(items: list[dict]) -> list[dict]:
                 "mimeType": str(attachment.get("mimeType") or "")[:120],
                 "size": int(attachment.get("size") or 0),
             })
+
+        sources = []
+        seen_urls = set()
+        for source_item in (item.get("sources") or [])[:12]:
+            url = str(source_item.get("url") or "").strip()
+            if not url.startswith(("https://", "http://")) or url in seen_urls:
+                continue
+            seen_urls.add(url)
+            title = str(source_item.get("title") or url).strip()[:240]
+            sources.append({"title": title, "url": url[:1500]})
+
         safe.append({
             "id": item.get("id"),
             "role": role,
             "text": text,
             "attachments": attachments,
+            "sources": sources if role == "assistant" else [],
             "isError": bool(item.get("isError")),
             "taskId": task_id,
             "processing": processing if role == "assistant" else False,
