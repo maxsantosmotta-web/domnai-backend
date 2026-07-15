@@ -1,0 +1,86 @@
+name: Consolidate feedback and billing
+
+on:
+  pull_request:
+    branches:
+      - main
+    paths:
+      - .github/workflows/consolidate-feedback-billing.yml
+
+permissions:
+  contents: write
+
+jobs:
+  consolidate:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: fix/consolidate-feedback-billing
+          fetch-depth: 0
+
+      - name: Apply current production rules exactly once
+        run: |
+          sudo mkdir -p /app
+          sudo ln -sfn "$GITHUB_WORKSPACE/app" /app/app
+          python scripts/apply_stages_9_11.py
+
+      - name: Remove runtime patch from Docker build
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          path = Path('Dockerfile')
+          source = path.read_text(encoding='utf-8')
+          source = source.replace('COPY scripts/apply_stages_9_11.py /tmp/apply_stages_9_11.py\n', '', 1)
+          source = source.replace('    && python /tmp/apply_stages_9_11.py\n', '\n', 1)
+          source = source.replace('    && python /tmp/apply_stages_9_11.py \\\n', '', 1)
+          if '/tmp/apply_stages_9_11.py' in source:
+              raise SystemExit('Dockerfile ainda executa apply_stages_9_11.py')
+          path.write_text(source, encoding='utf-8')
+          PY
+
+      - name: Validate consolidated rules
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          feedback = Path('app/api/feedback.py').read_text(encoding='utf-8')
+          billing = Path('app/api/billing.py').read_text(encoding='utf-8')
+          docker = Path('Dockerfile').read_text(encoding='utf-8')
+          required = [
+              'def _require_feedback_access(db, user_id: str) -> None:',
+              'O módulo Feedback está disponível exclusivamente no plano PREMIUM.',
+              'account = db.get(BillingAccount, user_id)',
+              '"financialAccountExists": False',
+              'payload["financialAccountExists"] = True',
+          ]
+          joined = feedback + '\n' + billing
+          missing = [x for x in required if x not in joined]
+          if missing:
+              raise SystemExit(f'Regras ausentes: {missing}')
+          if 'apply_stages_9_11.py' in docker:
+              raise SystemExit('Patch ainda presente no Dockerfile')
+          if feedback.count('def _require_feedback_access(db, user_id: str) -> None:') != 1:
+              raise SystemExit('Proteção de Feedback duplicada ou ausente')
+          PY
+
+      - name: Run official backend validation
+        env:
+          PYTHONPATH: .
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements-dev.txt
+          python -m compileall -q app
+          python -c "from app.api.feedback import feedback_access; print('feedback import ok')"
+          python -c "from app.api.billing import billing_status; print('billing import ok')"
+          pytest -vv --tb=short tests/test_labor_termination.py
+          pytest -vv --tb=short tests/test_orchestrated_brain.py
+
+      - name: Commit consolidated source
+        run: |
+          git rm .github/workflows/consolidate-feedback-billing.yml
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add Dockerfile app/api/feedback.py app/api/billing.py
+          git commit -m "refactor(core): consolidate feedback and billing rules"
+          git push origin HEAD:fix/consolidate-feedback-billing
