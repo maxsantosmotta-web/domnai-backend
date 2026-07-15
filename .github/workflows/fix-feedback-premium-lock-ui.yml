@@ -1,0 +1,190 @@
+name: Fix Feedback Premium lock UI
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - .github/workflows/fix-feedback-premium-lock-ui.yml
+
+permissions:
+  contents: write
+
+jobs:
+  apply-and-test:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: fix/feedback-premium-lock-ui
+          fetch-depth: 0
+
+      - name: Apply early Feedback access gate
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          js_path = Path('frontend/src/dashboard-feedback.js')
+          js = js_path.read_text(encoding='utf-8')
+
+          anchor = """const FEEDBACK_TYPES = {
+            suggestion: { label: 'Sugestão', description: 'Uma ideia para melhorar o DomnAI.' },
+            problem: { label: 'Problema', description: 'Algo não funcionou como deveria.' },
+            praise: { label: 'Elogio', description: 'Conte o que funcionou bem para você.' },
+          };
+          """
+          addition = anchor + """
+          let feedbackAccessCache = null;
+
+          async function feedbackAccess(force = false) {
+            if (!force && feedbackAccessCache !== null) return feedbackAccessCache;
+            const payload = await feedbackFetch('/api/feedback/access');
+            feedbackAccessCache = Boolean(payload?.allowed);
+            return feedbackAccessCache;
+          }
+
+          function renderFeedbackMenuAccess(button, allowed) {
+            if (!button) return;
+            button.classList.toggle('is-premium-locked', !allowed);
+            button.setAttribute('aria-label', allowed ? 'Feedback' : 'Feedback, recurso PREMIUM');
+            button.innerHTML = allowed
+              ? '<span>★</span><span class="domnai-feedback-menu-label">Feedback</span>'
+              : '<span>★</span><span class="domnai-feedback-menu-label">Feedback</span><small>PREMIUM</small>';
+          }
+
+          function showFeedbackPremiumNotice() {
+            document.querySelector('[data-feedback-premium-notice]')?.remove();
+            const notice = document.createElement('div');
+            notice.dataset.feedbackPremiumNotice = 'true';
+            notice.className = 'domnai-feedback-premium-notice';
+            notice.setAttribute('role', 'status');
+            notice.textContent = 'Feedback disponível exclusivamente no plano PREMIUM.';
+            document.body.appendChild(notice);
+            window.setTimeout(() => notice.remove(), 3200);
+          }
+          """
+          if 'async function feedbackAccess(force = false)' not in js:
+            if js.count(anchor) != 1:
+              raise SystemExit('Bloco FEEDBACK_TYPES não encontrado exatamente uma vez')
+            js = js.replace(anchor, addition, 1)
+
+          old_button = """  button.className = 'domnai-feedback-menu-button';
+            button.innerHTML = '<span>★</span> Feedback';
+            button.addEventListener('click', (event) => {
+              event.preventDefault();
+              event.stopPropagation();
+              openFeedbackPage();
+            });
+          """
+          new_button = """  button.className = 'domnai-feedback-menu-button';
+            renderFeedbackMenuAccess(button, false);
+            feedbackAccess()
+              .then((allowed) => renderFeedbackMenuAccess(button, allowed))
+              .catch(() => renderFeedbackMenuAccess(button, false));
+            button.addEventListener('click', async (event) => {
+              event.preventDefault();
+              event.stopPropagation();
+              try {
+                const allowed = await feedbackAccess(true);
+                renderFeedbackMenuAccess(button, allowed);
+                if (!allowed) {
+                  showFeedbackPremiumNotice();
+                  return;
+                }
+                openFeedbackPage();
+              } catch (_error) {
+                renderFeedbackMenuAccess(button, false);
+                showFeedbackPremiumNotice();
+              }
+            });
+          """
+          if new_button not in js:
+            if js.count(old_button) != 1:
+              raise SystemExit('Bloco do botão Feedback não encontrado exatamente uma vez')
+            js = js.replace(old_button, new_button, 1)
+
+          js_path.write_text(js, encoding='utf-8')
+
+          css_path = Path('frontend/src/dashboard-feedback.css')
+          css = css_path.read_text(encoding='utf-8')
+          css_addition = r'''
+
+          .domnai-feedback-menu-button {
+            display: flex !important;
+            align-items: center !important;
+            gap: 8px !important;
+          }
+
+          .domnai-feedback-menu-button .domnai-feedback-menu-label {
+            min-width: 0;
+          }
+
+          .domnai-feedback-menu-button > small {
+            margin-left: auto;
+            padding: 3px 7px;
+            border: 1px solid rgba(216, 170, 52, 0.35);
+            border-radius: 999px;
+            background: rgba(216, 170, 52, 0.1);
+            color: #e7c35e;
+            font-size: 0.56rem;
+            font-weight: 900;
+            letter-spacing: 0.05em;
+          }
+
+          .domnai-feedback-menu-button.is-premium-locked {
+            cursor: pointer;
+          }
+
+          .domnai-feedback-premium-notice {
+            position: fixed;
+            left: 50%;
+            bottom: max(24px, env(safe-area-inset-bottom));
+            z-index: 99999;
+            width: min(calc(100vw - 32px), 460px);
+            transform: translateX(-50%);
+            padding: 14px 18px;
+            border: 1px solid rgba(216, 170, 52, 0.38);
+            border-radius: 14px;
+            background: rgba(18, 15, 8, 0.98);
+            box-shadow: 0 18px 50px rgba(0, 0, 0, 0.45);
+            color: #e7c35e;
+            font-size: 0.86rem;
+            font-weight: 800;
+            text-align: center;
+          }
+          '''
+          if '.domnai-feedback-premium-notice {' not in css:
+            css += css_addition
+          css_path.write_text(css, encoding='utf-8')
+          PY
+
+      - name: Validate behavior and build frontend
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          js = Path('frontend/src/dashboard-feedback.js').read_text(encoding='utf-8')
+          css = Path('frontend/src/dashboard-feedback.css').read_text(encoding='utf-8')
+          required = [
+            "feedbackFetch('/api/feedback/access')",
+            "if (!allowed)",
+            "showFeedbackPremiumNotice();",
+            "<small>PREMIUM</small>",
+          ]
+          missing = [item for item in required if item not in js]
+          if missing:
+            raise SystemExit(f'Bloqueio visual incompleto: {missing}')
+          if '.domnai-feedback-premium-notice {' not in css:
+            raise SystemExit('Estilo do aviso PREMIUM ausente')
+          PY
+          cd frontend
+          npm install
+          npm run build
+
+      - name: Commit source fix
+        run: |
+          git rm .github/workflows/fix-feedback-premium-lock-ui.yml
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add frontend/src/dashboard-feedback.js frontend/src/dashboard-feedback.css
+          git commit -m "fix(feedback): bloquear formulário Free antes da abertura"
+          git push origin HEAD:fix/feedback-premium-lock-ui
