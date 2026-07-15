@@ -1,10 +1,9 @@
-from fastapi import APIRouter, Depends, File, HTTPException, Query, Response, UploadFile, status
+from fastapi import APIRouter, Depends, File, HTTPException, Response, UploadFile, status
 from sqlalchemy import select
 
 from app.auth import require_authenticated_user
 from app.database import session_scope
 from app.models import DeletedAsset, LibraryAsset
-from app.services.signed_file_links import validate_signed_file_link
 
 router = APIRouter(prefix="/api/library", tags=["library"])
 
@@ -19,17 +18,6 @@ def serialize_asset(asset: LibraryAsset) -> dict:
         "sizeBytes": asset.size_bytes,
         "createdAt": asset.created_at.isoformat(),
     }
-
-
-def _asset_response(asset: LibraryAsset) -> Response:
-    return Response(
-        content=asset.content,
-        media_type=asset.mime_type,
-        headers={
-            "Content-Disposition": f'attachment; filename="{asset.name}"',
-            "X-File-Name": asset.name,
-        },
-    )
 
 
 @router.get("")
@@ -77,22 +65,6 @@ async def save_file_to_library(
     return result
 
 
-@router.get("/shared/{asset_id}")
-def get_shared_library_asset_content(
-    asset_id: str,
-    expires: int = Query(...),
-    signature: str = Query(..., min_length=64, max_length=64),
-):
-    if not validate_signed_file_link(asset_id, expires, signature):
-        raise HTTPException(status_code=403, detail="Este link é inválido ou expirou.")
-
-    with session_scope() as db:
-        asset = db.get(LibraryAsset, asset_id)
-        if asset is None:
-            raise HTTPException(status_code=404, detail="Arquivo não encontrado na biblioteca.")
-        return _asset_response(asset)
-
-
 @router.get("/{asset_id}/content")
 def get_library_asset_content(
     asset_id: str,
@@ -109,7 +81,14 @@ def get_library_asset_content(
         if asset is None:
             raise HTTPException(status_code=404, detail="Arquivo não encontrado na biblioteca.")
 
-        return _asset_response(asset)
+        return Response(
+            content=asset.content,
+            media_type=asset.mime_type,
+            headers={
+                "Content-Disposition": f'attachment; filename="{asset.name}"',
+                "X-File-Name": asset.name,
+            },
+        )
 
 
 @router.post("/{asset_id}/trash")
