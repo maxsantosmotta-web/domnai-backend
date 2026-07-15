@@ -6,6 +6,11 @@ on:
       - main
     paths:
       - .github/workflows/fix-feedback-single-behavior.yml
+  pull_request:
+    branches:
+      - main
+    paths:
+      - .github/workflows/fix-feedback-single-behavior.yml
 
 permissions:
   contents: write
