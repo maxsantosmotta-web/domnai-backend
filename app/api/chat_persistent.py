@@ -11,6 +11,7 @@ from app.api.chat import ChatRequest
 from app.auth import require_authenticated_user
 from app.database import session_scope
 from app.models import ActiveChatState, ChatTask, LibraryAsset
+from app.services.artifact_decision import resolve_pending_artifact_acceptance
 from app.services.credit_meter import ensure_minimum_credit
 
 
@@ -119,7 +120,11 @@ def persistent_respond(payload: ChatRequest, session: dict = Depends(require_aut
     if not message:
         raise HTTPException(status_code=422, detail="Digite uma mensagem para continuar.")
 
-    ensure_minimum_credit(user_id)
+    history = [item.model_dump() for item in payload.history]
+    local_artifact_followup = resolve_pending_artifact_acceptance(message, history) is not None
+    if not local_artifact_followup:
+        ensure_minimum_credit(user_id)
+
     now = datetime.now(timezone.utc)
     task_id = str(uuid4())
     operation = payload.operation.strip() if payload.operation else None
@@ -132,8 +137,9 @@ def persistent_respond(payload: ChatRequest, session: dict = Depends(require_aut
             {
                 "message": message,
                 "operation": operation,
-                "history": [item.model_dump() for item in payload.history],
+                "history": history,
                 "attachment_ids": attachment_ids,
+                "local_artifact_followup": local_artifact_followup,
             },
             ensure_ascii=False,
         ),
