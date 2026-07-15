@@ -1,6 +1,11 @@
 name: Consolidate feedback and billing
 
 on:
+  push:
+    branches:
+      - fix/consolidate-feedback-billing
+    paths:
+      - .github/workflows/consolidate-feedback-billing.yml
   pull_request:
     branches:
       - main
