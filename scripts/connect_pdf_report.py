@@ -32,10 +32,14 @@ new_response = '''      const generatedArtifact = payload.artifact ? {
         await loadLibrary();
       }'''
 
-if old_response not in source:
-    raise RuntimeError('Não foi possível localizar a resposta do chat para conectar os artefatos.')
-source = source.replace(old_response, new_response, 1)
+# Fluxo legado: conecta o artefato diretamente à resposta síncrona.
+if old_response in source:
+    source = source.replace(old_response, new_response, 1)
+# Fluxo persistente: os artefatos já chegam pelo polling em result.artifacts.
+elif "async function pollChatTask(taskId)" not in source and "const generatedArtifact" not in source:
+    raise RuntimeError('Não foi possível localizar um fluxo de resposta compatível para conectar os artefatos.')
 
+# Mantém abertura autenticada de arquivos em mensagens e na Biblioteca.
 source = source.replace(
     "openAttachment(item)",
     "openAttachment(item, item.libraryId ? '/api/library' : null)",
