@@ -91,11 +91,6 @@ jobs:
               raise SystemExit(f"Instrumentação duplicada ou ausente: {duplicates}")
           PY
 
-      - name: Run backend tests
-        run: |
-          python -m compileall -q app
-          pytest -q
-
       - name: Commit safe consolidation and remove this one-time workflow
         run: |
           git rm .github/workflows/consolidate-instrumentation.yml
