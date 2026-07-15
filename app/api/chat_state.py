@@ -29,7 +29,7 @@ def _safe_messages(items: list[dict]) -> list[dict]:
     safe = []
     for item in items[-300:]:
         role = str(item.get("role") or "").strip().lower()
-        text = str(item.get("text") or "")[:20000]
+        text = str(item.get("text") or "")
         if role not in {"user", "assistant", "operation"}:
             continue
 
