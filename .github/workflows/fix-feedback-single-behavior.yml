@@ -1,7 +1,7 @@
 name: Fix Feedback single behavior
 
 on:
-  push:
+  pull_request:
     branches:
       - main
     paths:
@@ -16,7 +16,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: main
+          ref: fix/feedback-single-behavior
           fetch-depth: 0
 
       - name: Remove duplicate Feedback behavior
@@ -121,4 +121,4 @@ jobs:
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add frontend/src/dashboard-feedback.js frontend/src/dashboard-feedback.css
           git commit -m "fix(feedback): remover comportamento duplicado no plano Free"
-          git push origin main
+          git push origin HEAD:fix/feedback-single-behavior
