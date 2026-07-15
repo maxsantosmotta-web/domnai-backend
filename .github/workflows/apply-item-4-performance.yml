@@ -1,8 +1,8 @@
 name: Validate item 4 performance
 
 on:
-  pull_request:
-    branches: [main]
+  push:
+    branches: [perf/item-4-under-10s]
     paths:
       - .github/workflows/apply-item-4-performance.yml
 
