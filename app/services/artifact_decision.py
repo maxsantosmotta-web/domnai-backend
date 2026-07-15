@@ -25,19 +25,31 @@ _OFFER_MARKERS = (
     "arquivo csv editável",
 )
 
-_ACCEPTANCE_MARKERS = (
+_ACCEPTANCE_EXACT = {
     "sim",
     "pode",
+    "quero",
+    "ok",
+    "claro",
+    "perfeito",
+}
+
+_ACCEPTANCE_PHRASES = (
+    "sim, pode",
+    "sim pode",
     "pode gerar",
     "pode criar",
-    "quero",
-    "gera",
-    "gere",
-    "cria",
-    "crie",
-    "faça",
-    "transforma",
-    "transforme",
+    "quero o pdf",
+    "quero a planilha",
+    "gere o pdf",
+    "gera o pdf",
+    "crie o pdf",
+    "cria o pdf",
+    "faça o pdf",
+    "transforme em pdf",
+    "transforma em pdf",
+    "gere a planilha",
+    "crie a planilha",
 )
 
 _EXPLICIT_ARTIFACT_MARKERS = (
@@ -83,6 +95,16 @@ def _history_text(history: list[dict], limit: int = 12) -> str:
 
 def _contains_any(value: str, markers: tuple[str, ...]) -> bool:
     return any(marker in value for marker in markers)
+
+
+def _accepted_offer(value: str) -> bool:
+    normalized = _normalize(value).strip(" .,!?:;")
+    if normalized in _ACCEPTANCE_EXACT:
+        return True
+    return any(
+        normalized == phrase or normalized.startswith(f"{phrase} ")
+        for phrase in _ACCEPTANCE_PHRASES
+    )
 
 
 def _strip_code_fence(text: str) -> str:
@@ -159,7 +181,7 @@ def _requires_artifact_decision(
         return False
 
     explicit_request = _contains_any(normalized, _EXPLICIT_ARTIFACT_MARKERS)
-    accepted_previous_offer = offer_already_made and _contains_any(normalized, _ACCEPTANCE_MARKERS)
+    accepted_previous_offer = offer_already_made and _accepted_offer(normalized)
 
     if explicit_request or accepted_previous_offer:
         return True
