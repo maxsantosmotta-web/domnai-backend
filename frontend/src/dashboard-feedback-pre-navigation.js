@@ -13,6 +13,14 @@ function installFeedbackPremiumVisualGuard() {
   const style = document.createElement('style');
   style.dataset.domnaiFeedbackPremiumVisualGuard = 'true';
   style.textContent = `
+    .domnai-feedback-menu-button,
+    .domnai-feedback-menu-button:hover,
+    .domnai-feedback-menu-button:focus,
+    .domnai-feedback-menu-button:active,
+    .domnai-feedback-menu-button.is-active {
+      color: #ffffff !important;
+    }
+
     .domnai-feedback-menu-button .domnai-feedback-menu-label,
     .domnai-feedback-menu-button:hover .domnai-feedback-menu-label,
     .domnai-feedback-menu-button:focus .domnai-feedback-menu-label,
@@ -20,6 +28,10 @@ function installFeedbackPremiumVisualGuard() {
     .domnai-feedback-menu-button.is-active .domnai-feedback-menu-label,
     .domnai-feedback-menu-button.is-premium-locked .domnai-feedback-menu-label {
       color: #ffffff !important;
+    }
+
+    .domnai-feedback-menu-button > span:first-child {
+      color: #d8aa34 !important;
     }
 
     .domnai-feedback-menu-button.is-premium-locked,
