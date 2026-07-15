@@ -6,6 +6,7 @@ RUN npm install
 COPY frontend/ ./
 COPY scripts/connect_domnai_chat.py /tmp/connect_domnai_chat.py
 COPY scripts/add_chat_retry_button.py /tmp/add_chat_retry_button.py
+COPY scripts/connect_chat_sources_frontend.py /tmp/connect_chat_sources_frontend.py
 COPY scripts/connect_operation_to_composer.py /tmp/connect_operation_to_composer.py
 COPY scripts/connect_chat_attachments.py /tmp/connect_chat_attachments.py
 COPY scripts/connect_chat_local_deletion.py /tmp/connect_chat_local_deletion.py
@@ -69,6 +70,7 @@ RUN apk add --no-cache python3 \
     && python3 /tmp/fix_mobile_chat_keyboard.py \
     && python3 /tmp/connect_user_sidebar_collapse.py \
     && python3 /tmp/connect_single_chat_refresh_bottom.py \
+    && python3 /tmp/connect_chat_sources_frontend.py \
     && npm run build
 
 FROM python:3.13-slim AS runtime
@@ -80,10 +82,12 @@ RUN pip install --no-cache-dir -r requirements.txt
 COPY alembic.ini ./
 COPY migrations ./migrations
 COPY app ./app
+COPY scripts/connect_chat_sources_backend.py /tmp/connect_chat_sources_backend.py
 COPY scripts/tune_domnai_responses.py /tmp/tune_domnai_responses.py
 COPY scripts/guard_domnai_capabilities.py /tmp/guard_domnai_capabilities.py
 COPY scripts/apply_stages_9_11.py /tmp/apply_stages_9_11.py
-RUN python /tmp/tune_domnai_responses.py \
+RUN python /tmp/connect_chat_sources_backend.py \
+    && python /tmp/tune_domnai_responses.py \
     && python /tmp/guard_domnai_capabilities.py \
     && python /tmp/apply_stages_9_11.py
 COPY --from=frontend-builder /frontend/dist ./frontend/dist
