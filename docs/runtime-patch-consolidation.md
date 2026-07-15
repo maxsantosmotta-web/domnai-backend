@@ -29,6 +29,14 @@ Branch de auditoria criada a partir de `main` para consolidar correções hoje a
 5. Remover um script por vez somente após equivalência comprovada.
 6. Alterar `alembic upgrade heads` para `alembic upgrade head` apenas depois da migração de merge e confirmação de uma única head.
 
+## Estado desta branch
+
+- Persistência de fontes incorporada ao código-fonte.
+- Instrumentação de tempos incorporada uma única vez ao código-fonte.
+- Execução de `instrument_chat_pipeline.py` removida do Dockerfile desta branch.
+- Nenhuma alteração em prompts, modelos, limites de tokens, cobrança, pesquisa, arquivos, PDF, planilhas, interface ou regras funcionais.
+- Produção e branch `main` permanecem inalteradas.
+
 ## Critério para marcar o item 14 como concluído
 
 O código versionado precisa ser o mesmo código executado no Railway, sem reescrita de arquivos principais durante o build e sem regressão nos fluxos acima.
