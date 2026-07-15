@@ -35,6 +35,64 @@ def _normalized_text(value: str | None) -> str:
     return "".join(char for char in text if not unicodedata.combining(char)).casefold().strip()
 
 
+def _simple_conversation_response(message: str, attachments: list[dict]) -> str | None:
+    if attachments:
+        return None
+
+    normalized = " ".join(_normalized_text(message).replace("?", "").replace("!", "").split())
+    if not normalized or len(normalized) > 80:
+        return None
+
+    greeting_messages = {
+        "oi",
+        "ola",
+        "bom dia",
+        "boa tarde",
+        "boa noite",
+        "e ai",
+        "chat tudo bem",
+        "chat, tudo bem",
+        "tudo bem",
+        "como voce esta",
+        "como vai",
+    }
+    thanks_messages = {
+        "obrigado",
+        "obrigada",
+        "muito obrigado",
+        "muito obrigada",
+        "valeu",
+        "agradecido",
+        "agradecida",
+    }
+    confirmation_messages = {
+        "ok",
+        "certo",
+        "entendi",
+        "beleza",
+        "perfeito",
+        "combinado",
+        "pode continuar",
+    }
+    farewell_messages = {
+        "tchau",
+        "ate mais",
+        "boa noite chat",
+        "falamos depois",
+        "ate logo",
+    }
+
+    if normalized in greeting_messages:
+        return "Tudo ótimo! E com você? Como posso ajudar hoje?"
+    if normalized in thanks_messages:
+        return "Por nada! Estou à disposição para continuar."
+    if normalized in confirmation_messages:
+        return "Perfeito. Vamos continuar."
+    if normalized in farewell_messages:
+        return "Até mais! Quando precisar, é só chamar."
+    return None
+
+
 def _specialized_engine(plan: dict, operation: str | None, message: str) -> str | None:
     operation_text = _normalized_text(operation)
     engine_text = _normalized_text(plan.get("specialized_engine"))
@@ -68,18 +126,30 @@ def generate_orchestrated_response(
     attachments: list[dict] | None = None,
     diagnosis_state: dict | None = None,
 ) -> MeteredBrainResult:
+    safe_attachments = attachments or []
+    simple_reply = _simple_conversation_response(message, safe_attachments)
+    if simple_reply is not None:
+        return MeteredBrainResult(
+            text=simple_reply,
+            provider="domnai-local-conversation",
+            model="local",
+            input_tokens=0,
+            output_tokens=0,
+            cached_input_tokens=0,
+            diagnosis_state=diagnosis_state,
+        )
+
     api_key = os.getenv("OPENAI_API_KEY", "").strip()
     if not api_key:
         return generate_metered_response(
             message=message,
             history=history,
             operation=operation,
-            attachments=attachments,
+            attachments=safe_attachments,
             diagnosis_state=diagnosis_state,
         )
 
     model = os.getenv("DOMNAI_OPENAI_MODEL", "gpt-4.1-mini").strip()
-    safe_attachments = attachments or []
     plan: dict = {}
     plan_usage: dict = {}
 
@@ -108,7 +178,6 @@ def generate_orchestrated_response(
         )
         plan = parse_plan(raw_plan)
     except Exception:
-        # O Orquestrador melhora a decisão, mas nunca pode impedir a resposta.
         plan = {}
         plan_usage = {}
 
@@ -125,9 +194,6 @@ def generate_orchestrated_response(
             orchestration_usage=plan_usage,
         )
 
-    # A camada principal já executa resposta, revisão, auditoria e memória quando
-    # aplicáveis. Repetir refinamento e memória aqui mantinha a mesma conexão
-    # aberta por tempo excessivo e podia resultar em "Failed to fetch".
     base_result = generate_metered_response(
         message=message,
         history=history,
