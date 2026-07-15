@@ -123,7 +123,7 @@ def test_without_openai_key_uses_existing_base_flow(monkeypatch):
     )
 
     result = generate_orchestrated_response(
-        message="Olá",
+        message="Compare duas alternativas para mim.",
         history=[],
         operation=None,
         attachments=[],
