@@ -39,19 +39,22 @@ def _serialize(item: UserFeedback, user_name: str = "") -> dict:
     }
 
 
-def _require_admin(session: dict) -> str:
-    user_id = str(session.get("sub") or "").strip()
-    if not user_id or not _has_persisted_admin_access(user_id):
-        raise HTTPException(status_code=403, detail="Acesso administrativo não autorizado.")
-    return user_id
-
-
 def _require_feedback_access(db, user_id: str) -> None:
     if _has_persisted_admin_access(user_id):
         return
     account = db.get(BillingAccount, user_id)
     if account is None or account.plan != "premium" or account.subscription_status not in {"active", "trialing", "past_due"}:
-        raise HTTPException(status_code=403, detail="O módulo Feedback está disponível exclusivamente no plano PREMIUM.")
+        raise HTTPException(
+            status_code=403,
+            detail="O módulo Feedback está disponível exclusivamente no plano PREMIUM.",
+        )
+
+
+def _require_admin(session: dict) -> str:
+    user_id = str(session.get("sub") or "").strip()
+    if not user_id or not _has_persisted_admin_access(user_id):
+        raise HTTPException(status_code=403, detail="Acesso administrativo não autorizado.")
+    return user_id
 
 
 @router.get("/access")
