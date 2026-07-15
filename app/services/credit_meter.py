@@ -26,6 +26,16 @@ def _float_env(name: str, default: float) -> float:
 
 
 def calculate_usage_cost(result: MeteredBrainResult) -> dict:
+    if result.provider == "local-artifact":
+        return {
+            "cost_usd": 0.0,
+            "credits": 0,
+            "usd_per_credit": _float_env("DOMNAI_USD_PER_CREDIT", DEFAULT_USD_PER_CREDIT),
+            "input_tokens": 0,
+            "cached_input_tokens": 0,
+            "output_tokens": 0,
+        }
+
     rates = MODEL_RATES_USD_PER_MILLION.get(
         result.model,
         {
@@ -66,6 +76,18 @@ def ensure_minimum_credit(user_id: str) -> None:
 
 def charge_usage(user_id: str, result: MeteredBrainResult, idempotency_key: str | None = None) -> dict:
     usage = calculate_usage_cost(result)
+    if result.provider == "local-artifact":
+        with session_scope() as db:
+            account = db.get(BillingAccount, user_id)
+            remaining = (account.plan_credits + account.extra_credits) if account else 0
+        return {
+            **usage,
+            "charged_credits": 0,
+            "admin_exempt": False,
+            "remaining_credits": remaining,
+            "localArtifactDelivery": True,
+        }
+
     with session_scope() as db:
         if idempotency_key:
             existing = db.scalar(
