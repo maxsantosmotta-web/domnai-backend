@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import os
 import threading
 import time
 from datetime import datetime, timezone
@@ -108,7 +109,6 @@ def _append_completed_response(user_id: str, payload: dict, reply: str, artifact
             }
             replaced = True
             break
-
         if not replaced:
             has_user_message = any(
                 isinstance(item, dict)
@@ -254,12 +254,11 @@ def _process_task(task_id: str) -> None:
         task.credit_transaction_key = f"chat-task:{task_id}"
 
 
-def _loop() -> None:
-    recover_interrupted_tasks()
+def _loop(worker_index: int) -> None:
     while True:
         task_id = _claim_next_task()
         if not task_id:
-            time.sleep(1.0)
+            time.sleep(0.5)
             continue
         try:
             _process_task(task_id)
@@ -278,4 +277,17 @@ def start_chat_task_worker() -> None:
         if _worker_started:
             return
         _worker_started = True
-        threading.Thread(target=_loop, name="domnai-chat-worker", daemon=True).start()
+        recover_interrupted_tasks()
+        configured = os.getenv("DOMNAI_CHAT_WORKERS", "3").strip()
+        try:
+            worker_count = int(configured)
+        except ValueError:
+            worker_count = 3
+        worker_count = max(1, min(worker_count, 4))
+        for index in range(worker_count):
+            threading.Thread(
+                target=_loop,
+                args=(index,),
+                name=f"domnai-chat-worker-{index + 1}",
+                daemon=True,
+            ).start()
