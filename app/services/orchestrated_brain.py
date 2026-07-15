@@ -140,6 +140,28 @@ def generate_orchestrated_response(
             diagnosis_state=diagnosis_state,
         )
 
+    # O plano de orquestração só é consumido para selecionar um motor especializado.
+    # Mensagens gerais seguem diretamente para a geração principal, evitando uma chamada
+    # sequencial cujo resultado seria descartado.
+    if _specialized_engine({}, operation, message) is None:
+        base_result = generate_metered_response(
+            message=message,
+            history=history,
+            operation=operation,
+            attachments=safe_attachments,
+            diagnosis_state=diagnosis_state,
+        )
+        return MeteredBrainResult(
+            text=base_result.text,
+            provider=f"direct:{base_result.provider}",
+            model=base_result.model,
+            input_tokens=base_result.input_tokens,
+            output_tokens=base_result.output_tokens,
+            cached_input_tokens=base_result.cached_input_tokens,
+            diagnosis_state=base_result.diagnosis_state,
+            timings={"orchestrator_ms": 0, **(base_result.timings or {})},
+        )
+
     api_key = os.getenv("OPENAI_API_KEY", "").strip()
     if not api_key:
         return generate_metered_response(
