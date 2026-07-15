@@ -3,6 +3,7 @@ import os
 import time
 from dataclasses import dataclass
 
+from app.services.capability_guard import apply_capability_guard
 from app.services.calculation_audit import (
     audit_manifest,
     format_audit_for_reviewer,
@@ -105,7 +106,7 @@ def _gateway_response(
     usage = data.get("usage") or {}
     prompt_details = usage.get("prompt_tokens_details") or {}
     return MeteredBrainResult(
-        text=text,
+        text=apply_capability_guard(text),
         provider="replit-openai-gateway",
         model=model,
         input_tokens=_as_int(usage.get("prompt_tokens")),
@@ -170,7 +171,7 @@ def _preflight_response(
             "instructions": instructions,
             "input": preflight_input,
             "temperature": 0.0,
-            "max_output_tokens": 500,
+            "max_output_tokens": 350,
         },
     )
     normalized = text.strip()
@@ -252,7 +253,7 @@ def _update_diagnosis_memory(
                     }],
                 }],
                 "temperature": 0.0,
-                "max_output_tokens": 1200,
+                "max_output_tokens": 700,
             },
         )
         return parse_diagnosis_state(raw_state, operation, fallback), usage
@@ -300,7 +301,7 @@ def _openai_response(
         stage_timings["memory_ms"] = max(0, round((time.perf_counter() - memory_started_at) * 1000))
         input_tokens, output_tokens, cached_tokens = _usage_totals(preflight_usage, memory_usage)
         return MeteredBrainResult(
-            text=preflight_text,
+            text=apply_capability_guard(preflight_text),
             provider="openai-preflight-memory",
             model=model,
             input_tokens=input_tokens,
@@ -328,7 +329,7 @@ def _openai_response(
             "instructions": instructions,
             "input": input_messages,
             "temperature": 0.1,
-            "max_output_tokens": 2400,
+            "max_output_tokens": 1400,
         },
     )
     stage_timings["generation_ms"] = max(0, round((time.perf_counter() - draft_started_at) * 1000))
@@ -356,7 +357,7 @@ def _openai_response(
                     }],
                 }],
                 "temperature": 0.0,
-                "max_output_tokens": 2400,
+                "max_output_tokens": 1400,
             },
         )
         stage_timings["review_ms"] = max(0, round((time.perf_counter() - review_started_at) * 1000))
@@ -364,6 +365,8 @@ def _openai_response(
         stage_timings["review_ms"] = 0
 
     memory_started_at = time.perf_counter()
+    final_text = apply_capability_guard(final_text)
+
     updated_state, memory_usage = _update_diagnosis_memory(
         api_key,
         model,
