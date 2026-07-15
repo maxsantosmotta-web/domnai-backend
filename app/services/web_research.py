@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import os
 from dataclasses import dataclass
+from datetime import datetime, timezone
 from urllib import error, request
 
 
@@ -74,17 +75,43 @@ def _extract(data: dict) -> WebResearchResult:
     return WebResearchResult(text=text, sources=sources[:12])
 
 
+def _current_reference() -> tuple[str, str]:
+    now = datetime.now(timezone.utc)
+    months = (
+        "janeiro", "fevereiro", "março", "abril", "maio", "junho",
+        "julho", "agosto", "setembro", "outubro", "novembro", "dezembro",
+    )
+    return f"{months[now.month - 1]} de {now.year}", now.strftime("%Y-%m-%d")
+
+
 def research_web(query: str) -> WebResearchResult:
     model = os.getenv("DOMNAI_WEB_SEARCH_MODEL", "gpt-4.1-mini").strip() or "gpt-4.1-mini"
+    reference_month, reference_date = _current_reference()
     instructions = (
-        "Pesquise na web antes de responder. Use fontes atuais, confiáveis e diretamente relevantes. "
-        "Diferencie fatos de inferências. Inclua referências verificáveis e não invente URLs. "
-        "Responda em português do Brasil."
+        f"A data de referência desta pesquisa é {reference_date}, correspondente a {reference_month}. "
+        "Pesquise na web antes de responder e trate recência por COMPETÊNCIA DO DADO (mês e ano), "
+        "não apenas pela data da página. Para pedidos atuais, procure primeiro o mês de referência; "
+        "se ainda não houver publicação, recue mês a mês até localizar o dado oficial mais recente. "
+        "Priorize fontes primárias e oficiais: órgãos públicos, institutos estatísticos, reguladores, "
+        "documentação oficial e publicações institucionais responsáveis pelo dado. "
+        "Nunca apresente dado antigo como atual. Quando o mês atual não estiver disponível, declare "
+        "explicitamente: 'Não encontrei dado oficial de [mês/ano atual]; o dado mais recente localizado "
+        "é de [mês/ano]'. Diferencie a data de publicação da competência do dado. "
+        "Para preços, cotações, notícias e disponibilidade, use o registro mais recente possível. "
+        "Para estatísticas periódicas, use o último período oficialmente publicado. "
+        "Se houver conflito entre fontes, explique a divergência e prefira a fonte primária. "
+        "Diferencie fatos de inferências, não invente números, datas ou URLs e responda em português do Brasil."
+    )
+    research_input = (
+        f"DATA ATUAL DE REFERÊNCIA: {reference_month} ({reference_date}).\n"
+        f"PERGUNTA DO USUÁRIO: {query}\n\n"
+        "Entregue a resposta pesquisada informando, para cada número ou índice relevante, a competência "
+        "do dado em mês e ano. Caso o último dado disponível seja anterior ao mês atual, deixe isso explícito."
     )
     payload = {
         "model": model,
         "instructions": instructions,
-        "input": query,
+        "input": research_input,
         "max_output_tokens": 1400,
         "tools": [{"type": "web_search"}],
     }
