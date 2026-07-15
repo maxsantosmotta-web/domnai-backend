@@ -121,15 +121,36 @@ def _normalized_history(history: list[dict], limit: int = 10) -> list[dict]:
 
 def _post_json(url: str, headers: dict[str, str], payload: dict, timeout: int = 75) -> dict:
     body = json.dumps(payload, ensure_ascii=False).encode("utf-8")
-    http_request = request.Request(url, data=body, headers=headers, method="POST")
-    try:
-        with request.urlopen(http_request, timeout=timeout) as response:
-            return json.loads(response.read().decode("utf-8"))
-    except error.HTTPError as exc:
-        detail = exc.read().decode("utf-8", errors="replace")
-        raise RuntimeError(f"Provedor de inteligência recusou a solicitação ({exc.code}): {detail[:500]}") from exc
-    except error.URLError as exc:
-        raise RuntimeError("Não foi possível conectar ao provedor de inteligência.") from exc
+    transient_codes = {500, 502, 503, 504}
+
+    for attempt in range(2):
+        http_request = request.Request(url, data=body, headers=headers, method="POST")
+        try:
+            with request.urlopen(http_request, timeout=timeout) as response:
+                return json.loads(response.read().decode("utf-8"))
+        except error.HTTPError as exc:
+            # Consume the response body for connection reuse, but never expose provider
+            # internals, request IDs or raw JSON in the user-facing chat.
+            exc.read()
+            if exc.code in transient_codes and attempt == 0:
+                continue
+            if exc.code in transient_codes:
+                raise RuntimeError(
+                    "O serviço de inteligência está temporariamente indisponível. Tente novamente em alguns segundos."
+                ) from exc
+            raise RuntimeError(
+                "Não foi possível processar esta solicitação no momento. Tente novamente."
+            ) from exc
+        except error.URLError as exc:
+            if attempt == 0:
+                continue
+            raise RuntimeError(
+                "O serviço de inteligência está temporariamente indisponível. Tente novamente em alguns segundos."
+            ) from exc
+
+    raise RuntimeError(
+        "O serviço de inteligência está temporariamente indisponível. Tente novamente em alguns segundos."
+    )
 
 
 def _integration_api_key() -> str:
@@ -160,12 +181,7 @@ def _gateway_response(message: str, history: list[dict], operation: str | None) 
     data = _post_json(
         f"{base_url}/chat/completions",
         {"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"},
-        {
-            "model": model,
-            "messages": messages,
-            "temperature": 0.2,
-            "max_tokens": 1200,
-        },
+        {"model": model, "messages": messages, "temperature": 0.2, "max_tokens": 1200},
     )
 
     choices = data.get("choices") or []
