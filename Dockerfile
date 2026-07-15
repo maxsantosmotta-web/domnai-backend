@@ -5,6 +5,7 @@ COPY frontend/package*.json ./
 RUN npm install
 COPY frontend/ ./
 COPY scripts/connect_domnai_chat.py /tmp/connect_domnai_chat.py
+COPY scripts/add_chat_retry_button.py /tmp/add_chat_retry_button.py
 COPY scripts/connect_operation_to_composer.py /tmp/connect_operation_to_composer.py
 COPY scripts/connect_chat_attachments.py /tmp/connect_chat_attachments.py
 COPY scripts/connect_chat_local_deletion.py /tmp/connect_chat_local_deletion.py
@@ -37,6 +38,7 @@ COPY scripts/connect_user_sidebar_collapse.py /tmp/connect_user_sidebar_collapse
 COPY scripts/connect_single_chat_refresh_bottom.py /tmp/connect_single_chat_refresh_bottom.py
 RUN apk add --no-cache python3 \
     && python3 /tmp/connect_domnai_chat.py \
+    && python3 /tmp/add_chat_retry_button.py \
     && python3 /tmp/connect_operation_to_composer.py \
     && python3 /tmp/connect_chat_attachments.py \
     && python3 /tmp/connect_chat_local_deletion.py \
