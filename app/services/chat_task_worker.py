@@ -41,16 +41,15 @@ def _claim_next_task() -> str | None:
     with session_scope() as db:
         task = db.scalar(
             select(ChatTask)
-            .where(ChatTask.status.in_(["queued", "generated"]))
+            .where(ChatTask.status == "queued")
             .order_by(ChatTask.created_at.asc())
             .with_for_update(skip_locked=True)
             .limit(1)
         )
         if task is None:
             return None
-        if task.status == "queued":
-            task.status = "processing"
-            task.updated_at = _now()
+        task.status = "processing"
+        task.updated_at = _now()
         return task.id
 
 
@@ -255,7 +254,6 @@ def _process_task(task_id: str) -> None:
             if task is None:
                 return
             task.result_json = json.dumps(existing_result, ensure_ascii=False)
-            task.status = "generated"
             task.updated_at = _now()
 
     from app.services.metered_brain import MeteredBrainResult
