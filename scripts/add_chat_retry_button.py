@@ -20,6 +20,8 @@ retry_function = r'''
     }
     if (userIndex < 0) return;
 
+    const failedMessage = messages[errorIndex];
+    const originalTaskId = failedMessage.taskId || null;
     const userMessage = messages[userIndex];
     const messageForApi = String(userMessage.text || '').trim()
       || `Analise os arquivos anexados: ${(userMessage.attachments || []).map((item) => item.name).join(', ')}`;
@@ -43,7 +45,6 @@ retry_function = r'''
             ...message,
             text: 'DomnAI está analisando...',
             attachments: [],
-            taskId: null,
             processing: true,
             isError: false,
           }
@@ -58,6 +59,7 @@ retry_function = r'''
           message: messageForApi,
           operation: operationName,
           history,
+          retry_of_task_id: originalTaskId,
           attachments: (userMessage.attachments || [])
             .filter((item) => item.libraryId)
             .map((item) => ({ library_id: item.libraryId })),
@@ -81,7 +83,7 @@ retry_function = r'''
               text: error.message || 'Não foi possível tentar novamente.',
               processing: false,
               isError: true,
-              taskId: null,
+              taskId: originalTaskId,
             }
           : message
       )));
@@ -98,10 +100,10 @@ if 'async function retryFailedMessage(messageId)' not in source:
     source = source.replace(marker, retry_function + marker, 1)
 
 old_render = '''                  {message.text ? <p>{message.text}</p> : null}
-                  {(message.attachments || []).length ?'''
+                   {(message.attachments || []).length ?'''
 new_render = '''                  {message.text ? <p>{message.text}</p> : null}
-                  {message.role === 'assistant' && message.isError ? <button type="button" className="chat-retry-button" onClick={() => retryFailedMessage(message.id)} title="Tentar novamente" aria-label="Tentar novamente" disabled={responding}><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 11a8 8 0 1 0-2.34 5.66M20 4v7h-7" /></svg></button> : null}
-                  {(message.attachments || []).length ?'''
+                   {message.role === 'assistant' && message.isError ? <button type="button" className="chat-retry-button" onClick={() => retryFailedMessage(message.id)} title="Tentar novamente" aria-label="Tentar novamente" disabled={responding}><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 11a8 8 0 1 0-2.34 5.66M20 4v7h-7" /></svg></button> : null}
+                   {(message.attachments || []).length ?'''
 
 if 'className="chat-retry-button"' not in source:
     if old_render not in source:
