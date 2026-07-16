@@ -110,6 +110,18 @@ export default function AdminOverviewView() {
   const feedbackSummary = data.feedbacks?.summary || {};
   const healthDependencies = data.health?.dependencies || {};
 
+  const totalAuditEvents = useMemo(() => [
+    'planChanges',
+    'paymentsApproved',
+    'paymentsFailed',
+    'subscriptionsCanceled',
+    'creditsAdded',
+    'creditsConsumed',
+    'pdfsDelivered',
+    'spreadsheetsDelivered',
+    'conversationsCompleted',
+  ].reduce((total, key) => total + Number(auditSummary[key] || 0), 0), [auditSummary]);
+
   const healthDistribution = useMemo(() => {
     const databaseReady = Boolean(healthDependencies.database?.reachable);
     const checks = [
@@ -196,7 +208,7 @@ export default function AdminOverviewView() {
         <article data-tone="cyan"><span>Usuários</span><strong>{formatNumber(usersSummary.totalUsers)}</strong><small>{formatNumber(usersSummary.activeLast7Days)} ativos em 7 dias</small></article>
         <article data-tone="green"><span>Receita do mês</span><strong>{formatMoney(billingSummary.revenueMonthCents)}</strong><small>{formatMoney(billingSummary.mrrCents)} recorrentes</small></article>
         <article data-tone="red"><span>Erros ativos</span><strong>{formatNumber(errorsSummary.activeGroups)}</strong><small>{formatNumber(errorsSummary.affectedModules)} módulos afetados</small></article>
-        <article data-tone="purple"><span>Eventos auditados</span><strong>{formatNumber(data.audit?.total)}</strong><small>ações financeiras e PDFs</small></article>
+        <article data-tone="purple"><span>Eventos auditados</span><strong>{formatNumber(totalAuditEvents)}</strong><small>ações financeiras, créditos e arquivos</small></article>
         <article data-tone="gold"><span>Avaliação</span><strong>{Number(feedbackSummary.average || 0).toLocaleString('pt-BR', { minimumFractionDigits: 1, maximumFractionDigits: 1 })}</strong><small>{formatNumber(feedbackSummary.total)} feedbacks</small></article>
         <article data-tone="green"><span>Saúde geral</span><strong>{data.health?.statusLabel || 'Verificando'}</strong><small>{formatNumber(data.health?.serverCheckMs)} ms internos</small></article>
       </div>
