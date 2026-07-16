@@ -5,6 +5,7 @@ from datetime import datetime, timezone
 from uuid import uuid4
 
 from fastapi import APIRouter, Depends, HTTPException, status
+from pydantic import Field
 from sqlalchemy import select
 
 from app.api.chat import ChatRequest
@@ -16,6 +17,10 @@ from app.services.credit_meter import ensure_minimum_credit
 
 
 router = APIRouter(prefix="/api/chat", tags=["chat-persistent"])
+
+
+class PersistentChatRequest(ChatRequest):
+    retry_of_task_id: str | None = Field(default=None, max_length=180)
 
 
 def _load_messages(state: ActiveChatState | None) -> list[dict]:
@@ -111,7 +116,7 @@ def _persist_queued_exchange(
 
 
 @router.post("/respond", status_code=status.HTTP_202_ACCEPTED)
-def persistent_respond(payload: ChatRequest, session: dict = Depends(require_authenticated_user)):
+def persistent_respond(payload: PersistentChatRequest, session: dict = Depends(require_authenticated_user)):
     user_id = str(session.get("sub") or "").strip()
     if not user_id:
         raise HTTPException(status_code=401, detail="Sessão inválida.")
@@ -126,27 +131,63 @@ def persistent_respond(payload: ChatRequest, session: dict = Depends(require_aut
         ensure_minimum_credit(user_id)
 
     now = datetime.now(timezone.utc)
-    task_id = str(uuid4())
     operation = payload.operation.strip() if payload.operation else None
     attachment_ids = [item.library_id for item in payload.attachments]
-    task = ChatTask(
-        id=task_id,
-        user_id=user_id,
-        status="queued",
-        request_json=json.dumps(
-            {
-                "message": message,
-                "operation": operation,
-                "history": history,
-                "attachment_ids": attachment_ids,
-                "local_artifact_followup": local_artifact_followup,
-            },
-            ensure_ascii=False,
-        ),
-        created_at=now,
-        updated_at=now,
-    )
+
     with session_scope() as db:
+        retry_of_task_id = str(payload.retry_of_task_id or "").strip() or None
+        original_task = None
+        if retry_of_task_id:
+            original_task = db.scalar(
+                select(ChatTask).where(
+                    ChatTask.id == retry_of_task_id,
+                    ChatTask.user_id == user_id,
+                )
+            )
+            if original_task is None:
+                raise HTTPException(status_code=404, detail="A tarefa original não foi encontrada.")
+            if original_task.status in {"queued", "processing", "completed"}:
+                return {
+                    "taskId": original_task.id,
+                    "status": original_task.status,
+                    "processing": original_task.status != "completed",
+                    "reply": "DomnAI está analisando..." if original_task.status != "completed" else None,
+                    "artifact": None,
+                    "artifacts": [],
+                    "sources": [],
+                    "operation": payload.operation,
+                    "reusedTask": True,
+                }
+            if original_task.status != "failed":
+                raise HTTPException(status_code=409, detail="Esta tarefa não pode ser processada novamente agora.")
+
+        task_id = str(uuid4())
+        billing_key = (
+            original_task.credit_transaction_key
+            if original_task and original_task.credit_transaction_key
+            else f"chat-task:{original_task.id}" if original_task
+            else f"chat-task:{task_id}"
+        )
+        task = ChatTask(
+            id=task_id,
+            user_id=user_id,
+            status="queued",
+            request_json=json.dumps(
+                {
+                    "message": message,
+                    "operation": operation,
+                    "history": history,
+                    "attachment_ids": attachment_ids,
+                    "local_artifact_followup": local_artifact_followup,
+                    "retry_of_task_id": original_task.id if original_task else None,
+                    "billing_key": billing_key,
+                },
+                ensure_ascii=False,
+            ),
+            credit_transaction_key=billing_key,
+            created_at=now,
+            updated_at=now,
+        )
         db.add(task)
         _persist_queued_exchange(
             db,
@@ -168,4 +209,5 @@ def persistent_respond(payload: ChatRequest, session: dict = Depends(require_aut
         "artifacts": [],
         "sources": [],
         "operation": payload.operation,
+        "retryOfTaskId": payload.retry_of_task_id,
     }
