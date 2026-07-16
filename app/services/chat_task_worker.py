@@ -180,7 +180,7 @@ def _process_task(task_id: str) -> None:
 
     if existing_result is None:
         preparation_started_at = time.perf_counter()
-        if not payload.get("local_artifact_followup"):
+        if not payload.get("local_artifact_followup") and not payload.get("retry_charge_exists"):
             ensure_minimum_credit(user_id)
         original_message = str(payload.get("message") or "").strip()
         operation = payload.get("operation")
