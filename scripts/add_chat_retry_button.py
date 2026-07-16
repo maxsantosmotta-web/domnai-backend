@@ -20,8 +20,6 @@ retry_function = r'''
     }
     if (userIndex < 0) return;
 
-    const failedMessage = messages[errorIndex];
-    const originalTaskId = failedMessage.taskId || null;
     const userMessage = messages[userIndex];
     const messageForApi = String(userMessage.text || '').trim()
       || `Analise os arquivos anexados: ${(userMessage.attachments || []).map((item) => item.name).join(', ')}`;
@@ -45,6 +43,7 @@ retry_function = r'''
             ...message,
             text: 'DomnAI está analisando...',
             attachments: [],
+            taskId: null,
             processing: true,
             isError: false,
           }
@@ -59,7 +58,6 @@ retry_function = r'''
           message: messageForApi,
           operation: operationName,
           history,
-          retry_of_task_id: originalTaskId,
           attachments: (userMessage.attachments || [])
             .filter((item) => item.libraryId)
             .map((item) => ({ library_id: item.libraryId })),
@@ -83,7 +81,7 @@ retry_function = r'''
               text: error.message || 'Não foi possível tentar novamente.',
               processing: false,
               isError: true,
-              taskId: originalTaskId,
+              taskId: null,
             }
           : message
       )));
