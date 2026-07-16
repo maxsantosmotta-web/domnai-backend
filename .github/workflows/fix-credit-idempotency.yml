@@ -1,0 +1,151 @@
+name: Fix credit transaction idempotency
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - .github/workflows/fix-credit-idempotency.yml
+
+permissions:
+  contents: write
+
+jobs:
+  fix:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+
+      - name: Apply precise worker and credit locking fix
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          worker_path = Path('app/services/chat_task_worker.py')
+          worker = worker_path.read_text(encoding='utf-8')
+
+          old_claim = '''            select(ChatTask)
+            .where(ChatTask.status.in_(["queued", "generated"]))
+            .order_by(ChatTask.created_at.asc())
+            .with_for_update(skip_locked=True)
+            .limit(1)
+        )
+        if task is None:
+            return None
+        if task.status == "queued":
+            task.status = "processing"
+            task.updated_at = _now()
+        return task.id
+'''
+          new_claim = '''            select(ChatTask)
+            .where(ChatTask.status == "queued")
+            .order_by(ChatTask.created_at.asc())
+            .with_for_update(skip_locked=True)
+            .limit(1)
+        )
+        if task is None:
+            return None
+        task.status = "processing"
+        task.updated_at = _now()
+        return task.id
+'''
+          if worker.count(old_claim) != 1:
+              raise SystemExit(f'Claim antigo encontrado {worker.count(old_claim)} vezes; esperado 1.')
+          worker = worker.replace(old_claim, new_claim, 1)
+
+          old_generated = '''            task.result_json = json.dumps(existing_result, ensure_ascii=False)
+            task.status = "generated"
+            task.updated_at = _now()
+'''
+          new_generated = '''            task.result_json = json.dumps(existing_result, ensure_ascii=False)
+            task.updated_at = _now()
+'''
+          if worker.count(old_generated) != 1:
+              raise SystemExit(f'Transição generated encontrada {worker.count(old_generated)} vezes; esperado 1.')
+          worker = worker.replace(old_generated, new_generated, 1)
+          worker_path.write_text(worker, encoding='utf-8')
+
+          credit_path = Path('app/services/credit_meter.py')
+          credit = credit_path.read_text(encoding='utf-8')
+          old_block = '''    with session_scope() as db:
+        if idempotency_key:
+            existing = db.scalar(
+                select(CreditTransaction).where(CreditTransaction.stripe_event_id == idempotency_key)
+            )
+            if existing is not None:
+                account = db.get(BillingAccount, user_id)
+                return {
+                    **usage,
+                    "charged_credits": abs(int(existing.amount or 0)),
+                    "admin_exempt": existing.kind == "admin_usage",
+                    "remaining_credits": (account.plan_credits + account.extra_credits) if account else 0,
+                    "idempotentReplay": True,
+                }
+
+        account = db.get(BillingAccount, user_id)
+        if account is None:
+            raise HTTPException(status_code=402, detail="Conta de créditos não encontrada.")
+'''
+          new_block = '''    with session_scope() as db:
+        account = db.scalar(
+            select(BillingAccount)
+            .where(BillingAccount.user_id == user_id)
+            .with_for_update()
+        )
+        if account is None:
+            raise HTTPException(status_code=402, detail="Conta de créditos não encontrada.")
+
+        if idempotency_key:
+            existing = db.scalar(
+                select(CreditTransaction).where(CreditTransaction.stripe_event_id == idempotency_key)
+            )
+            if existing is not None:
+                return {
+                    **usage,
+                    "charged_credits": abs(int(existing.amount or 0)),
+                    "admin_exempt": existing.kind == "admin_usage",
+                    "remaining_credits": account.plan_credits + account.extra_credits,
+                    "idempotentReplay": True,
+                }
+'''
+          if credit.count(old_block) != 1:
+              raise SystemExit(f'Bloco de cobrança antigo encontrado {credit.count(old_block)} vezes; esperado 1.')
+          credit = credit.replace(old_block, new_block, 1)
+          credit_path.write_text(credit, encoding='utf-8')
+          PY
+
+      - name: Add focused regression tests
+        run: |
+          cat > tests/test_credit_idempotency_source.py <<'PY'
+          from pathlib import Path
+
+
+          def test_worker_never_claims_generated_tasks():
+              source = Path('app/services/chat_task_worker.py').read_text(encoding='utf-8')
+              assert '.where(ChatTask.status == "queued")' in source
+              assert 'status.in_(["queued", "generated"])' not in source
+              assert 'task.status = "generated"' not in source
+
+
+          def test_credit_account_is_locked_before_idempotency_lookup():
+              source = Path('app/services/credit_meter.py').read_text(encoding='utf-8')
+              lock = source.index('.with_for_update()')
+              lookup = source.index('CreditTransaction.stripe_event_id == idempotency_key')
+              assert lock < lookup
+          PY
+
+      - name: Validate focused and existing credit flow
+        run: |
+          python -m compileall -q app/services/credit_meter.py app/services/chat_task_worker.py
+          python -m pytest -q tests/test_credit_idempotency_source.py tests/test_orchestrated_brain.py
+
+      - name: Commit final source and remove temporary workflow
+        run: |
+          git rm .github/workflows/fix-credit-idempotency.yml
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add app/services/credit_meter.py app/services/chat_task_worker.py tests/test_credit_idempotency_source.py
+          git commit -m "fix(credits): eliminate duplicate chat transaction race"
+          git push origin main
