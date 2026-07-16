@@ -1,5 +1,7 @@
 from pathlib import Path
 
+# Escopo fechado: entrega pendente, decisão delegada, remoção de contradições e finalização premium.
+
 # 1) Aceitar delegação natural do usuário como autorização para concluir o arquivo oferecido.
 decision_path = Path('/app/app/services/artifact_decision.py')
 decision = decision_path.read_text(encoding='utf-8')
@@ -54,7 +56,43 @@ elif '"do jeito que achar melhor"' not in decision:
 
 decision_path.write_text(decision, encoding='utf-8')
 
-# 2) Finalizar a entrega somente depois da criação real e remover contradições.
+# 2) Registrar estado real de entrega pendente no payload da tarefa.
+persistent_path = Path('/app/app/api/chat_persistent.py')
+persistent = persistent_path.read_text(encoding='utf-8')
+
+old_resolution = '''    history = [item.model_dump() for item in payload.history]
+    local_artifact_followup = resolve_local_artifact_request(message, history) is not None
+    if not local_artifact_followup:
+        ensure_minimum_credit(user_id)
+'''
+new_resolution = '''    history = [item.model_dump() for item in payload.history]
+    pending_artifact = resolve_local_artifact_request(message, history)
+    local_artifact_followup = pending_artifact is not None
+    artifact_delivery_state = "pending" if local_artifact_followup else None
+    if not local_artifact_followup:
+        ensure_minimum_credit(user_id)
+'''
+if old_resolution in persistent:
+    persistent = persistent.replace(old_resolution, new_resolution, 1)
+elif 'artifact_delivery_state = "pending"' not in persistent:
+    raise RuntimeError('Resolução de artefato pendente não encontrada no chat persistente.')
+
+old_payload = '''                "attachment_ids": attachment_ids,
+                "local_artifact_followup": local_artifact_followup,
+'''
+new_payload = '''                "attachment_ids": attachment_ids,
+                "local_artifact_followup": local_artifact_followup,
+                "artifact_delivery_state": artifact_delivery_state,
+                "pending_artifact": pending_artifact,
+'''
+if old_payload in persistent:
+    persistent = persistent.replace(old_payload, new_payload, 1)
+elif '"pending_artifact": pending_artifact' not in persistent:
+    raise RuntimeError('Payload da tarefa não encontrado para registrar entrega pendente.')
+
+persistent_path.write_text(persistent, encoding='utf-8')
+
+# 3) Garantir que uma entrega pendente seja concluída antes de qualquer encerramento.
 worker_path = Path('/app/app/services/chat_task_worker.py')
 worker = worker_path.read_text(encoding='utf-8')
 
@@ -68,16 +106,13 @@ helper = '''def _elapsed_ms(started_at: float) -> int:
 def _clean_artifact_contradictions(text: str) -> str:
     paragraphs = [part.strip() for part in str(text or "").split("\\n\\n") if part.strip()]
     blocked = (
-        "nao consigo enviar arquivos",
-        "não consigo enviar arquivos",
-        "nao posso enviar arquivos",
-        "não posso enviar arquivos",
-        "nao consigo anexar arquivos",
-        "não consigo anexar arquivos",
-        "nao posso anexar arquivos",
-        "não posso anexar arquivos",
-        "nao consigo gerar arquivos",
-        "não consigo gerar arquivos",
+        "nao consigo enviar arquivos", "não consigo enviar arquivos",
+        "nao posso enviar arquivos", "não posso enviar arquivos",
+        "nao consigo anexar arquivos", "não consigo anexar arquivos",
+        "nao posso anexar arquivos", "não posso anexar arquivos",
+        "nao consigo gerar arquivos", "não consigo gerar arquivos",
+        "nao consigo enviar o arquivo", "não consigo enviar o arquivo",
+        "nao posso enviar o arquivo", "não posso enviar o arquivo",
     )
     kept = [part for part in paragraphs if not any(marker in part.casefold() for marker in blocked)]
     return "\\n\\n".join(kept).strip()
@@ -86,18 +121,45 @@ def _clean_artifact_contradictions(text: str) -> str:
 def _artifact_completion_message(artifact_type: str | None) -> str:
     if artifact_type in {"xlsx", "csv"}:
         return (
-            "Pronto! Sua planilha foi gerada com base nas informações da conversa e está disponível logo abaixo. "
-            "Ela também foi salva automaticamente na Biblioteca para você abrir novamente quando precisar."
+            "Pronto! Sua planilha foi concluída com base nas informações da conversa e está disponível logo abaixo. "
+            "Os dados foram organizados para facilitar o acompanhamento e os próximos ajustes. "
+            "Ela também foi salva automaticamente na Biblioteca. Depois de utilizá-la, você pode voltar aqui para "
+            "analisarmos os resultados e aperfeiçoarmos o planejamento."
         )
     return (
-        "Pronto! Seu PDF foi gerado com base nas informações da conversa e está disponível logo abaixo. "
-        "Ele também foi salvo automaticamente na Biblioteca para você abrir novamente quando precisar."
+        "Pronto! Seu PDF foi concluído com base nas informações da conversa e está disponível logo abaixo. "
+        "O conteúdo foi organizado para facilitar a leitura e a consulta. "
+        "Ele também foi salvo automaticamente na Biblioteca. Se precisar, podemos continuar a análise e atualizar "
+        "o material com novas informações."
     )
 '''
 if '_clean_artifact_contradictions' not in worker:
     if helper_marker not in worker:
         raise RuntimeError('Ponto de inserção da finalização de artefatos não encontrado.')
     worker = worker.replace(helper_marker, helper, 1)
+
+# A decisão registrada como pendente tem prioridade sobre qualquer desvio textual do modelo.
+decision_marker = '''        decision = decide_artifact(
+            message=original_message,
+            operation=operation,
+            history=history,
+            answer=reply,
+        )
+'''
+decision_replacement = '''        decision = decide_artifact(
+            message=original_message,
+            operation=operation,
+            history=history,
+            answer=reply,
+        )
+        pending_artifact = payload.get("pending_artifact")
+        if payload.get("artifact_delivery_state") == "pending" and isinstance(pending_artifact, dict):
+            decision = pending_artifact
+'''
+if decision_marker in worker:
+    worker = worker.replace(decision_marker, decision_replacement, 1)
+elif 'payload.get("artifact_delivery_state") == "pending"' not in worker:
+    raise RuntimeError('Decisão de artefato não encontrada para priorizar entrega pendente.')
 
 old_success = '''                artifacts.append(artifact)
                 if result.provider == "local-artifact":
@@ -107,26 +169,28 @@ old_success = '''                artifacts.append(artifact)
 new_success = '''                artifacts.append(artifact)
                 clean_reply = _clean_artifact_contradictions(reply)
                 completion = _artifact_completion_message(decision.get("artifact_type"))
-                reply = f"{clean_reply}\\n\\n{completion}" if clean_reply else completion'''
+                reply = f"{clean_reply}\\n\\n{completion}" if clean_reply and result.provider != "local-artifact" else completion
+                payload["artifact_delivery_state"] = "completed"'''
 if old_success in worker:
     worker = worker.replace(old_success, new_success, 1)
-elif '_artifact_completion_message(decision.get("artifact_type"))' not in worker:
+elif 'payload["artifact_delivery_state"] = "completed"' not in worker:
     raise RuntimeError('Bloco de sucesso da geração de arquivo não encontrado.')
 
 worker_path.write_text(worker, encoding='utf-8')
 
-# 3) Impedir que o modelo encerre após prometer uma entrega ainda não concluída.
+# 4) Regra geral restrita à entrega: não encerrar antes de cumprir uma promessa de arquivo.
 prompt_path = Path('/app/app/services/domnai_brain.py')
 prompt = prompt_path.read_text(encoding='utf-8')
 anchor = '20. Nunca afirme que criou, enviou ou compartilhou e-mail, planilha, arquivo ou link externo sem confirmação técnica.\n'
 rule = (
-    '20. Se o usuário aceitar ou delegar a criação de PDF, planilha ou arquivo com frases como "pode", '
-    '"você decide" ou "como achar melhor", trate isso como autorização para concluir a entrega agora. '
-    'Não faça nova pergunta sobre formato quando o melhor formato puder ser inferido. Não encerre o atendimento, '
-    'não se despeça e não diga que ficará à disposição antes de o arquivo ser realmente criado e apresentado.\n'
+    '20. Quando o usuário aceitar ou delegar a criação de PDF, planilha ou arquivo, trate isso como autorização para '
+    'concluir a entrega imediatamente. Não faça nova pergunta sobre formato quando o melhor formato puder ser inferido. '
+    'Enquanto a entrega estiver pendente, não encerre o atendimento, não se despeça e não diga que ficará à disposição. '
+    'Somente confirme a conclusão depois que o arquivo tiver sido realmente criado e apresentado.\n'
 )
-if 'Não encerre o atendimento, não se despeça' not in prompt:
+if 'Enquanto a entrega estiver pendente' not in prompt:
     if anchor not in prompt:
         raise RuntimeError('Regra de confirmação técnica não encontrada no prompt central.')
     prompt = prompt.replace(anchor, rule + anchor, 1)
+
 prompt_path.write_text(prompt, encoding='utf-8')
