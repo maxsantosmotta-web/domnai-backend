@@ -97,15 +97,11 @@ if 'async function retryFailedMessage(messageId)' not in source:
         raise RuntimeError('Não foi possível localizar o ponto de inserção da função de nova tentativa.')
     source = source.replace(marker, retry_function + marker, 1)
 
-old_render = '''                  {message.text ? <p>{message.text}</p> : null}
-                   {(message.attachments || []).length ?'''
-new_render = '''                  {message.text ? <p>{message.text}</p> : null}
-                   {message.role === 'assistant' && message.isError ? <button type="button" className="chat-retry-button" onClick={() => retryFailedMessage(message.id)} title="Tentar novamente" aria-label="Tentar novamente" disabled={responding}><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 11a8 8 0 1 0-2.34 5.66M20 4v7h-7" /></svg></button> : null}
-                   {(message.attachments || []).length ?'''
-
 if 'className="chat-retry-button"' not in source:
-    if old_render not in source:
+    marker = "{message.text ? <p>{message.text}</p> : null}"
+    retry_button = "{message.role === 'assistant' && message.isError ? <button type=\"button\" className=\"chat-retry-button\" onClick={() => retryFailedMessage(message.id)} title=\"Tentar novamente\" aria-label=\"Tentar novamente\" disabled={responding}><svg viewBox=\"0 0 24 24\" aria-hidden=\"true\"><path d=\"M20 11a8 8 0 1 0-2.34 5.66M20 4v7h-7\" /></svg></button> : null}"
+    if marker not in source:
         raise RuntimeError('Não foi possível localizar a mensagem para adicionar o botão de nova tentativa.')
-    source = source.replace(old_render, new_render, 1)
+    source = source.replace(marker, f"{marker}\n                   {retry_button}", 1)
 
 path.write_text(source, encoding='utf-8')
