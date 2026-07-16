@@ -38,6 +38,7 @@ COPY scripts/fix_mobile_chat_keyboard.py /tmp/fix_mobile_chat_keyboard.py
 COPY scripts/connect_user_sidebar_collapse.py /tmp/connect_user_sidebar_collapse.py
 COPY scripts/connect_single_chat_refresh_bottom.py /tmp/connect_single_chat_refresh_bottom.py
 COPY scripts/update_help_artifact_credits.py /tmp/update_help_artifact_credits.py
+COPY scripts/connect_user_personalization_frontend.py /tmp/connect_user_personalization_frontend.py
 RUN apk add --no-cache python3 \
     && python3 /tmp/connect_domnai_chat.py \
     && python3 /tmp/add_chat_retry_button.py \
@@ -73,6 +74,7 @@ RUN apk add --no-cache python3 \
     && python3 /tmp/connect_single_chat_refresh_bottom.py \
     && python3 /tmp/connect_chat_sources_frontend.py \
     && python3 /tmp/update_help_artifact_credits.py \
+    && python3 /tmp/connect_user_personalization_frontend.py \
     && npm run build
 
 FROM python:3.13-slim AS runtime
@@ -85,7 +87,9 @@ COPY alembic.ini ./
 COPY migrations ./migrations
 COPY app ./app
 COPY scripts/connect_chat_sources_backend.py /tmp/connect_chat_sources_backend.py
-RUN python /tmp/connect_chat_sources_backend.py
+COPY scripts/connect_user_personalization_backend.py /tmp/connect_user_personalization_backend.py
+RUN python /tmp/connect_chat_sources_backend.py \
+    && python /tmp/connect_user_personalization_backend.py
 COPY --from=frontend-builder /frontend/dist ./frontend/dist
 EXPOSE 8080
 CMD ["sh", "-c", "alembic upgrade head && uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-8080}"]
