@@ -3,6 +3,12 @@ from pathlib import Path
 worker_path = Path('/app/app/services/chat_task_worker.py')
 worker = worker_path.read_text(encoding='utf-8')
 
+if 'from fastapi import HTTPException\n' not in worker:
+    import_marker = 'from sqlalchemy import select, update\n'
+    if import_marker not in worker:
+        raise RuntimeError('Importações do worker não encontradas.')
+    worker = worker.replace(import_marker, 'from fastapi import HTTPException\n' + import_marker, 1)
+
 old_signature = 'def _append_completed_response(user_id: str, payload: dict, reply: str, artifacts: list[dict]) -> None:'
 new_signature = 'def _append_completed_response(user_id: str, payload: dict, reply: str, artifacts: list[dict], sources: list[dict]) -> None:'
 multiline_signature_markers = (
@@ -24,6 +30,17 @@ old_user_payload = '                    "attachments": [],\n                    
 new_user_payload = '                    "attachments": [],\n                    "sources": [],\n                    "isError": False,'
 worker = worker.replace(old_user_payload, new_user_payload, 1)
 
+old_artifact_error = '''            except Exception:
+                reply = "Não foi possível gerar o arquivo nesta tentativa."'''
+new_artifact_error = '''            except HTTPException as exc:
+                reply = str(exc.detail)
+            except Exception:
+                reply = "Não foi possível gerar o arquivo nesta tentativa."'''
+if old_artifact_error in worker:
+    worker = worker.replace(old_artifact_error, new_artifact_error, 1)
+elif new_artifact_error not in worker:
+    raise RuntimeError('Tratamento da geração de arquivo não encontrado no worker.')
+
 old_call = '''    _append_completed_response(
         user_id,
         payload,
@@ -43,13 +60,15 @@ elif new_call not in worker:
     raise RuntimeError('Persistência final da resposta não encontrada.')
 
 required_worker_markers = (
+    'from fastapi import HTTPException',
     '    sources: list[dict],',
     '"sources": sources,',
+    'except HTTPException as exc:',
     'existing_result.get("sources") or [],',
 )
 missing_worker = [marker for marker in required_worker_markers if marker not in worker]
 if missing_worker:
-    raise RuntimeError(f'Consolidação de fontes incompleta no worker: {missing_worker}')
+    raise RuntimeError(f'Consolidação do worker incompleta: {missing_worker}')
 
 worker_path.write_text(worker, encoding='utf-8')
 
