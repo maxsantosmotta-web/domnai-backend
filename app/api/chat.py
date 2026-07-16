@@ -9,7 +9,7 @@ from app.auth import require_authenticated_user
 from app.database import session_scope
 from app.models import LibraryAsset
 from app.services.artifact_decision import decide_artifact, resolve_pending_artifact_acceptance
-from app.services.credit_meter import charge_usage, ensure_minimum_credit
+from app.services.credit_meter import charge_usage, ensure_artifact_credit, ensure_minimum_credit
 from app.services.diagnosis_memory import load_diagnosis_state, save_diagnosis_state
 from app.services.orchestrated_brain import generate_orchestrated_response
 from app.services.pdf_report import generate_pdf_report
@@ -83,6 +83,7 @@ def _create_artifact(
     decision: dict,
 ) -> dict:
     artifact_type = decision.get("artifact_type")
+    ensure_artifact_credit(user_id, artifact_type)
     title = str(decision.get("title") or "Documento DomnAI").strip()[:180]
 
     if artifact_type == "pdf":
@@ -225,6 +226,8 @@ def respond(payload: ChatRequest, session: dict = Depends(require_authenticated_
                 reply = "PDF criado e enviado aqui no chat. O mesmo arquivo também foi salvo automaticamente na Biblioteca."
             else:
                 reply = f"{reply.rstrip()}\n\nArquivo criado e enviado aqui no chat."
+        except HTTPException as exc:
+            reply = str(exc.detail)
         except Exception:
             reply = "Não foi possível gerar o arquivo nesta tentativa."
 
