@@ -125,7 +125,7 @@ export default function AdminAuditView() {
       </div>
 
       {status === 'ready' ? (
-        <section className="domnai-premium-chart-grid domnai-admin-audit-charts" aria-label="Gráficos da auditoria">
+        <section className="domnai-premium-chart-grid audit-premium-charts domnai-admin-audit-charts" aria-label="Gráficos da auditoria">
           <InteractiveBarChart
             title="Auditoria em tempo real"
             subtitle="Ações registradas"
