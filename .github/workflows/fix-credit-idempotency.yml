@@ -1,4 +1,4 @@
-name: Fix credit transaction idempotency
+name: Fix credit transaction idempotency v2
 
 on:
   push:
