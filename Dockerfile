@@ -37,6 +37,7 @@ COPY scripts/fix_chat_operation_delivery.py /tmp/fix_chat_operation_delivery.py
 COPY scripts/fix_mobile_chat_keyboard.py /tmp/fix_mobile_chat_keyboard.py
 COPY scripts/connect_user_sidebar_collapse.py /tmp/connect_user_sidebar_collapse.py
 COPY scripts/connect_single_chat_refresh_bottom.py /tmp/connect_single_chat_refresh_bottom.py
+COPY scripts/update_help_artifact_credits.py /tmp/update_help_artifact_credits.py
 RUN apk add --no-cache python3 \
     && python3 /tmp/connect_domnai_chat.py \
     && python3 /tmp/add_chat_retry_button.py \
@@ -71,6 +72,7 @@ RUN apk add --no-cache python3 \
     && python3 /tmp/connect_user_sidebar_collapse.py \
     && python3 /tmp/connect_single_chat_refresh_bottom.py \
     && python3 /tmp/connect_chat_sources_frontend.py \
+    && python3 /tmp/update_help_artifact_credits.py \
     && npm run build
 
 FROM python:3.13-slim AS runtime
