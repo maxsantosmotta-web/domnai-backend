@@ -1,5 +1,6 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useAuth } from '@clerk/clerk-react';
+import { InteractiveBarChart, InteractiveDonutChart } from './AdminPremiumCharts';
 import './admin-audit-view.css';
 
 const EMPTY_SUMMARY = {
@@ -13,6 +14,18 @@ const EMPTY_SUMMARY = {
   spreadsheetsDelivered: 0,
   conversationsCompleted: 0,
 };
+
+const AUDIT_COUNTERS = [
+  ['planChanges', 'Planos'],
+  ['paymentsApproved', 'Pagamentos aprovados'],
+  ['paymentsFailed', 'Pagamentos recusados'],
+  ['subscriptionsCanceled', 'Cancelamentos'],
+  ['creditsAdded', 'Créditos adicionados'],
+  ['creditsConsumed', 'Créditos consumidos'],
+  ['pdfsDelivered', 'PDFs concluídos'],
+  ['spreadsheetsDelivered', 'Planilhas concluídas'],
+  ['conversationsCompleted', 'Conversas/Operações'],
+];
 
 function formatNumber(value) {
   return Number(value || 0).toLocaleString('pt-BR');
@@ -47,6 +60,26 @@ export default function AdminAuditView() {
   const [generatedAt, setGeneratedAt] = useState('');
   const [status, setStatus] = useState('loading');
   const [error, setError] = useState('');
+
+  const auditCounters = useMemo(() => AUDIT_COUNTERS.map(([key, label]) => ({
+    key,
+    label,
+    value: Number(summary[key] || 0),
+  })), [summary]);
+
+  const completedActions = useMemo(() => Number(summary.planChanges || 0)
+    + Number(summary.paymentsApproved || 0)
+    + Number(summary.creditsAdded || 0)
+    + Number(summary.creditsConsumed || 0)
+    + Number(summary.pdfsDelivered || 0)
+    + Number(summary.spreadsheetsDelivered || 0)
+    + Number(summary.conversationsCompleted || 0), [summary]);
+
+  const actionBalance = useMemo(() => ([
+    { label: 'Concluídas', value: completedActions, color: '#64e6a6' },
+    { label: 'Recusadas', value: Number(summary.paymentsFailed || 0), color: '#ff657f' },
+    { label: 'Canceladas', value: Number(summary.subscriptionsCanceled || 0), color: '#ff9f5a' },
+  ]), [completedActions, summary.paymentsFailed, summary.subscriptionsCanceled]);
 
   const loadAudit = useCallback(async ({ silent = false } = {}) => {
     if (!silent) setStatus('loading');
@@ -107,6 +140,22 @@ export default function AdminAuditView() {
         <article><span>Planilha concluída pelo chat</span><strong>{formatNumber(summary.spreadsheetsDelivered)}</strong></article>
         <article><span>Conversas/Operações concluídas</span><strong>{formatNumber(summary.conversationsCompleted)}</strong></article>
       </div>
+
+      {status === 'ready' ? (
+        <div className="domnai-premium-chart-grid audit-premium-charts">
+          <InteractiveBarChart
+            title="Ações auditadas"
+            subtitle="Contadores funcionais"
+            data={auditCounters}
+          />
+          <InteractiveDonutChart
+            title="Balanço das ações"
+            subtitle="Concluídas e atenções"
+            data={actionBalance}
+            centerLabel="Eventos"
+          />
+        </div>
+      ) : null}
 
       {status === 'loading' ? (
         <div className="domnai-admin-audit-state"><span className="audit-spinner" />Carregando auditoria...</div>
