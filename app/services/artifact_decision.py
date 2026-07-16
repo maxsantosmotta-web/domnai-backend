@@ -56,12 +56,24 @@ _ACCEPTANCE_PHRASES = (
     "crie a planilha",
 )
 
+_SPREADSHEET_REQUEST_MARKERS = (
+    "planilha",
+    "excel",
+    "xlsx",
+    "csv",
+    "tabela editável",
+    "tabela editavel",
+    "folha de cálculo",
+    "folha de calculo",
+    "linhas e colunas",
+    "formato tabular",
+    "quadro editável",
+    "quadro editavel",
+)
+
 _EXPLICIT_ARTIFACT_MARKERS = (
     "pdf",
-    "planilha",
-    "xlsx",
-    "excel",
-    "csv",
+    *_SPREADSHEET_REQUEST_MARKERS,
     "gere um relatório",
     "crie um relatório",
     "crie o arquivo",
@@ -101,6 +113,10 @@ def _contains_any(value: str, markers: tuple[str, ...]) -> bool:
     return any(marker in value for marker in markers)
 
 
+def _explicit_spreadsheet_request(value: str) -> bool:
+    return _contains_any(_normalize(value), _SPREADSHEET_REQUEST_MARKERS)
+
+
 def _accepted_offer(value: str) -> bool:
     normalized = _normalize(value).strip(" .,!?:;")
     if normalized in _ACCEPTANCE_EXACT:
@@ -127,7 +143,9 @@ def _remove_offer_from_answer(text: str) -> str:
 
 
 def resolve_pending_artifact_acceptance(message: str, history: list[dict]) -> dict | None:
-    """Resolve um aceite usando o conteúdo já concluído, sem nova chamada de IA."""
+    """Resolve aceite simples; formato explicitamente pedido sempre tem prioridade."""
+    if _explicit_spreadsheet_request(message):
+        return None
     if not _accepted_offer(message):
         return None
 
@@ -288,6 +306,8 @@ Retorne somente JSON válido com:
 
 Regras:
 - Não escolha formato por uma lista fixa de operações. Analise o pedido, o histórico e o conteúdo concluído.
+- O formato explicitamente pedido na mensagem atual sempre tem prioridade sobre qualquer oferta anterior.
+- Entenda como pedido de planilha expressões naturais como Excel, tabela editável, folha de cálculo, linhas e colunas e formato tabular.
 - Use create quando o usuário pediu naturalmente um arquivo.
 - Use offer somente quando um arquivo agregaria valor relevante, a explicação estiver concluída e não existir oferta anterior no histórico.
 - Uma oferta de arquivo pode acontecer no máximo uma vez por conversa.
