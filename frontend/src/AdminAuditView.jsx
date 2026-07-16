@@ -67,6 +67,30 @@ export default function AdminAuditView() {
     value: Number(value || 0),
   })), [summary]);
 
+  const actionBalance = useMemo(() => ([
+    {
+      key: 'completed',
+      label: 'Concluídas',
+      value: Number(summary.planChanges || 0)
+        + Number(summary.paymentsApproved || 0)
+        + Number(summary.creditsAdded || 0)
+        + Number(summary.creditsConsumed || 0)
+        + Number(summary.pdfsDelivered || 0)
+        + Number(summary.spreadsheetsDelivered || 0)
+        + Number(summary.conversationsCompleted || 0),
+    },
+    {
+      key: 'failed',
+      label: 'Recusadas',
+      value: Number(summary.paymentsFailed || 0),
+    },
+    {
+      key: 'canceled',
+      label: 'Canceladas',
+      value: Number(summary.subscriptionsCanceled || 0),
+    },
+  ]), [summary]);
+
   const loadAudit = useCallback(async ({ silent = false } = {}) => {
     if (!silent) setStatus('loading');
     setError('');
@@ -132,10 +156,10 @@ export default function AdminAuditView() {
             data={auditCounters}
           />
           <InteractiveDonutChart
-            title="Distribuição dos contadores"
-            subtitle="Balanço atual"
-            data={auditCounters}
-            centerLabel="Ações"
+            title="Balanço das ações"
+            subtitle="Concluídas e atenções"
+            data={actionBalance}
+            centerLabel="Eventos"
           />
         </section>
       ) : null}
