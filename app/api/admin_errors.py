@@ -173,7 +173,7 @@ def admin_errors_overview(
 
     merged_events = _merge_events(events)
     items = []
-    module_names = set()
+    affected_module_names = set()
     total_occurrences = 0
     status_counts = {"active": 0, "stable": 0, "resolved": 0}
     active_severity_counts = {"critical": 0, "error": 0, "warning": 0}
@@ -181,7 +181,8 @@ def admin_errors_overview(
     for event in merged_events:
         status = _status(event, now)
         severity = event["severity"] if event["severity"] in active_severity_counts else "error"
-        module_names.add(event["module"])
+        if status in {"active", "stable"} and event.get("module"):
+            affected_module_names.add(event["module"])
         total_occurrences += event["occurrences"]
         status_counts[status] += 1
         if status == "active":
@@ -221,7 +222,7 @@ def admin_errors_overview(
             "resolvedGroups": status_counts["resolved"],
             "criticalGroups": active_severity_counts["critical"],
             "warningGroups": active_severity_counts["warning"],
-            "affectedModules": len(module_names),
+            "affectedModules": len(affected_module_names),
             "totalOccurrences": total_occurrences,
             "totalGroups": len(items),
         },
