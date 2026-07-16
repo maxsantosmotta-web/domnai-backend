@@ -4,6 +4,7 @@ from fastapi import APIRouter, Depends, HTTPException, Response
 from pydantic import BaseModel, Field
 from sqlalchemy import select
 
+from app.audit import record_audit_event
 from app.auth import require_authenticated_user
 from app.database import session_scope
 from app.models import ActiveChatState, ChatTask
@@ -92,6 +93,18 @@ def _load_messages(state: ActiveChatState | None) -> list[dict]:
     except json.JSONDecodeError:
         return []
     return messages if isinstance(messages, list) else []
+
+
+def _has_completed_response(messages: list[dict]) -> bool:
+    for item in messages:
+        if str(item.get("role") or "").strip().lower() != "assistant":
+            continue
+        if item.get("processing") or item.get("isError"):
+            continue
+        text = str(item.get("text") or "").strip()
+        if text and text != "DomnAI está analisando...":
+            return True
+    return False
 
 
 def _task_key(item: dict) -> tuple[str, str] | None:
@@ -202,6 +215,23 @@ def clear_chat_state(session: dict = Depends(require_authenticated_user)):
     with session_scope() as db:
         state = db.get(ActiveChatState, user_id)
         if state is not None:
+            messages = _load_messages(state)
+            if _has_completed_response(messages):
+                operation = str(state.active_operation or "").strip()
+                record_audit_event(
+                    db,
+                    user_id=user_id,
+                    category="chat",
+                    module="Chat",
+                    action="conversation_completed",
+                    description=(
+                        f"Operação concluída: {operation}."
+                        if operation
+                        else "Conversa concluída pelo usuário."
+                    ),
+                    source="chat_state",
+                    source_key=f"conversation:{user_id}:{state.updated_at.isoformat()}",
+                )
             db.delete(state)
     try:
         clear_diagnosis_state(user_id)
