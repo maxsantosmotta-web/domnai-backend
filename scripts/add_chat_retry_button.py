@@ -20,9 +20,9 @@ retry_function = r'''
     }
     if (userIndex < 0) return;
 
-    const failedMessage = messages[errorIndex];
+    const errorMessage = messages[errorIndex];
     const userMessage = messages[userIndex];
-    const originalTaskId = failedMessage?.taskId || userMessage?.taskId || null;
+    const originalTaskId = errorMessage.taskId || userMessage.taskId || null;
     const messageForApi = String(userMessage.text || '').trim()
       || `Analise os arquivos anexados: ${(userMessage.attachments || []).map((item) => item.name).join(', ')}`;
     if (!messageForApi) return;
@@ -45,6 +45,7 @@ retry_function = r'''
             ...message,
             text: 'DomnAI está analisando...',
             attachments: [],
+            taskId: originalTaskId,
             processing: true,
             isError: false,
           }
@@ -52,33 +53,24 @@ retry_function = r'''
     )));
 
     try {
-      let taskId = originalTaskId;
+      const response = originalTaskId
+        ? await authorizedFetch(`/api/chat/tasks/${originalTaskId}/retry`, { method: 'POST' })
+        : await authorizedFetch('/api/chat/respond', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              message: messageForApi,
+              operation: operationName,
+              history,
+              attachments: (userMessage.attachments || [])
+                .filter((item) => item.libraryId)
+                .map((item) => ({ library_id: item.libraryId })),
+            }),
+          });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(payload.detail || 'Não foi possível tentar novamente.');
 
-      if (originalTaskId) {
-        const retryResponse = await authorizedFetch(`/api/chat/tasks/${originalTaskId}/retry`, {
-          method: 'POST',
-        });
-        const retryPayload = await retryResponse.json().catch(() => ({}));
-        if (!retryResponse.ok) throw new Error(retryPayload.detail || 'Não foi possível tentar novamente.');
-        taskId = retryPayload.taskId || originalTaskId;
-      } else {
-        const response = await authorizedFetch('/api/chat/respond', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            message: messageForApi,
-            operation: operationName,
-            history,
-            attachments: (userMessage.attachments || [])
-              .filter((item) => item.libraryId)
-              .map((item) => ({ library_id: item.libraryId })),
-          }),
-        });
-        const payload = await response.json().catch(() => ({}));
-        if (!response.ok) throw new Error(payload.detail || 'Não foi possível tentar novamente.');
-        taskId = payload.taskId;
-      }
-
+      const taskId = payload.taskId || originalTaskId;
       if (!taskId) throw new Error('A tarefa não foi preparada corretamente.');
 
       setMessages((current) => current.map((message) => (
@@ -103,18 +95,11 @@ retry_function = r'''
 
 '''
 
-start_marker = '  async function retryFailedMessage(messageId) {'
-end_marker = '  async function moveLibraryAssetToTrash'
-start = source.find(start_marker)
-end = source.find(end_marker, start)
-if start >= 0 and end > start:
-    source = source[:start] + retry_function + source[end:]
-elif start < 0:
-    if end < 0:
+if 'async function retryFailedMessage(messageId)' not in source:
+    marker = '  async function moveLibraryAssetToTrash'
+    if marker not in source:
         raise RuntimeError('Não foi possível localizar o ponto de inserção da função de nova tentativa.')
-    source = source[:end] + retry_function + source[end:]
-else:
-    raise RuntimeError('Não foi possível atualizar a função de nova tentativa.')
+    source = source.replace(marker, retry_function + marker, 1)
 
 if 'className="chat-retry-button"' not in source:
     marker = "{message.text ? <p>{message.text}</p> : null}"
