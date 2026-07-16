@@ -9,6 +9,7 @@ from app.audit import record_audit_event
 from app.auth import require_authenticated_user
 from app.database import session_scope
 from app.models import LibraryAsset
+from app.services.credit_meter import ensure_artifact_credit
 from app.services.pdf_report import generate_pdf_report
 
 
@@ -62,6 +63,8 @@ def create_pdf_report(
             status_code=409,
             detail="A geração do PDF exige confirmação explícita do usuário.",
         )
+
+    ensure_artifact_credit(user_id, "pdf")
 
     try:
         generated = generate_pdf_report(payload.model_dump())
