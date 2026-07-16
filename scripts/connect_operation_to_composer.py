@@ -4,6 +4,39 @@ import re
 path = Path('/frontend/src/Dashboard.jsx')
 source = path.read_text(encoding='utf-8')
 
+# Os módulos agrupados devem usar os mesmos botões React e o mesmo fluxo de
+# selectOperation dos módulos originais. Ao incluí-los na coleção nativa antes
+# do agrupamento visual, não há envio artificial de mensagem nem contexto antigo.
+additional_operations = """  { id: 'compras-alto-valor', name: 'Análise de Compras Pessoais de Alto Valor' },
+  { id: 'viagens-orcamento', name: 'Planejamento de Viagens e Orçamento' },
+  { id: 'carreiras', name: 'Análise de Tendências Profissionais e Carreiras' },
+  { id: 'estudos-qualificacao', name: 'Planejamento de Estudos e Qualificação Profissional' },
+  { id: 'financas-pessoais', name: 'Organização Financeira Pessoal' },
+  { id: 'treinos-academia', name: 'Planejamento de Treinos para Academia' },
+  { id: 'exercicios-casa', name: 'Planejamento de Exercícios em Casa' },
+  { id: 'alimentacao-fitness', name: 'Análise de Alimentação e Rotina Fitness' },
+  { id: 'estatistica-apostas', name: 'Análise Estatística Esportiva para Apostas' },
+  { id: 'pilates-casa', name: 'Pilates para Fazer em Casa' },
+  { id: 'yoga-casa', name: 'Yoga para Fazer em Casa' },
+  { id: 'cronograma-capilar', name: 'Cronograma Capilar Personalizado' },
+  { id: 'cuidados-pele', name: 'Cuidados com a Pele em Casa' },
+  { id: 'treino-esportivo', name: 'Plano de Treino Esportivo' },
+  { id: 'preparacao-corrida', name: 'Preparação para Corrida' },
+  { id: 'alongamento-mobilidade', name: 'Plano de Alongamento e Mobilidade' },
+  { id: 'preparacao-fisica', name: 'Preparação Física para Esportes' },
+"""
+operations_marker = "  { id: 'imoveis', name: 'Análise Imobiliária' },\n];"
+if "id: 'compras-alto-valor'" not in source:
+    if source.count(operations_marker) != 1:
+        raise RuntimeError(
+            f'Não foi possível localizar a lista nativa de operações; esperado 1 trecho, encontrado {source.count(operations_marker)}.'
+        )
+    source = source.replace(
+        operations_marker,
+        "  { id: 'imoveis', name: 'Análise Imobiliária' },\n" + additional_operations + "];",
+        1,
+    )
+
 source = source.replace(
     "import React, { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';",
     "import React, { useEffect, useMemo, useRef, useState } from 'react';",
