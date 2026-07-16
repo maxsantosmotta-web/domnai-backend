@@ -165,11 +165,6 @@ def _process_task(task_id: str) -> None:
         existing_result = json.loads(task.result_json) if task.result_json else None
         user_id = task.user_id
         created_at = task.created_at
-        billing_key = (
-            task.credit_transaction_key
-            or str(payload.get("billing_key") or "").strip()
-            or f"chat-task:{task_id}"
-        )
 
     if created_at is not None:
         try:
@@ -180,7 +175,7 @@ def _process_task(task_id: str) -> None:
 
     if existing_result is None:
         preparation_started_at = time.perf_counter()
-        if not payload.get("local_artifact_followup") and not payload.get("retry_charge_exists"):
+        if not payload.get("local_artifact_followup"):
             ensure_minimum_credit(user_id)
         original_message = str(payload.get("message") or "").strip()
         operation = payload.get("operation")
@@ -272,7 +267,7 @@ def _process_task(task_id: str) -> None:
         diagnosis_state=existing_result.get("diagnosis_state"),
     )
     billing_started_at = time.perf_counter()
-    usage = charge_usage(user_id, meter_result, idempotency_key=billing_key)
+    usage = charge_usage(user_id, meter_result, idempotency_key=f"chat-task:{task_id}")
     timings = dict(existing_result.get("timings") or timings)
     timings["billing_ms"] = _elapsed_ms(billing_started_at)
     if meter_result.diagnosis_state is not None:
@@ -300,8 +295,7 @@ def _process_task(task_id: str) -> None:
         task.status = "completed"
         task.completed_at = _now()
         task.updated_at = _now()
-        if not payload.get("retry_of_task_id"):
-            task.credit_transaction_key = billing_key
+        task.credit_transaction_key = f"chat-task:{task_id}"
 
 
 def _loop(worker_index: int) -> None:
