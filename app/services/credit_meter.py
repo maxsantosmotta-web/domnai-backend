@@ -10,6 +10,7 @@ from app.services.metered_brain import MeteredBrainResult
 
 ADMIN_CREDITS = 100000
 DEFAULT_USD_PER_CREDIT = 0.001
+ARTIFACT_MINIMUM_CREDITS = 7
 
 MODEL_RATES_USD_PER_MILLION = {
     "gpt-4o-mini": {"input": 0.15, "cached_input": 0.075, "output": 0.60},
@@ -72,6 +73,21 @@ def ensure_minimum_credit(user_id: str) -> None:
             return
         if account.plan_credits + account.extra_credits < 1:
             raise HTTPException(status_code=402, detail="Créditos insuficientes para gerar uma resposta.")
+
+
+def ensure_artifact_credit(user_id: str, artifact_type: str) -> None:
+    normalized_type = str(artifact_type or "").strip().lower()
+    label = "planilha" if normalized_type in {"xlsx", "csv", "spreadsheet", "planilha"} else "PDF"
+
+    with session_scope() as db:
+        account = db.get(BillingAccount, user_id)
+        if account is None:
+            raise HTTPException(status_code=402, detail=f"Saldo insuficiente para gerar {label}.")
+        if account.plan_credits >= ADMIN_CREDITS:
+            return
+        available = account.plan_credits + account.extra_credits
+        if available < ARTIFACT_MINIMUM_CREDITS:
+            raise HTTPException(status_code=402, detail=f"Saldo insuficiente para gerar {label}.")
 
 
 def charge_usage(user_id: str, result: MeteredBrainResult, idempotency_key: str | None = None) -> dict:
