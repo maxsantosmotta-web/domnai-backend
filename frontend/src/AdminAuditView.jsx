@@ -1,5 +1,6 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useAuth } from '@clerk/clerk-react';
+import { InteractiveBarChart, InteractiveDonutChart } from './AdminPremiumCharts';
 import './admin-audit-view.css';
 
 const EMPTY_SUMMARY = {
@@ -12,6 +13,18 @@ const EMPTY_SUMMARY = {
   pdfsDelivered: 0,
   spreadsheetsDelivered: 0,
   conversationsCompleted: 0,
+};
+
+const AUDIT_COUNTER_LABELS = {
+  planChanges: 'Plano escolhido ou alterado',
+  paymentsApproved: 'Pagamento aprovado',
+  paymentsFailed: 'Pagamento recusado',
+  subscriptionsCanceled: 'Assinatura cancelada',
+  creditsAdded: 'Créditos adicionados',
+  creditsConsumed: 'Créditos consumidos',
+  pdfsDelivered: 'PDF concluído pelo chat',
+  spreadsheetsDelivered: 'Planilha concluída pelo chat',
+  conversationsCompleted: 'Conversas/Operações concluídas',
 };
 
 function formatNumber(value) {
@@ -47,6 +60,12 @@ export default function AdminAuditView() {
   const [generatedAt, setGeneratedAt] = useState('');
   const [status, setStatus] = useState('loading');
   const [error, setError] = useState('');
+
+  const auditCounters = useMemo(() => Object.entries(summary).map(([key, value]) => ({
+    key,
+    label: AUDIT_COUNTER_LABELS[key] || key,
+    value: Number(value || 0),
+  })), [summary]);
 
   const loadAudit = useCallback(async ({ silent = false } = {}) => {
     if (!silent) setStatus('loading');
@@ -97,16 +116,29 @@ export default function AdminAuditView() {
       </header>
 
       <div className="domnai-admin-audit-summary" aria-label="Resumo da auditoria">
-        <article><span>Plano escolhido ou alterado</span><strong>{formatNumber(summary.planChanges)}</strong></article>
-        <article><span>Pagamento aprovado</span><strong>{formatNumber(summary.paymentsApproved)}</strong></article>
-        <article><span>Pagamento recusado</span><strong>{formatNumber(summary.paymentsFailed)}</strong></article>
-        <article><span>Assinatura cancelada</span><strong>{formatNumber(summary.subscriptionsCanceled)}</strong></article>
-        <article><span>Créditos adicionados</span><strong>{formatNumber(summary.creditsAdded)}</strong></article>
-        <article><span>Créditos consumidos</span><strong>{formatNumber(summary.creditsConsumed)}</strong></article>
-        <article><span>PDF concluído pelo chat</span><strong>{formatNumber(summary.pdfsDelivered)}</strong></article>
-        <article><span>Planilha concluída pelo chat</span><strong>{formatNumber(summary.spreadsheetsDelivered)}</strong></article>
-        <article><span>Conversas/Operações concluídas</span><strong>{formatNumber(summary.conversationsCompleted)}</strong></article>
+        {auditCounters.map((counter) => (
+          <article key={counter.key}>
+            <span>{counter.label}</span>
+            <strong>{formatNumber(counter.value)}</strong>
+          </article>
+        ))}
       </div>
+
+      {status === 'ready' ? (
+        <div className="domnai-premium-chart-grid">
+          <InteractiveBarChart
+            title="Auditoria em tempo real"
+            subtitle="Ações registradas"
+            data={auditCounters}
+          />
+          <InteractiveDonutChart
+            title="Balanço das ações"
+            subtitle="Distribuição dos contadores"
+            data={auditCounters}
+            centerLabel="Ações"
+          />
+        </div>
+      ) : null}
 
       {status === 'loading' ? (
         <div className="domnai-admin-audit-state"><span className="audit-spinner" />Carregando auditoria...</div>
