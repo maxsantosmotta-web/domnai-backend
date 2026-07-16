@@ -1,3 +1,4 @@
+import re
 from datetime import datetime, timedelta, timezone
 
 from fastapi import APIRouter, Depends, Query
@@ -21,6 +22,8 @@ STATUS_LABELS = {
     "stable": "Estabilizado",
     "resolved": "Resolvido",
 }
+
+SEVERITY_PRIORITY = {"critical": 0, "error": 1, "warning": 2}
 
 
 def _require_admin(session: dict) -> str:
@@ -58,6 +61,87 @@ def _status(event: dict, now: datetime) -> str:
     return "resolved"
 
 
+def _canonical_message(title: str, message: str) -> str:
+    """Remove valores variáveis sem alterar os registros originais do banco."""
+    value = " ".join(str(message or "").split()).casefold()
+    title_value = " ".join(str(title or "").split()).casefold()
+
+    if "uniqueviolation" in value or "duplicate key value" in value:
+        constraint = re.search(r'unique constraint ["\']([^"\']+)["\']', value)
+        key_name = re.search(r"key\s*\(([^)]+)\)\s*=", value)
+        return "|".join((
+            "unique-violation",
+            constraint.group(1) if constraint else "",
+            key_name.group(1) if key_name else "",
+        ))
+
+    value = re.sub(
+        r"\b[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}\b",
+        "<uuid>",
+        value,
+        flags=re.IGNORECASE,
+    )
+    value = re.sub(r"\b0x[0-9a-f]+\b", "<hex>", value, flags=re.IGNORECASE)
+    value = re.sub(r"\breq[_-][a-z0-9_-]+\b", "<request>", value, flags=re.IGNORECASE)
+    value = re.sub(r"key\s*\(([^)]+)\)\s*=\s*\([^)]+\)", r"key(\1)=(<value>)", value)
+    value = re.sub(r"\b\d{6,}\b", "<number>", value)
+    return f"{title_value}|{value}"
+
+
+def _group_key(event: dict) -> tuple[str, str, str, str, str, str]:
+    return (
+        str(event.get("module") or "").strip().casefold(),
+        str(event.get("title") or "").strip().casefold(),
+        str(event.get("source") or "").strip().casefold(),
+        str(event.get("path") or "").strip().casefold(),
+        str(event.get("method") or "").strip().upper(),
+        _canonical_message(event.get("title") or "", event.get("message") or ""),
+    )
+
+
+def _merge_events(events: list[dict]) -> list[dict]:
+    grouped: dict[tuple[str, str, str, str, str, str], dict] = {}
+
+    for event in events:
+        key = _group_key(event)
+        current = grouped.get(key)
+        if current is None:
+            grouped[key] = dict(event)
+            continue
+
+        current["occurrences"] += event["occurrences"]
+
+        first_seen = [
+            value for value in (current.get("first_seen_at"), event.get("first_seen_at"))
+            if value is not None
+        ]
+        last_seen = [
+            value for value in (current.get("last_seen_at"), event.get("last_seen_at"))
+            if value is not None
+        ]
+        current["first_seen_at"] = min(first_seen) if first_seen else None
+        current["last_seen_at"] = max(last_seen) if last_seen else None
+
+        # Um grupo só é resolvido quando todas as ocorrências equivalentes foram resolvidas.
+        if current.get("resolved_at") is None or event.get("resolved_at") is None:
+            current["resolved_at"] = None
+        else:
+            current["resolved_at"] = max(current["resolved_at"], event["resolved_at"])
+
+        current_severity = current.get("severity") if current.get("severity") in SEVERITY_PRIORITY else "error"
+        event_severity = event.get("severity") if event.get("severity") in SEVERITY_PRIORITY else "error"
+        if SEVERITY_PRIORITY[event_severity] < SEVERITY_PRIORITY[current_severity]:
+            current["severity"] = event_severity
+
+        if (event.get("last_seen_at") or datetime.min.replace(tzinfo=timezone.utc)) >= (
+            current.get("last_seen_at") or datetime.min.replace(tzinfo=timezone.utc)
+        ):
+            current["message"] = event["message"]
+            current["id"] = event["id"]
+
+    return list(grouped.values())
+
+
 @router.get("")
 def admin_errors_overview(
     limit: int = Query(default=500, ge=1, le=2000),
@@ -87,19 +171,21 @@ def admin_errors_overview(
             "resolved_at": _normalize_datetime(item.resolved_at),
         } for item in rows]
 
+    merged_events = _merge_events(events)
     items = []
     module_names = set()
     total_occurrences = 0
     status_counts = {"active": 0, "stable": 0, "resolved": 0}
-    severity_counts = {"critical": 0, "error": 0, "warning": 0}
+    active_severity_counts = {"critical": 0, "error": 0, "warning": 0}
 
-    for event in events:
+    for event in merged_events:
         status = _status(event, now)
-        severity = event["severity"] if event["severity"] in severity_counts else "error"
+        severity = event["severity"] if event["severity"] in active_severity_counts else "error"
         module_names.add(event["module"])
         total_occurrences += event["occurrences"]
         status_counts[status] += 1
-        severity_counts[severity] += 1
+        if status == "active":
+            active_severity_counts[severity] += 1
         items.append({
             "id": event["id"],
             "module": event["module"],
@@ -117,12 +203,11 @@ def admin_errors_overview(
             "lastSeenAt": _iso(event["last_seen_at"]),
         })
 
-    severity_priority = {"critical": 0, "error": 1, "warning": 2}
     status_priority = {"active": 0, "stable": 1, "resolved": 2}
     items.sort(
         key=lambda item: (
             status_priority.get(item["status"], 9),
-            severity_priority.get(item["severity"], 9),
+            SEVERITY_PRIORITY.get(item["severity"], 9),
             item.get("lastSeenAt") or "",
         ),
         reverse=False,
@@ -134,8 +219,8 @@ def admin_errors_overview(
             "activeGroups": status_counts["active"],
             "stableGroups": status_counts["stable"],
             "resolvedGroups": status_counts["resolved"],
-            "criticalGroups": severity_counts["critical"],
-            "warningGroups": severity_counts["warning"],
+            "criticalGroups": active_severity_counts["critical"],
+            "warningGroups": active_severity_counts["warning"],
             "affectedModules": len(module_names),
             "totalOccurrences": total_occurrences,
             "totalGroups": len(items),
