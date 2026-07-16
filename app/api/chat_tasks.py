@@ -72,6 +72,28 @@ def create_task(payload: ChatTaskRequest, session: dict = Depends(require_authen
         return {"taskId": task.id, "status": task.status}
 
 
+@router.post("/{task_id}/retry", status_code=status.HTTP_202_ACCEPTED)
+def retry_task(task_id: str, session: dict = Depends(require_authenticated_user)):
+    """Reabre a mesma tarefa para preservar a chave idempotente de cobrança."""
+    user_id = _user_id(session)
+    with session_scope() as db:
+        task = db.get(ChatTask, task_id)
+        if task is None or task.user_id != user_id:
+            raise HTTPException(status_code=404, detail="Tarefa não encontrada.")
+
+        if task.status == "failed":
+            task.status = "queued"
+            task.error_message = None
+            task.completed_at = None
+            task.updated_at = datetime.now(timezone.utc)
+
+        return {
+            "taskId": task.id,
+            "status": task.status,
+            "reused": True,
+        }
+
+
 @router.get("/{task_id}")
 def get_task(task_id: str, session: dict = Depends(require_authenticated_user)):
     user_id = _user_id(session)
