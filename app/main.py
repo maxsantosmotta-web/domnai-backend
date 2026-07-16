@@ -12,7 +12,6 @@ from app.api.artifacts import router as artifacts_router
 from app.api.auth import router as auth_router
 from app.api.billing import router as billing_router
 from app.api.chat_persistent import router as chat_persistent_router
-from app.api.chat import router as chat_router
 from app.api.chat_state import router as chat_state_router
 from app.api.chat_tasks import router as chat_tasks_router
 from app.api.config import router as config_router
@@ -91,7 +90,6 @@ app.include_router(admin_billing_router)
 app.include_router(admin_errors_router)
 app.include_router(admin_audit_router)
 app.include_router(chat_persistent_router)
-app.include_router(chat_router)
 app.include_router(chat_state_router)
 app.include_router(chat_tasks_router)
 app.include_router(decisions_router)
