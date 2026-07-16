@@ -125,19 +125,19 @@ export default function AdminAuditView() {
       </div>
 
       {status === 'ready' ? (
-        <div className="domnai-premium-chart-grid">
+        <section className="domnai-premium-chart-grid domnai-admin-audit-charts" aria-label="Gráficos da auditoria">
           <InteractiveBarChart
             title="Auditoria em tempo real"
             subtitle="Ações registradas"
             data={auditCounters}
           />
           <InteractiveDonutChart
-            title="Balanço das ações"
-            subtitle="Distribuição dos contadores"
+            title="Distribuição dos contadores"
+            subtitle="Balanço atual"
             data={auditCounters}
             centerLabel="Ações"
           />
-        </div>
+        </section>
       ) : null}
 
       {status === 'loading' ? (
