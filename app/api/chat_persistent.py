@@ -11,7 +11,7 @@ from sqlalchemy import select
 from app.api.chat import ChatRequest
 from app.auth import require_authenticated_user
 from app.database import session_scope
-from app.models import ActiveChatState, ChatTask, LibraryAsset
+from app.models import ActiveChatState, ChatTask, CreditTransaction, LibraryAsset
 from app.services.artifact_source import resolve_local_artifact_request
 from app.services.credit_meter import ensure_minimum_credit
 
@@ -127,9 +127,6 @@ def persistent_respond(payload: PersistentChatRequest, session: dict = Depends(r
 
     history = [item.model_dump() for item in payload.history]
     local_artifact_followup = resolve_local_artifact_request(message, history) is not None
-    if not local_artifact_followup:
-        ensure_minimum_credit(user_id)
-
     now = datetime.now(timezone.utc)
     operation = payload.operation.strip() if payload.operation else None
     attachment_ids = [item.library_id for item in payload.attachments]
@@ -137,6 +134,7 @@ def persistent_respond(payload: PersistentChatRequest, session: dict = Depends(r
     with session_scope() as db:
         retry_of_task_id = str(payload.retry_of_task_id or "").strip() or None
         original_task = None
+        retry_charge_exists = False
         if retry_of_task_id:
             original_task = db.scalar(
                 select(ChatTask).where(
@@ -161,6 +159,17 @@ def persistent_respond(payload: PersistentChatRequest, session: dict = Depends(r
             if original_task.status != "failed":
                 raise HTTPException(status_code=409, detail="Esta tarefa não pode ser processada novamente agora.")
 
+            original_billing_key = original_task.credit_transaction_key or f"chat-task:{original_task.id}"
+            retry_charge_exists = db.scalar(
+                select(CreditTransaction.id).where(
+                    CreditTransaction.user_id == user_id,
+                    CreditTransaction.stripe_event_id == original_billing_key,
+                )
+            ) is not None
+
+        if not local_artifact_followup and not retry_charge_exists:
+            ensure_minimum_credit(user_id)
+
         task_id = str(uuid4())
         billing_key = (
             original_task.credit_transaction_key
@@ -180,6 +189,7 @@ def persistent_respond(payload: PersistentChatRequest, session: dict = Depends(r
                     "attachment_ids": attachment_ids,
                     "local_artifact_followup": local_artifact_followup,
                     "retry_of_task_id": original_task.id if original_task else None,
+                    "retry_charge_exists": retry_charge_exists,
                     "billing_key": billing_key,
                 },
                 ensure_ascii=False,
