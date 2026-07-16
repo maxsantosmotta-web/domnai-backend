@@ -97,45 +97,6 @@ function closeAllOperationGroups() {
   });
 }
 
-function setReactTextareaValue(textarea, value) {
-  const descriptor = Object.getOwnPropertyDescriptor(
-    window.HTMLTextAreaElement.prototype,
-    'value',
-  );
-  descriptor?.set?.call(textarea, value);
-  textarea.dispatchEvent(new Event('input', { bubbles: true }));
-}
-
-function sendNewOperation(title) {
-  const textarea = document.querySelector('.chat-composer textarea');
-  const form = document.querySelector('.chat-composer');
-
-  if (!textarea || !form) {
-    const dashboardButton = [...document.querySelectorAll('.sidebar-navigation > button')]
-      .find((button) => normalizedText(button) === '▣ Dashboard' || normalizedText(button) === 'Dashboard');
-    dashboardButton?.click();
-    window.setTimeout(() => sendNewOperation(title), 80);
-    return;
-  }
-
-  setReactTextareaValue(textarea, title);
-  window.setTimeout(() => form.requestSubmit(), 0);
-
-  closeAllOperationGroups();
-  const sidebar = document.querySelector('.domnai-sidebar');
-  sidebar?.classList.remove('is-open');
-  document.querySelector('.sidebar-backdrop')?.click();
-}
-
-function createNewOperationButton(title) {
-  const button = document.createElement('button');
-  button.type = 'button';
-  button.className = 'grouped-operation-button';
-  button.innerHTML = `<span>›</span> ${title}`;
-  button.addEventListener('click', () => sendNewOperation(title));
-  return button;
-}
-
 function createGroup(group, existingButtons) {
   const details = document.createElement('details');
   details.className = 'operation-category';
@@ -149,8 +110,7 @@ function createGroup(group, existingButtons) {
   body.className = 'operation-category-body';
 
   group.operations.forEach((title) => {
-    const existing = existingButtons.get(title);
-    body.appendChild(existing || createNewOperationButton(title));
+    body.appendChild(existingButtons.get(title));
   });
 
   details.appendChild(body);
@@ -167,6 +127,12 @@ function organizeOperations() {
   const existingButtons = new Map(
     buttons.map((button) => [normalizedText(button), button]),
   );
+  const expectedOperations = operationGroups.flatMap((group) => group.operations);
+  const missingOperations = expectedOperations.filter((title) => !existingButtons.has(title));
+
+  // O React precisa disponibilizar as 36 operações antes do agrupamento.
+  // Não criamos botões paralelos nem disparamos o formulário automaticamente.
+  if (missingOperations.length) return;
 
   const heading = container.querySelector(':scope > p');
   container.innerHTML = '';
