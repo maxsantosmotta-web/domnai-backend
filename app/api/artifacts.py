@@ -1,5 +1,3 @@
-from __future__ import annotations
-
 from typing import Any, Literal
 
 from fastapi import APIRouter, Depends, HTTPException, status
@@ -9,6 +7,7 @@ from app.audit import record_audit_event
 from app.auth import require_authenticated_user
 from app.database import session_scope
 from app.models import LibraryAsset
+from app.services.credit_meter import ensure_artifact_credit
 from app.services.spreadsheet_artifact import generate_csv, generate_xlsx
 
 
@@ -49,6 +48,8 @@ def create_spreadsheet(
     user_id = str(session.get("sub") or "").strip()
     if not user_id:
         raise HTTPException(status_code=401, detail="Sessão inválida.")
+
+    ensure_artifact_credit(user_id, payload.format)
 
     try:
         if payload.format == "csv":
