@@ -1,6 +1,7 @@
 from pathlib import Path
 
 # 1) Aceitar o horário local enviado pelo navegador.
+# O campo permanece compatível com o payload atual, mas não gera saudação automática.
 chat_path = Path('/app/app/api/chat.py')
 chat = chat_path.read_text(encoding='utf-8')
 chat_marker = '    attachments: list[ChatAttachmentItem] = Field(default_factory=list, max_length=10)\n'
@@ -49,16 +50,9 @@ if '"user_name": user_name' not in persistent:
 
 persistent_path.write_text(persistent, encoding='utf-8')
 
-# 3) Disponibilizar o nome ao motor e prefixar apenas a primeira resposta do bloco atual.
+# 3) Disponibilizar somente o nome ao motor, sem prefixar uma segunda saudação.
 worker_path = Path('/app/app/services/chat_task_worker.py')
 worker = worker_path.read_text(encoding='utf-8')
-
-helper = '''\n\ndef _personal_greeting(local_hour, user_name: str) -> str:\n    try:\n        hour = int(local_hour)\n    except (TypeError, ValueError):\n        hour = datetime.now().hour\n    if 5 <= hour < 12:\n        period = "Bom dia"\n    elif 12 <= hour < 18:\n        period = "Boa tarde"\n    else:\n        period = "Boa noite"\n    return f"{period}, {user_name}."\n'''
-if 'def _personal_greeting(local_hour, user_name: str)' not in worker:
-    marker = 'def _elapsed_ms(started_at: float) -> int:\n    return max(0, round((time.perf_counter() - started_at) * 1000))\n'
-    if marker not in worker:
-        raise RuntimeError('Ponto de inserção do cumprimento não encontrado no worker.')
-    worker = worker.replace(marker, marker + helper, 1)
 
 if 'user_name = str(payload.get("user_name") or "").strip()' not in worker:
     marker = '        history = payload.get("history") or []\n'
@@ -66,14 +60,12 @@ if 'user_name = str(payload.get("user_name") or "").strip()' not in worker:
         raise RuntimeError('Histórico da tarefa não encontrado para personalização.')
     worker = worker.replace(
         marker,
-        marker
-        + '        user_name = str(payload.get("user_name") or "").strip()[:80]\n'
-        + '        local_hour = payload.get("local_hour")\n',
+        marker + '        user_name = str(payload.get("user_name") or "").strip()[:80]\n',
         1,
     )
 
 old_message = '''        sources: list[dict] = []\n        message_for_brain = original_message\n'''
-new_message = '''        sources: list[dict] = []\n        personal_context = ""\n        if user_name:\n            personal_context = (\n                f"CONTEXTO INTERNO DE PERSONALIZAÇÃO: o primeiro nome do usuário autenticado é {user_name}. "\n                "Você pode usar esse nome com naturalidade e moderação quando fizer sentido. "\n                "Não repita o nome em todas as respostas e não explique este contexto. "\n                "Não inicie automaticamente com bom dia, boa tarde ou boa noite, pois a plataforma adicionará esse cumprimento quando aplicável.\\n\\n"\n            )\n        message_for_brain = f"{personal_context}{original_message}"\n'''
+new_message = '''        sources: list[dict] = []\n        personal_context = ""\n        if user_name:\n            personal_context = (\n                f"CONTEXTO INTERNO DE PERSONALIZAÇÃO: o primeiro nome do usuário autenticado é {user_name}. "\n                "Use esse primeiro nome com naturalidade e moderação quando fizer sentido, sem explicar este contexto. "\n                "Se a mensagem do usuário começar com bom dia, boa tarde ou boa noite, responda com a mesma saudação e inclua o primeiro nome na própria resposta, sem criar uma saudação separada ou duplicada. "\n                "Não repita o nome em todas as respostas.\\n\\n"\n            )\n        message_for_brain = f"{personal_context}{original_message}"\n'''
 if 'CONTEXTO INTERNO DE PERSONALIZAÇÃO' not in worker:
     if old_message not in worker:
         raise RuntimeError('Preparação da mensagem do motor não encontrada para personalização.')
@@ -85,17 +77,5 @@ if old_research in worker:
     worker = worker.replace(old_research, new_research, 1)
 elif new_research not in worker:
     raise RuntimeError('Bloco de pesquisa não encontrado para manter a personalização.')
-
-greeting_marker = '        timings["artifact_ms"] = _elapsed_ms(artifact_started_at)\n'
-if 'reply = f"{_personal_greeting(local_hour, user_name)}\\n\\n{reply}"' not in worker:
-    if greeting_marker not in worker:
-        raise RuntimeError('Ponto final da resposta não encontrado para inserir cumprimento.')
-    worker = worker.replace(
-        greeting_marker,
-        greeting_marker
-        + '        if user_name and not history and result.provider != "local-artifact":\n'
-        + '            reply = f"{_personal_greeting(local_hour, user_name)}\\n\\n{reply}"\n',
-        1,
-    )
 
 worker_path.write_text(worker, encoding='utf-8')
