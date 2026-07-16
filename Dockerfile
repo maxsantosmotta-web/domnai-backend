@@ -89,9 +89,11 @@ COPY app ./app
 COPY scripts/connect_chat_sources_backend.py /tmp/connect_chat_sources_backend.py
 COPY scripts/connect_user_personalization_backend.py /tmp/connect_user_personalization_backend.py
 COPY scripts/connect_conversational_intent_backend.py /tmp/connect_conversational_intent_backend.py
+COPY scripts/finalize_artifact_delivery.py /tmp/finalize_artifact_delivery.py
 RUN python /tmp/connect_chat_sources_backend.py \
     && python /tmp/connect_user_personalization_backend.py \
-    && python /tmp/connect_conversational_intent_backend.py
+    && python /tmp/connect_conversational_intent_backend.py \
+    && python /tmp/finalize_artifact_delivery.py
 COPY --from=frontend-builder /frontend/dist ./frontend/dist
 EXPOSE 8080
 CMD ["sh", "-c", "alembic upgrade head && uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-8080}"]
