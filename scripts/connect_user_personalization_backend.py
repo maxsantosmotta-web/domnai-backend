@@ -1,7 +1,6 @@
 from pathlib import Path
 
 # 1) Manter compatibilidade com o payload já publicado.
-# O horário local continua aceito, mas não participa da personalização.
 chat_path = Path('/app/app/api/chat.py')
 chat = chat_path.read_text(encoding='utf-8')
 chat_marker = '    attachments: list[ChatAttachmentItem] = Field(default_factory=list, max_length=10)\n'
@@ -50,7 +49,7 @@ if '"user_name": user_name' not in persistent:
 
 persistent_path.write_text(persistent, encoding='utf-8')
 
-# 3) Disponibilizar somente o nome ao motor, sem regra de saudação.
+# 3) Usar o nome somente na primeira resposta estruturada de uma operação.
 worker_path = Path('/app/app/services/chat_task_worker.py')
 worker = worker_path.read_text(encoding='utf-8')
 
@@ -65,7 +64,7 @@ if 'user_name = str(payload.get("user_name") or "").strip()' not in worker:
     )
 
 old_message = '''        sources: list[dict] = []\n        message_for_brain = original_message\n'''
-new_message = '''        sources: list[dict] = []\n        personal_context = ""\n        if user_name:\n            personal_context = (\n                f"CONTEXTO INTERNO DE PERSONALIZAÇÃO: o primeiro nome do usuário autenticado é {user_name}. "\n                "Use esse primeiro nome com naturalidade e moderação quando fizer sentido, especialmente ao iniciar uma nova operação ou personalizar uma orientação. "\n                "Não crie, force, corrija ou duplique saudações como bom dia, boa tarde, boa noite, olá ou como vai. "\n                "Não repita o nome em todas as respostas e não explique este contexto.\\n\\n"\n            )\n        message_for_brain = f"{personal_context}{original_message}"\n'''
+new_message = '''        sources: list[dict] = []\n        personal_context = ""\n        if user_name and operation and not history:\n            personal_context = (\n                f"CONTEXTO INTERNO DE PERSONALIZAÇÃO: o primeiro nome do usuário autenticado é {user_name}. "\n                "Esta é a abertura de uma operação estruturada. Inicie a resposta usando o primeiro nome de forma natural, "\n                "como 'Max, para começar...' ou equivalente adequado ao conteúdo. Não use bom dia, boa tarde, boa noite, "\n                "olá ou como vai automaticamente. Não explique este contexto.\\n\\n"\n            )\n        message_for_brain = f"{personal_context}{original_message}"\n'''
 if 'CONTEXTO INTERNO DE PERSONALIZAÇÃO' not in worker:
     if old_message not in worker:
         raise RuntimeError('Preparação da mensagem do motor não encontrada para personalização.')
