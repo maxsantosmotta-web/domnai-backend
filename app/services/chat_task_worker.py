@@ -300,7 +300,8 @@ def _process_task(task_id: str) -> None:
         task.status = "completed"
         task.completed_at = _now()
         task.updated_at = _now()
-        task.credit_transaction_key = billing_key
+        if not payload.get("retry_of_task_id"):
+            task.credit_transaction_key = billing_key
 
 
 def _loop(worker_index: int) -> None:
