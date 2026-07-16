@@ -55,7 +55,7 @@ OPERATION_GUIDANCE = {
     "Abrir um Negócio do Zero": "Conduza da ideia ao plano inicial: público, oferta, modelo de receita, custos, validação, formalização e primeiros passos.",
     "Estruturação e Organização Empresarial": "Organize processos, responsabilidades, rotina, controles, indicadores e prioridades do negócio.",
     "Diagnóstico do Negócio": "Investigue vendas, operação, finanças, clientes, equipe e gargalos antes de recomendar ações.",
-    "Plano de Ação Empresarial": "Transforme o objetivo em ações priorizadas, responsáveis, prazos, recursos e indicadores.",
+    "Plano de Ação Empresarial": "Use todas as informações já fornecidas e não repita perguntas respondidas. Transforme o objetivo em ações priorizadas, responsáveis, prazos, recursos e indicadores. Quando o usuário informar dois volumes, metas ou quantidades, separe claramente o cenário conservador da meta ampliada, sem misturar os números. Quando houver comissões, bônus, custos, receitas ou projeções numéricas, apresente uma tabela objetiva e confira os cálculos. Destaque risco financeiro, capacidade de caixa e sustentabilidade antes de recomendar crescimento. Encerre com a ação prática mais importante para começar, sem pergunta genérica nem repetição da conclusão.",
     "Análise de Viabilidade": "Compare investimento, custos, receita provável, prazo, riscos, ponto de equilíbrio e cenários.",
     "Pesquisa de Mercado e Concorrência": "Defina mercado, público, concorrentes, critérios de comparação, oportunidades e lacunas.",
     "Gestão Financeira Empresarial": "Organize entradas, saídas, fluxo de caixa, margem, custos, reservas e decisões financeiras.",
