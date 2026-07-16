@@ -89,23 +89,26 @@ def charge_usage(user_id: str, result: MeteredBrainResult, idempotency_key: str 
         }
 
     with session_scope() as db:
+        account = db.scalar(
+            select(BillingAccount)
+            .where(BillingAccount.user_id == user_id)
+            .with_for_update()
+        )
+        if account is None:
+            raise HTTPException(status_code=402, detail="Conta de créditos não encontrada.")
+
         if idempotency_key:
             existing = db.scalar(
                 select(CreditTransaction).where(CreditTransaction.stripe_event_id == idempotency_key)
             )
             if existing is not None:
-                account = db.get(BillingAccount, user_id)
                 return {
                     **usage,
                     "charged_credits": abs(int(existing.amount or 0)),
                     "admin_exempt": existing.kind == "admin_usage",
-                    "remaining_credits": (account.plan_credits + account.extra_credits) if account else 0,
+                    "remaining_credits": account.plan_credits + account.extra_credits,
                     "idempotentReplay": True,
                 }
-
-        account = db.get(BillingAccount, user_id)
-        if account is None:
-            raise HTTPException(status_code=402, detail="Conta de créditos não encontrada.")
 
         is_admin = account.plan_credits >= ADMIN_CREDITS
         if is_admin:
