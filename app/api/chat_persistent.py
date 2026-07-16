@@ -194,7 +194,7 @@ def persistent_respond(payload: PersistentChatRequest, session: dict = Depends(r
                 },
                 ensure_ascii=False,
             ),
-            credit_transaction_key=billing_key,
+            credit_transaction_key=None if original_task else billing_key,
             created_at=now,
             updated_at=now,
         )
