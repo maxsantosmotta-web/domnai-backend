@@ -204,6 +204,11 @@ def _process_task(task_id: str) -> None:
         )
         timings["intelligence_ms"] = _elapsed_ms(intelligence_started_at)
         timings.update(getattr(result, "timings", None) or {})
+
+        billing_started_at = time.perf_counter()
+        usage = charge_usage(user_id, result, idempotency_key=f"chat-task:{task_id}")
+        timings["billing_ms"] = _elapsed_ms(billing_started_at)
+
         reply = result.text
         artifacts: list[dict] = []
         artifact_started_at = time.perf_counter()
@@ -221,6 +226,7 @@ def _process_task(task_id: str) -> None:
                     operation=operation,
                     answer=decision.get("source_answer") or reply,
                     decision=decision,
+                    billing_key=f"chat-task:{task_id}:artifact",
                 )
                 artifacts.append(artifact)
                 if result.provider == "local-artifact":
@@ -248,6 +254,7 @@ def _process_task(task_id: str) -> None:
             "diagnosis_state": result.diagnosis_state,
             "sources": sources,
             "timings": timings,
+            "usage": usage,
         }
         with session_scope() as db:
             task = db.get(ChatTask, task_id)
@@ -256,26 +263,34 @@ def _process_task(task_id: str) -> None:
             task.result_json = json.dumps(existing_result, ensure_ascii=False)
             task.updated_at = _now()
 
-    from app.services.metered_brain import MeteredBrainResult
-    meter_result = MeteredBrainResult(
-        text=existing_result["reply"],
-        provider=existing_result["provider"],
-        model=existing_result["model"],
-        input_tokens=int(existing_result.get("input_tokens") or 0),
-        output_tokens=int(existing_result.get("output_tokens") or 0),
-        cached_input_tokens=int(existing_result.get("cached_input_tokens") or 0),
-        diagnosis_state=existing_result.get("diagnosis_state"),
-    )
-    billing_started_at = time.perf_counter()
-    usage = charge_usage(user_id, meter_result, idempotency_key=f"chat-task:{task_id}")
-    timings = dict(existing_result.get("timings") or timings)
-    timings["billing_ms"] = _elapsed_ms(billing_started_at)
-    if meter_result.diagnosis_state is not None:
+    if existing_result.get("usage") is None:
+        from app.services.metered_brain import MeteredBrainResult
+        meter_result = MeteredBrainResult(
+            text=existing_result["reply"],
+            provider=existing_result["provider"],
+            model=existing_result["model"],
+            input_tokens=int(existing_result.get("input_tokens") or 0),
+            output_tokens=int(existing_result.get("output_tokens") or 0),
+            cached_input_tokens=int(existing_result.get("cached_input_tokens") or 0),
+            diagnosis_state=existing_result.get("diagnosis_state"),
+        )
+        billing_started_at = time.perf_counter()
+        existing_result["usage"] = charge_usage(
+            user_id,
+            meter_result,
+            idempotency_key=f"chat-task:{task_id}",
+        )
+        timings = dict(existing_result.get("timings") or timings)
+        timings["billing_ms"] = _elapsed_ms(billing_started_at)
+    else:
+        timings = dict(existing_result.get("timings") or timings)
+
+    if existing_result.get("diagnosis_state") is not None:
         try:
-            save_diagnosis_state(user_id, payload.get("operation"), meter_result.diagnosis_state)
+            save_diagnosis_state(user_id, payload.get("operation"), existing_result["diagnosis_state"])
         except Exception:
             pass
-    existing_result["usage"] = usage
+
     persistence_started_at = time.perf_counter()
     _append_completed_response(
         user_id,
