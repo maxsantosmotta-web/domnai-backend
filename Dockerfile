@@ -40,6 +40,7 @@ COPY scripts/connect_single_chat_refresh_bottom.py /tmp/connect_single_chat_refr
 COPY scripts/update_help_artifact_credits.py /tmp/update_help_artifact_credits.py
 COPY scripts/connect_user_personalization_frontend.py /tmp/connect_user_personalization_frontend.py
 COPY scripts/fix_admin_block3.py /tmp/fix_admin_block3.py
+COPY scripts/fix_user_block4.py /tmp/fix_user_block4.py
 RUN apk add --no-cache python3 \
     && python3 /tmp/connect_domnai_chat.py \
     && python3 /tmp/add_chat_retry_button.py \
@@ -77,6 +78,7 @@ RUN apk add --no-cache python3 \
     && python3 /tmp/update_help_artifact_credits.py \
     && python3 /tmp/connect_user_personalization_frontend.py \
     && python3 /tmp/fix_admin_block3.py \
+    && python3 /tmp/fix_user_block4.py \
     && npm run build
 
 FROM python:3.13-slim AS runtime
