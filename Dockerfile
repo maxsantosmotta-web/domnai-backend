@@ -99,13 +99,15 @@ COPY scripts/finalize_artifact_delivery.py /tmp/finalize_artifact_delivery.py
 COPY scripts/fix_admin_block3.py /tmp/fix_admin_block3.py
 COPY scripts/fix_p2p_audit_findings.py /tmp/fix_p2p_audit_findings.py
 COPY scripts/fix_artifact_exports.py /tmp/fix_artifact_exports.py
+COPY scripts/fix_chat_history_retention.py /tmp/fix_chat_history_retention.py
 RUN python /tmp/connect_chat_sources_backend.py \
     && python /tmp/connect_user_personalization_backend.py \
     && python /tmp/connect_conversational_intent_backend.py \
     && python /tmp/finalize_artifact_delivery.py \
     && python /tmp/fix_admin_block3.py \
     && python /tmp/fix_p2p_audit_findings.py \
-    && python /tmp/fix_artifact_exports.py
+    && python /tmp/fix_artifact_exports.py \
+    && python /tmp/fix_chat_history_retention.py
 COPY --from=frontend-builder /frontend/dist ./frontend/dist
 EXPOSE 8080
 CMD ["sh", "-c", "alembic upgrade head && uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-8080}"]
