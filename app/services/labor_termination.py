@@ -43,6 +43,17 @@ def _int_or_none(value: Any) -> int | None:
         return None
 
 
+def _bool_or_none(value: Any) -> bool | None:
+    if isinstance(value, bool):
+        return value
+    normalized = str(value or "").strip().casefold()
+    if normalized in {"true", "sim", "yes", "1"}:
+        return True
+    if normalized in {"false", "não", "nao", "no", "0"}:
+        return False
+    return None
+
+
 def _date(value: Any) -> date | None:
     text = str(value or "").strip()
     if not text:
@@ -122,7 +133,7 @@ def vacation_position(admission: date, projected_end: date) -> tuple[int, int, d
 
 def extraction_instructions() -> str:
     return """
-Extraia exclusivamente os dados confirmados no caso de rescisão trabalhista, considerando a conversa e a memória. Retorne JSON válido, sem markdown:
+Extraia os dados confirmados no caso de rescisão trabalhista usando toda a conversa e a memória. Entenda linguagem natural, respostas curtas, correções e formas equivalentes de dizer a mesma coisa. Retorne JSON válido, sem markdown:
 {
   "admission_date":"AAAA-MM-DD ou null",
   "termination_communication_date":"AAAA-MM-DD ou null",
@@ -132,8 +143,12 @@ Extraia exclusivamente os dados confirmados no caso de rescisão trabalhista, co
   "notice_days_explicit":"inteiro ou null",
   "salary_balance_days":"inteiro ou null",
   "thirteenth_already_paid":"número decimal ou null",
+  "thirteenth_proportional_months":"inteiro de 0 a 12 ou null",
+  "thirteenth_pending":"boolean ou null",
   "vacation_periods_already_paid":"inteiro ou null",
   "vacation_periods_already_taken":"inteiro ou null",
+  "vacation_proportional_months":"inteiro de 0 a 12 ou null",
+  "vacation_proportional_pending":"boolean ou null",
   "variable_pay_average":"número decimal ou null",
   "other_salary_additions":"número decimal ou null",
   "deductions":"número decimal ou null",
@@ -142,23 +157,28 @@ Extraia exclusivamente os dados confirmados no caso de rescisão trabalhista, co
 }
 
 REGRAS
-- Não invente, complete ou presuma nenhum valor.
-- Use null quando o usuário não confirmou a informação, inclusive quando o valor poderia ser zero.
-- Só registre 0 quando o usuário afirmou claramente que não recebeu, não possui ou não existe aquele item.
-- Não trate silêncio como ausência de comissão, adicional, desconto, férias pagas ou 13º antecipado.
-- notice_days_explicit registra apenas prazo comprovado ou claramente informado; o backend aplicará o prazo legal proporcional quando cabível.
-- fgts_information_status=unavailable somente quando o usuário disser que não possui extrato ou saldo; não inferir.
+- Não invente datas, valores ou fatos.
+- Interprete o sentido da resposta, não apenas palavras exatas.
+- Quando o usuário disser algo como “tenho 7 meses para contabilizar férias e décimo”, “são 7 avos dos dois” ou equivalente, registre 7 em thirteenth_proportional_months e vacation_proportional_months, além de marcar os respectivos campos pending como true.
+- Quando o usuário disser que uma verba está pendente, não pergunte novamente se ela foi paga sem existir contradição real.
+- Uma correção mais recente do usuário substitui informação anterior incompatível.
+- Use null quando a informação realmente não estiver disponível.
+- Só registre 0 quando o usuário afirmar claramente zero, ausência ou que não recebeu.
+- notice_days_explicit registra apenas prazo claramente informado; o backend aplicará o prazo legal proporcional quando cabível.
+- fgts_information_status=unavailable somente quando o usuário disser que não possui extrato ou saldo.
 """.strip()
 
 
 def missing_data_prompt_instructions() -> str:
     return """
-Você é o DomnAI conduzindo uma análise real de rescisão trabalhista.
-Formule uma resposta natural, curta e contextual para obter somente os dados realmente faltantes indicados pelo backend.
-Não siga roteiro fixo, não repita pergunta já respondida, não transforme a conversa em formulário e não exponha nomes técnicos dos campos.
-Explique brevemente por que uma confirmação pode alterar o resultado quando isso for útil.
-Faça no máximo três perguntas, agrupando informações relacionadas de maneira natural.
-Não calcule ainda, não sugira valores e não interprete silêncio como zero.
+Você é o DomnAI conduzindo uma conversa natural sobre rescisão trabalhista.
+Peça somente os dados essenciais realmente ausentes indicados pelo backend.
+Antes de perguntar, confira known_data, a mensagem atual e o plano para não repetir informação já fornecida de outra forma.
+Aceite respostas equivalentes, correções, números compartilhados entre férias e décimo e linguagem informal.
+Não siga roteiro fixo, não transforme a conversa em formulário e não exponha nomes técnicos dos campos.
+Faça no máximo duas perguntas curtas e contextualizadas.
+Dados complementares que não impedem uma estimativa inicial não devem bloquear a conversa.
+Não calcule valores nesta etapa e não interprete silêncio como confirmação.
 """.strip()
 
 
@@ -181,12 +201,18 @@ def calculate(data: dict[str, Any]) -> LaborCalculationResult:
     reason = str(data.get("termination_reason") or "").strip()
     notice_type = str(data.get("notice_type") or "").strip()
 
-    thirteenth_paid = _decimal(data.get("thirteenth_already_paid"))
-    paid_periods = _int_or_none(data.get("vacation_periods_already_paid"))
-    taken_periods = _int_or_none(data.get("vacation_periods_already_taken"))
-    variable = _decimal(data.get("variable_pay_average"))
-    additions = _decimal(data.get("other_salary_additions"))
-    deductions = _decimal(data.get("deductions"))
+    thirteenth_paid_raw = _decimal(data.get("thirteenth_already_paid"))
+    thirteenth_pending = _bool_or_none(data.get("thirteenth_pending"))
+    explicit_thirteenth_avos = _int_or_none(data.get("thirteenth_proportional_months"))
+
+    paid_periods_raw = _int_or_none(data.get("vacation_periods_already_paid"))
+    taken_periods_raw = _int_or_none(data.get("vacation_periods_already_taken"))
+    vacation_pending = _bool_or_none(data.get("vacation_proportional_pending"))
+    explicit_vacation_avos = _int_or_none(data.get("vacation_proportional_months"))
+
+    variable_raw = _decimal(data.get("variable_pay_average"))
+    additions_raw = _decimal(data.get("other_salary_additions"))
+    deductions_raw = _decimal(data.get("deductions"))
     fgts_status = str(data.get("fgts_information_status") or "").strip()
     fgts_balance = _decimal(data.get("fgts_balance"))
 
@@ -201,29 +227,36 @@ def calculate(data: dict[str, Any]) -> LaborCalculationResult:
         missing_fields.append("termination_reason")
     if not notice_type:
         missing_fields.append("notice_type")
-    if thirteenth_paid is None:
-        missing_fields.append("thirteenth_already_paid_or_confirmed_zero")
-    if paid_periods is None or taken_periods is None:
-        missing_fields.append("vacation_history")
-    if variable is None:
-        missing_fields.append("variable_pay_average_or_confirmed_zero")
-    if additions is None:
-        missing_fields.append("salary_additions_or_confirmed_zero")
-    if deductions is None:
-        missing_fields.append("deductions_or_confirmed_zero")
-    if fgts_status not in {"provided", "unavailable"}:
-        missing_fields.append("fgts_balance_or_unavailability")
-    if fgts_status == "provided" and fgts_balance is None:
-        missing_fields.append("fgts_balance")
     if missing_fields:
-        return LaborCalculationResult(False, missing_fields[:8])
+        return LaborCalculationResult(False, missing_fields)
 
     assert admission is not None and communication is not None and salary is not None
-    assert thirteenth_paid is not None and paid_periods is not None and taken_periods is not None
-    assert variable is not None and additions is not None and deductions is not None
-
     if communication < admission:
         return LaborCalculationResult(False, ["invalid_date_order"])
+
+    assumptions: list[str] = []
+    variable = variable_raw if variable_raw is not None else Decimal("0")
+    additions = additions_raw if additions_raw is not None else Decimal("0")
+    deductions = deductions_raw if deductions_raw is not None else Decimal("0")
+    if variable_raw is None:
+        assumptions.append("Média de remuneração variável não informada; não incluída nesta estimativa.")
+    if additions_raw is None:
+        assumptions.append("Adicionais salariais não informados; não incluídos nesta estimativa.")
+    if deductions_raw is None:
+        assumptions.append("Descontos não informados; não abatidos nesta estimativa.")
+
+    if thirteenth_paid_raw is not None:
+        thirteenth_paid = thirteenth_paid_raw
+    elif thirteenth_pending is True or explicit_thirteenth_avos is not None:
+        thirteenth_paid = Decimal("0")
+    else:
+        thirteenth_paid = Decimal("0")
+        assumptions.append("Valor de 13º já pago não informado; a estimativa considera nenhum adiantamento e deve ser conferida.")
+
+    paid_periods = max(0, paid_periods_raw or 0)
+    taken_periods = max(0, taken_periods_raw or 0)
+    if paid_periods_raw is None or taken_periods_raw is None:
+        assumptions.append("Histórico completo de férias pagas ou usufruídas não informado; períodos vencidos devem ser conferidos.")
 
     base = salary + variable + additions
     employer_termination = reason == "employer_without_cause"
@@ -253,13 +286,23 @@ def calculate(data: dict[str, Any]) -> LaborCalculationResult:
     balance_days = max(0, min(30, balance_days))
     salary_balance = _money(base / Decimal("30") * Decimal(balance_days))
 
-    thirteenth_avos = thirteenth_months(admission, projected_end)
+    calculated_thirteenth_avos = thirteenth_months(admission, projected_end)
+    thirteenth_avos = (
+        max(0, min(12, explicit_thirteenth_avos))
+        if explicit_thirteenth_avos is not None
+        else calculated_thirteenth_avos
+    )
+    thirteenth_source = "explicitly_informed" if explicit_thirteenth_avos is not None else "calculated_from_dates"
     thirteenth_gross = _money(base * Decimal(thirteenth_avos) / Decimal("12"))
     thirteenth_due = _money(max(Decimal("0"), thirteenth_gross - thirteenth_paid))
 
-    completed_periods, vacation_avos, current_period_start = vacation_position(admission, projected_end)
-    paid_periods = max(0, paid_periods)
-    taken_periods = max(0, taken_periods)
+    completed_periods, calculated_vacation_avos, current_period_start = vacation_position(admission, projected_end)
+    vacation_avos = (
+        max(0, min(12, explicit_vacation_avos))
+        if explicit_vacation_avos is not None
+        else calculated_vacation_avos
+    )
+    vacation_source = "explicitly_informed" if explicit_vacation_avos is not None else "calculated_from_dates"
     outstanding_completed = max(0, completed_periods - max(paid_periods, taken_periods))
     completed_vacation_base = _money(base * Decimal(outstanding_completed))
     proportional_vacation_base = _money(base * Decimal(vacation_avos) / Decimal("12"))
@@ -281,6 +324,13 @@ def calculate(data: dict[str, Any]) -> LaborCalculationResult:
         else None
     )
 
+    limitations = [
+        "O total direto não inclui cálculo definitivo de INSS, IRRF, convenção coletiva, multas específicas ou fatos não apresentados.",
+        "O saldo e a multa do FGTS só são exatos quando o saldo da conta vinculada é informado a partir do extrato.",
+        "O resultado deve ser confrontado com o TRCT, holerites, extrato do FGTS e documentos da empresa antes de qualquer medida jurídica.",
+    ]
+    limitations.extend(assumptions)
+
     report = {
         "inputs": {
             "admission_date": admission.isoformat(),
@@ -301,32 +351,30 @@ def calculate(data: dict[str, Any]) -> LaborCalculationResult:
             "notice_rule": "Na dispensa sem justa causa pelo empregador, o prazo foi calculado proporcionalmente ao tempo de serviço, limitado a 90 dias.",
             "thirteenth_rule": "Cada mês civil com 15 dias ou mais de contrato conta 1/12.",
             "vacation_rule": "Cada período mensal completo ou fração final de 15 dias ou mais conta 1/12.",
-            "unconfirmed_values_assumed_zero": False,
+            "unconfirmed_values_assumed_zero": bool(assumptions),
         },
         "amounts": {
             "salary_balance_days": balance_days,
             "salary_balance": str(salary_balance),
             "notice_indemnity": str(notice_amount),
             "thirteenth_avos": thirteenth_avos,
+            "thirteenth_avos_source": thirteenth_source,
             "thirteenth_gross": str(thirteenth_gross),
             "thirteenth_already_paid": str(_money(thirteenth_paid)),
             "thirteenth_due": str(thirteenth_due),
             "completed_vacation_periods_due": outstanding_completed,
             "current_vacation_period_start": current_period_start.isoformat(),
             "proportional_vacation_avos": vacation_avos,
+            "proportional_vacation_avos_source": vacation_source,
             "vacation_base_due": str(_money(vacation_base_due)),
             "vacation_one_third": str(vacation_third),
             "deductions_confirmed": str(_money(deductions)),
             "estimated_direct_total_before_statutory_tax_withholding": str(direct_total),
-            "fgts_information_status": fgts_status,
+            "fgts_information_status": fgts_status or "not_informed",
             "fgts_balance_informed": str(_money(fgts_balance)) if fgts_balance is not None else None,
             "fgts_40_percent_penalty": str(fgts_penalty) if fgts_penalty is not None else None,
         },
-        "limitations": [
-            "O total direto não inclui cálculo definitivo de INSS, IRRF, convenção coletiva, multas específicas ou fatos não apresentados.",
-            "O saldo e a multa do FGTS só são exatos quando o saldo da conta vinculada é informado a partir do extrato.",
-            "O resultado deve ser confrontado com o TRCT, holerites, extrato do FGTS e documentos da empresa antes de qualquer medida jurídica.",
-        ],
+        "limitations": limitations,
     }
     return LaborCalculationResult(True, [], report)
 
@@ -336,7 +384,9 @@ def render_instructions() -> str:
 Você é o redator final do cálculo de rescisão do DomnAI. Use exclusivamente o relatório determinístico fornecido pelo backend.
 Não altere datas, avos, fórmulas, prazo de aviso ou valores. Não recalcule por conta própria.
 Apresente em português claro: dados confirmados, base remuneratória, projeção do aviso, memória de cálculo por verba, total direto, FGTS separado e limitações.
+Quando os avos de férias ou décimo tiverem sido informados diretamente pelo usuário, respeite essa informação e deixe claro que ela foi usada.
+Não transforme limitações em novas perguntas quando já for possível apresentar uma estimativa útil.
 Destaque quando o aviso legal proporcional for diferente do prazo inicialmente citado pelo usuário.
-Nunca chame estimativa de valor definitivo. Quando o FGTS estiver indisponível, diga que essa parcela não foi fechada.
+Nunca chame estimativa de valor definitivo. Quando o FGTS estiver indisponível ou não informado, diga que essa parcela não foi fechada.
 Não mencione JSON, backend, modelo ou processo interno.
 """.strip()
