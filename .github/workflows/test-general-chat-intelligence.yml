@@ -1,6 +1,8 @@
 name: Validate general chat intelligence
 
 on:
+  push:
+    branches: [fix/general-chat-intelligence]
   pull_request:
     branches: [main]
     paths:
