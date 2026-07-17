@@ -6,14 +6,24 @@ from typing import Any
 from app.database import session_scope
 from app.models import DiagnosisState
 
-MAX_LIST_ITEMS = 30
-MAX_ITEM_LENGTH = 500
+MAX_LIST_ITEMS = 40
+MAX_ITEM_LENGTH = 700
 
 
 def empty_diagnosis_state(operation: str | None = None) -> dict[str, Any]:
     return {
         "operation": operation,
+        "current_topic": "",
+        "user_goal": "",
+        "expected_delivery": "",
+        "conversation_stage": "understanding",
         "confirmed_facts": [],
+        "user_constraints": [],
+        "user_preferences": [],
+        "alternatives": [],
+        "decisions": [],
+        "corrections": [],
+        "answered_questions": [],
         "missing_data": [],
         "assumptions": [],
         "documents": [],
@@ -47,15 +57,26 @@ def _clean_list(value: Any) -> list[str]:
 
 def sanitize_diagnosis_state(value: Any, operation: str | None = None) -> dict[str, Any]:
     source = value if isinstance(value, dict) else {}
+    stage = _clean_text(source.get("conversation_stage"), 80) or "understanding"
     return {
-        "operation": _clean_text(source.get("operation") or operation, 180) or None,
+        "operation": _clean_text(operation or source.get("operation"), 180) or None,
+        "current_topic": _clean_text(source.get("current_topic"), 500),
+        "user_goal": _clean_text(source.get("user_goal"), 1000),
+        "expected_delivery": _clean_text(source.get("expected_delivery"), 500),
+        "conversation_stage": stage,
         "confirmed_facts": _clean_list(source.get("confirmed_facts")),
+        "user_constraints": _clean_list(source.get("user_constraints")),
+        "user_preferences": _clean_list(source.get("user_preferences")),
+        "alternatives": _clean_list(source.get("alternatives")),
+        "decisions": _clean_list(source.get("decisions")),
+        "corrections": _clean_list(source.get("corrections")),
+        "answered_questions": _clean_list(source.get("answered_questions")),
         "missing_data": _clean_list(source.get("missing_data")),
         "assumptions": _clean_list(source.get("assumptions")),
         "documents": _clean_list(source.get("documents")),
         "validated_calculations": _clean_list(source.get("validated_calculations")),
         "risks": _clean_list(source.get("risks")),
-        "provisional_conclusion": _clean_text(source.get("provisional_conclusion"), 1600),
+        "provisional_conclusion": _clean_text(source.get("provisional_conclusion"), 2000),
         "next_steps": _clean_list(source.get("next_steps")),
     }
 
@@ -70,10 +91,8 @@ def load_diagnosis_state(user_id: str, operation: str | None) -> dict[str, Any]:
         except json.JSONDecodeError:
             payload = {}
 
+    # A operação muda o foco, mas não apaga a memória do mesmo problema.
     state = sanitize_diagnosis_state(payload, operation)
-    stored_operation = state.get("operation")
-    if operation and stored_operation and stored_operation != operation:
-        return empty_diagnosis_state(operation)
     if operation:
         state["operation"] = operation
     return state
@@ -100,54 +119,53 @@ def clear_diagnosis_state(user_id: str) -> None:
 
 def diagnosis_context(state: dict[str, Any] | None) -> str:
     safe = sanitize_diagnosis_state(state or {})
-    if not any(
-        safe.get(key)
-        for key in (
-            "confirmed_facts",
-            "missing_data",
-            "assumptions",
-            "documents",
-            "validated_calculations",
-            "risks",
-            "provisional_conclusion",
-            "next_steps",
-        )
-    ):
+    if not any(value for key, value in safe.items() if key not in {"operation", "conversation_stage"}):
         return ""
-    return "MEMÓRIA ESTRUTURADA DO DIAGNÓSTICO (use como contexto, sem expor este bloco ao usuário):\n" + json.dumps(
-        safe,
-        ensure_ascii=False,
-        indent=2,
+    return (
+        "MEMÓRIA ESTRUTURADA DA CONVERSA (use como contexto; não exponha este bloco):\n"
+        + json.dumps(safe, ensure_ascii=False, indent=2)
+        + "\nREGRAS: respeite correções mais recentes, não repita perguntas registradas como respondidas e trate a operação apenas como foco atual."
     )
 
 
 def diagnosis_extractor_instructions(operation: str | None) -> str:
     operation_label = operation or "operação não selecionada"
     return f"""
-Você atualiza a memória estruturada de um diagnóstico do DomnAI.
-Operação ativa: {operation_label}.
+Você atualiza a memória universal da conversa do DomnAI.
+Foco atual: {operation_label}.
 
-Retorne exclusivamente JSON válido com estas chaves:
+Retorne exclusivamente JSON válido com todas estas chaves:
 {{
-  "operation": "nome da operação ou null",
-  "confirmed_facts": ["fatos confirmados pelo usuário ou documento"],
-  "missing_data": ["dados essenciais ainda faltantes"],
-  "assumptions": ["premissas e estimativas claramente identificadas"],
-  "documents": ["documentos ou arquivos efetivamente considerados"],
-  "validated_calculations": ["cálculos conferidos e seus resultados"],
-  "risks": ["riscos materiais identificados"],
-  "provisional_conclusion": "conclusão atual, vazia se ainda não houver",
+  "operation": "foco atual ou null",
+  "current_topic": "assunto atual",
+  "user_goal": "resultado real buscado pelo usuário",
+  "expected_delivery": "tipo de entrega esperada",
+  "conversation_stage": "understanding|collecting|analyzing|deciding|completed",
+  "confirmed_facts": ["somente fatos afirmados pelo usuário ou comprovados em documento"],
+  "user_constraints": ["limites, orçamento, prazo, proibições e condições"],
+  "user_preferences": ["preferências declaradas"],
+  "alternatives": ["opções em análise"],
+  "decisions": ["decisões explicitamente tomadas pelo usuário"],
+  "corrections": ["correções mais recentes que substituem informação anterior"],
+  "answered_questions": ["perguntas já respondidas e respectiva resposta resumida"],
+  "missing_data": ["apenas dados indispensáveis ainda ausentes"],
+  "assumptions": ["premissas claramente identificadas"],
+  "documents": ["documentos efetivamente considerados"],
+  "validated_calculations": ["cálculos validados pelo sistema"],
+  "risks": ["riscos materiais"],
+  "provisional_conclusion": "conclusão atual ou vazio",
   "next_steps": ["próximas ações objetivas"]
 }}
 
-REGRAS
-- Atualize o estado anterior; não apague informação válida sem motivo explícito.
-- Não transforme hipótese em fato confirmado.
-- Remova de missing_data aquilo que já foi respondido.
-- Registre somente informações relevantes para a decisão atual.
-- Não invente documentos, cálculos, leis, riscos ou conclusões.
-- Não inclua dados sensíveis desnecessários.
-- Não use markdown, comentários ou texto fora do JSON.
+REGRAS OBRIGATÓRIAS
+- A mensagem do usuário e os documentos são as fontes primárias.
+- A resposta do DomnAI é apenas contexto do diálogo; nunca a transforme, por si só, em fato confirmado, decisão do usuário ou cálculo validado.
+- Uma correção mais recente substitui informação anterior incompatível.
+- Preserve contexto útil ao mudar de operação; a operação muda o foco, não reinicia automaticamente o problema.
+- Remova de missing_data o que já foi respondido, inclusive com palavras equivalentes.
+- Não registre como faltante um detalhe opcional que não impeça orientação ou estimativa inicial.
+- Não invente fatos, preferências, documentos, cálculos ou decisões.
+- Não use markdown nem texto fora do JSON.
 """.strip()
 
 
@@ -161,16 +179,16 @@ def build_diagnosis_update_input(
 ESTADO ANTERIOR:
 {json.dumps(sanitize_diagnosis_state(prior_state or {}), ensure_ascii=False)}
 
-NOVA MENSAGEM DO USUÁRIO:
+NOVA MENSAGEM DO USUÁRIO — FONTE PRIMÁRIA:
 {user_message}
 
-RESPOSTA FINAL DO DOMNAI:
+RESPOSTA DO DOMNAI — CONTEXTO, NÃO FONTE DE FATOS:
 {final_answer}
 
-ARQUIVOS ANEXADOS NESTA ETAPA:
+ARQUIVOS EFETIVAMENTE ANEXADOS:
 {json.dumps(attachment_names or [], ensure_ascii=False)}
 
-Atualize e retorne somente o JSON completo do estado.
+Atualize o estado completo. Não confirme como fato nada que exista somente na resposta do DomnAI.
 """.strip()
 
 

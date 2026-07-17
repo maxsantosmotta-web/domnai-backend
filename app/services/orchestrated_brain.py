@@ -37,7 +37,7 @@ def _normalized_text(value: str | None) -> str:
     return "".join(char for char in text if not unicodedata.combining(char)).casefold().strip()
 
 
-def _simple_conversation_response(message: str, attachments: list[dict]) -> str | None:
+def _simple_conversation_response(message: str, attachments: list[dict], history: list[dict]) -> str | None:
     if attachments:
         return None
 
@@ -52,21 +52,18 @@ def _simple_conversation_response(message: str, attachments: list[dict]) -> str 
     thanks_messages = {
         "obrigado", "obrigada", "muito obrigado", "muito obrigada", "valeu", "agradecido", "agradecida",
     }
-    confirmation_messages = {
-        "ok", "certo", "entendi", "beleza", "perfeito", "combinado", "pode continuar",
-    }
     farewell_messages = {
         "tchau", "ate mais", "boa noite chat", "falamos depois", "ate logo",
     }
 
-    if normalized in greeting_messages:
+    # Confirmações como “certo”, “pode continuar” e “perfeito” dependem da
+    # pergunta anterior e devem sempre ser interpretadas pelo modelo.
+    if normalized in greeting_messages and not history:
         return "Tudo ótimo! E com você? Como posso ajudar hoje?"
     if normalized in thanks_messages:
-        return "Por nada! Estou à disposição para continuar."
-    if normalized in confirmation_messages:
-        return "Perfeito. Vamos continuar."
+        return "Por nada!"
     if normalized in farewell_messages:
-        return "Até mais! Quando precisar, é só chamar."
+        return "Até mais!"
     return None
 
 
@@ -118,7 +115,7 @@ def generate_orchestrated_response(
             timings={"orchestrator_ms": 0, "generation_ms": 0},
         )
 
-    simple_reply = _simple_conversation_response(message, safe_attachments)
+    simple_reply = _simple_conversation_response(message, safe_attachments, history)
     if simple_reply is not None:
         return MeteredBrainResult(
             text=simple_reply,

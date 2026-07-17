@@ -1,0 +1,35 @@
+name: Validate general chat intelligence
+
+on:
+  push:
+    branches: [fix/general-chat-intelligence]
+  pull_request:
+    branches: [main]
+    paths:
+      - app/services/diagnosis_memory.py
+      - app/services/orchestrated_brain.py
+      - tests/test_general_chat_intelligence.py
+      - tests/test_orchestrated_brain.py
+      - tests/test_labor_termination.py
+      - .github/workflows/test-general-chat-intelligence.yml
+
+jobs:
+  test-chat:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+      - name: Install test dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements-dev.txt
+      - name: Compile backend
+        run: python -m compileall -q app
+      - name: Run chat regression suite
+        run: |
+          python -m pytest -q \
+            tests/test_general_chat_intelligence.py \
+            tests/test_orchestrated_brain.py \
+            tests/test_labor_termination.py
