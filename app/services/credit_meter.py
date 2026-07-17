@@ -17,6 +17,17 @@ MODEL_RATES_USD_PER_MILLION = {
     "gpt-4.1-mini": {"input": 0.40, "cached_input": 0.10, "output": 1.60},
 }
 
+BLOCKED_SUBSCRIPTION_STATUSES = {
+    "past_due",
+    "unpaid",
+    "canceled",
+    "incomplete",
+    "incomplete_expired",
+    "expired",
+    "paused",
+}
+ALLOWED_SUBSCRIPTION_STATUSES = {"active", "trialing", "extra_active", "inactive"}
+
 
 def _float_env(name: str, default: float) -> float:
     try:
@@ -64,14 +75,46 @@ def calculate_usage_cost(result: MeteredBrainResult) -> dict:
     }
 
 
+def _is_admin(account: BillingAccount) -> bool:
+    return account.plan_credits >= ADMIN_CREDITS
+
+
+def _ensure_financial_access(account: BillingAccount) -> None:
+    if _is_admin(account):
+        return
+
+    status = str(account.subscription_status or "inactive").strip().lower()
+    if status in BLOCKED_SUBSCRIPTION_STATUSES:
+        raise HTTPException(
+            status_code=402,
+            detail="Acesso bloqueado por pendência financeira. Regularize a assinatura ou compre um novo pacote de créditos.",
+        )
+    if status not in ALLOWED_SUBSCRIPTION_STATUSES:
+        raise HTTPException(status_code=402, detail="Acesso financeiro indisponível.")
+
+
+def _available_credits(account: BillingAccount) -> int:
+    return account.plan_credits + account.extra_credits
+
+
+def _debit_credits(account: BillingAccount, amount: int) -> None:
+    remaining = amount
+    from_plan = min(max(0, account.plan_credits), remaining)
+    account.plan_credits -= from_plan
+    remaining -= from_plan
+    if remaining:
+        account.extra_credits -= remaining
+
+
 def ensure_minimum_credit(user_id: str) -> None:
     with session_scope() as db:
         account = db.get(BillingAccount, user_id)
         if account is None:
             raise HTTPException(status_code=402, detail="Você não possui créditos para continuar.")
-        if account.plan_credits >= ADMIN_CREDITS:
+        _ensure_financial_access(account)
+        if _is_admin(account):
             return
-        if account.plan_credits + account.extra_credits < 1:
+        if _available_credits(account) < 1:
             raise HTTPException(status_code=402, detail="Créditos insuficientes para gerar uma resposta.")
 
 
@@ -83,11 +126,68 @@ def ensure_artifact_credit(user_id: str, artifact_type: str) -> None:
         account = db.get(BillingAccount, user_id)
         if account is None:
             raise HTTPException(status_code=402, detail=f"Saldo insuficiente para gerar {label}.")
-        if account.plan_credits >= ADMIN_CREDITS:
+        _ensure_financial_access(account)
+        if _is_admin(account):
             return
-        available = account.plan_credits + account.extra_credits
-        if available < ARTIFACT_MINIMUM_CREDITS:
+        if _available_credits(account) < ARTIFACT_MINIMUM_CREDITS:
             raise HTTPException(status_code=402, detail=f"Saldo insuficiente para gerar {label}.")
+
+
+def charge_artifact(user_id: str, artifact_type: str, idempotency_key: str | None = None) -> dict:
+    normalized_type = str(artifact_type or "").strip().lower()
+    label = "planilha" if normalized_type in {"xlsx", "csv", "spreadsheet", "planilha"} else "PDF"
+
+    with session_scope() as db:
+        account = db.scalar(
+            select(BillingAccount)
+            .where(BillingAccount.user_id == user_id)
+            .with_for_update()
+        )
+        if account is None:
+            raise HTTPException(status_code=402, detail=f"Saldo insuficiente para gerar {label}.")
+        _ensure_financial_access(account)
+
+        if idempotency_key:
+            existing = db.scalar(
+                select(CreditTransaction).where(CreditTransaction.stripe_event_id == idempotency_key)
+            )
+            if existing is not None:
+                return {
+                    "charged_credits": abs(int(existing.amount or 0)),
+                    "remaining_credits": _available_credits(account),
+                    "idempotentReplay": True,
+                }
+
+        if _is_admin(account):
+            db.add(CreditTransaction(
+                user_id=user_id,
+                kind="admin_artifact",
+                amount=0,
+                plan_balance=account.plan_credits,
+                extra_balance=account.extra_credits,
+                stripe_event_id=idempotency_key,
+                description=f"Geração administrativa de {label}"[:255],
+            ))
+            return {"charged_credits": 0, "remaining_credits": _available_credits(account), "admin_exempt": True}
+
+        if _available_credits(account) < ARTIFACT_MINIMUM_CREDITS:
+            raise HTTPException(status_code=402, detail=f"Saldo insuficiente para gerar {label}.")
+
+        _debit_credits(account, ARTIFACT_MINIMUM_CREDITS)
+        db.add(CreditTransaction(
+            user_id=user_id,
+            kind="artifact_usage",
+            amount=-ARTIFACT_MINIMUM_CREDITS,
+            plan_balance=account.plan_credits,
+            extra_balance=account.extra_credits,
+            stripe_event_id=idempotency_key,
+            description=f"Geração de {label}"[:255],
+        ))
+        return {
+            "charged_credits": ARTIFACT_MINIMUM_CREDITS,
+            "remaining_credits": _available_credits(account),
+            "admin_exempt": False,
+        }
 
 
 def charge_usage(user_id: str, result: MeteredBrainResult, idempotency_key: str | None = None) -> dict:
@@ -95,7 +195,10 @@ def charge_usage(user_id: str, result: MeteredBrainResult, idempotency_key: str 
     if result.provider == "local-artifact":
         with session_scope() as db:
             account = db.get(BillingAccount, user_id)
-            remaining = (account.plan_credits + account.extra_credits) if account else 0
+            if account is None:
+                raise HTTPException(status_code=402, detail="Conta de créditos não encontrada.")
+            _ensure_financial_access(account)
+            remaining = _available_credits(account)
         return {
             **usage,
             "charged_credits": 0,
@@ -112,6 +215,7 @@ def charge_usage(user_id: str, result: MeteredBrainResult, idempotency_key: str 
         )
         if account is None:
             raise HTTPException(status_code=402, detail="Conta de créditos não encontrada.")
+        _ensure_financial_access(account)
 
         if idempotency_key:
             existing = db.scalar(
@@ -122,12 +226,11 @@ def charge_usage(user_id: str, result: MeteredBrainResult, idempotency_key: str 
                     **usage,
                     "charged_credits": abs(int(existing.amount or 0)),
                     "admin_exempt": existing.kind == "admin_usage",
-                    "remaining_credits": account.plan_credits + account.extra_credits,
+                    "remaining_credits": _available_credits(account),
                     "idempotentReplay": True,
                 }
 
-        is_admin = account.plan_credits >= ADMIN_CREDITS
-        if is_admin:
+        if _is_admin(account):
             db.add(CreditTransaction(
                 user_id=user_id,
                 kind="admin_usage",
@@ -143,19 +246,18 @@ def charge_usage(user_id: str, result: MeteredBrainResult, idempotency_key: str 
             ))
             return {**usage, "charged_credits": 0, "admin_exempt": True}
 
-        available = account.plan_credits + account.extra_credits
-        charged = min(available, usage["credits"])
-        remaining = charged
-        from_plan = min(account.plan_credits, remaining)
-        account.plan_credits -= from_plan
-        remaining -= from_plan
-        if remaining:
-            account.extra_credits -= remaining
+        available = _available_credits(account)
+        if available < usage["credits"]:
+            raise HTTPException(
+                status_code=402,
+                detail=f"Créditos insuficientes. Esta resposta exige {usage['credits']} crédito(s) e o saldo disponível é {available}.",
+            )
 
+        _debit_credits(account, usage["credits"])
         db.add(CreditTransaction(
             user_id=user_id,
             kind="ai_usage",
-            amount=-charged,
+            amount=-usage["credits"],
             plan_balance=account.plan_credits,
             extra_balance=account.extra_credits,
             stripe_event_id=idempotency_key,
@@ -166,8 +268,8 @@ def charge_usage(user_id: str, result: MeteredBrainResult, idempotency_key: str 
         ))
         return {
             **usage,
-            "charged_credits": charged,
+            "charged_credits": usage["credits"],
             "admin_exempt": False,
-            "remaining_credits": account.plan_credits + account.extra_credits,
-            "fully_covered": charged == usage["credits"],
+            "remaining_credits": _available_credits(account),
+            "fully_covered": True,
         }
