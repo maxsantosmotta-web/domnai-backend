@@ -113,24 +113,21 @@ def _clean_artifact_contradictions(text: str) -> str:
         "nao consigo gerar arquivos", "não consigo gerar arquivos",
         "nao consigo enviar o arquivo", "não consigo enviar o arquivo",
         "nao posso enviar o arquivo", "não posso enviar o arquivo",
+        "quer que eu organize", "deseja que eu organize",
+        "quer que eu gere", "deseja que eu gere",
+        "quer que eu crie", "deseja que eu crie",
     )
     kept = [part for part in paragraphs if not any(marker in part.casefold() for marker in blocked)]
     return "\\n\\n".join(kept).strip()
 
 
 def _artifact_completion_message(artifact_type: str | None) -> str:
-    if artifact_type in {"xlsx", "csv"}:
-        return (
-            "Pronto! Sua planilha foi concluída com base nas informações da conversa e está disponível logo abaixo. "
-            "Os dados foram organizados para facilitar o acompanhamento e os próximos ajustes. "
-            "Ela também foi salva automaticamente na Biblioteca. Depois de utilizá-la, você pode voltar aqui para "
-            "analisarmos os resultados e aperfeiçoarmos o planejamento."
-        )
     return (
-        "Pronto! Seu PDF foi concluído com base nas informações da conversa e está disponível logo abaixo. "
+        "Pronto! Seu arquivo foi gerado com base nas informações desta conversa e está disponível logo abaixo. "
         "O conteúdo foi organizado para facilitar a leitura e a consulta. "
-        "Ele também foi salvo automaticamente na Biblioteca. Se precisar, podemos continuar a análise e atualizar "
-        "o material com novas informações."
+        "Ele também foi salvo automaticamente na Biblioteca.\\n\\n"
+        "Importante: Este documento tem finalidade informativa e foi elaborado com base nas informações fornecidas "
+        "durante esta conversa. Para decisões definitivas, recomenda-se sempre a validação por um profissional habilitado."
     )
 '''
 if '_clean_artifact_contradictions' not in worker:
