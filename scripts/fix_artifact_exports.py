@@ -9,7 +9,8 @@ def replace_once(text: str, old: str, new: str, label: str) -> str:
     raise RuntimeError(f"{label}: trecho esperado não encontrado")
 
 
-# 1) Decisor: preservar o conteúdo analítico anterior no PDF e aceitar múltiplas abas.
+# O código-fonte é mantido intacto; este script aplica somente as correções do
+# módulo de artefatos no runtime final, depois dos patches anteriores do Docker.
 decision_path = Path('/app/app/services/artifact_decision.py')
 decision = decision_path.read_text(encoding='utf-8')
 
@@ -19,6 +20,7 @@ decision = replace_once(
 }''',
     '''    "rows": [],
     "sheets": [],
+    "final_content": "",
 }''',
     'artifact_decision._NONE',
 )
@@ -80,28 +82,17 @@ def _clean_sheets(value: Any) -> list[dict]:
     return sheets
 
 
-def _is_operational_artifact_answer(text: str) -> bool:
-    normalized = _normalize(text)
-    markers = (
-        "vou preparar",
-        "vou organizar",
-        "vou gerar",
-        "um momento",
-        "aguarde",
-        "já volto com",
-        "ja volto com",
+def _clean_final_content(value: Any) -> str:
+    paragraphs = [part.strip() for part in str(value or "").split("\\n\\n") if part.strip()]
+    operational_markers = (
+        "vou preparar", "vou organizar", "vou gerar", "quer que eu", "posso gerar",
+        "pronto!", "arquivo criado", "enviado aqui no chat", "um momento", "aguarde",
     )
-    return len(str(text or "").strip()) < 500 and any(marker in normalized for marker in markers)
-
-
-def _last_substantive_assistant_answer(history: list[dict]) -> str:
-    for item in reversed(history):
-        if str(item.get("role") or "").strip().lower() != "assistant":
-            continue
-        candidate = _remove_offer_from_answer(str(item.get("content") or "")).strip()
-        if len(candidate) >= 200 and not _is_operational_artifact_answer(candidate):
-            return candidate
-    return ""
+    kept = [
+        part for part in paragraphs
+        if not any(marker in _normalize(part) for marker in operational_markers)
+    ]
+    return "\\n\\n".join(kept).strip()
 ''',
     'artifact_decision helpers',
 )
@@ -123,9 +114,12 @@ decision = replace_once(
     }''',
     '''    rows = _clean_rows(payload.get("rows"), len(headers))
     sheets = _clean_sheets(payload.get("sheets"))
+    final_content = _clean_final_content(payload.get("final_content"))
 
     if action == "create" and artifact_type in {"xlsx", "csv"} and not headers and not sheets:
-        action = "offer"
+        action = "none"
+    if action == "create" and artifact_type == "pdf" and len(final_content) < 120:
+        action = "none"
 
     return {
         "action": action,
@@ -135,8 +129,26 @@ decision = replace_once(
         "headers": headers,
         "rows": rows,
         "sheets": sheets,
+        "final_content": final_content,
     }''',
     'artifact_decision parse',
+)
+
+decision = replace_once(
+    decision,
+    '''    recent_history = history[-10:]
+    request_payload = {
+        "operation": operation,
+        "current_message": message,
+        "recent_history": recent_history,
+        "completed_answer": answer,
+    }''',
+    '''    request_payload = {
+        "operation": operation,
+        "current_request": message,
+        "completed_answer_for_current_request": answer,
+    }''',
+    'artifact_decision isolated payload',
 )
 
 decision = replace_once(
@@ -148,17 +160,30 @@ decision = replace_once(
     '''  "sheet_name":"nome curto da aba quando houver somente uma",
   "headers":["colunas quando houver somente uma aba"],
   "rows":[["valores quando houver somente uma aba"]],
-  "sheets":[{"sheet_name":"nome da aba","headers":["colunas"],"rows":[["valores"]]}]
+  "sheets":[{"sheet_name":"nome da aba","headers":["colunas"],"rows":[["valores"]]}],
+  "final_content":"relatório final consolidado, somente para PDF"
 }''',
     'artifact_decision schema',
 )
 
 decision = replace_once(
     decision,
+    '''- Não escolha formato por uma lista fixa de operações. Analise o pedido, o histórico e o conteúdo concluído.
+- O formato explicitamente pedido na mensagem atual sempre tem prioridade sobre qualquer oferta anterior.''',
+    '''- Analise SOMENTE `current_request` e `completed_answer_for_current_request`. Não use memória, histórico ou conversas anteriores.
+- O formato explicitamente pedido na solicitação atual sempre tem prioridade.
+- Quando a solicitação atual pedir criação, retorne `action=create` e entregue o conteúdo completo; nunca faça nova pergunta nem devolva `offer`.
+- Para PDF, `final_content` deve conter somente o relatório final consolidado. Exclua confirmações, ofertas, avisos operacionais e frases como “vou preparar”, “quer que eu faça” ou “pronto”.''',
+    'artifact_decision isolation rules',
+)
+
+decision = replace_once(
+    decision,
     '''- Para XLSX/CSV com action=create, produza headers e rows completos usando apenas dados sustentados pela conversa e pela resposta. Não invente números.
 - Prefira XLSX para uso humano e CSV quando o usuário pedir CSV ou quando o foco for importação de dados.''',
-    '''- Para XLSX com action=create, quando o pedido mencionar vários documentos, categorias ou abas, produza `sheets` com TODAS as abas prometidas, cada uma com headers e rows completos. Não descarte itens após a primeira aba.
-- Para XLSX de uma única tabela ou para CSV, produza headers e rows completos usando apenas dados sustentados pela conversa e pela resposta. Não invente números.
+    '''- Para XLSX com action=create, quando o pedido exigir categorias, conjuntos ou abas distintas, produza `sheets` com TODAS as abas necessárias, cada uma com headers e rows completos.
+- Para XLSX de uma única tabela ou CSV, produza headers e rows completos em estrutura tabular real. Não coloque listas inteiras dentro de uma única célula.
+- Use apenas dados sustentados pela solicitação atual e pela resposta atual. Não invente números.
 - Prefira XLSX para uso humano e CSV quando o usuário pedir CSV ou quando o foco for importação de dados.''',
     'artifact_decision spreadsheet rules',
 )
@@ -166,7 +191,7 @@ decision = replace_once(
 decision = replace_once(
     decision,
     '''                "max_output_tokens": 1800,''',
-    '''                "max_output_tokens": 5000,''',
+    '''                "max_output_tokens": 7000,''',
     'artifact_decision token budget',
 )
 
@@ -177,10 +202,10 @@ decision = replace_once(
         return dict(_NONE)''',
     '''        parsed = _parse_decision(raw_text)
         if parsed.get("action") == "create":
-            source_answer = str(answer or "").strip()
-            if parsed.get("artifact_type") == "pdf" and (_is_operational_artifact_answer(source_answer) or len(source_answer) < 200):
-                source_answer = _last_substantive_assistant_answer(history) or source_answer
-            parsed["source_answer"] = source_answer
+            if parsed.get("artifact_type") == "pdf":
+                parsed["source_answer"] = parsed.get("final_content") or ""
+            else:
+                parsed["source_answer"] = str(answer or "").strip()
         return parsed
     except Exception:
         return dict(_NONE)''',
@@ -190,10 +215,8 @@ decision = replace_once(
 decision_path.write_text(decision, encoding='utf-8')
 
 
-# 2) Gerador XLSX: suportar várias abas no mesmo workbook.
 spreadsheet_path = Path('/app/app/services/spreadsheet_artifact.py')
 spreadsheet = spreadsheet_path.read_text(encoding='utf-8')
-
 spreadsheet = replace_once(
     spreadsheet,
     '''def generate_csv(title: str, headers: list[str], rows: list[list[Any]]) -> GeneratedSpreadsheet:''',
@@ -204,7 +227,6 @@ spreadsheet = replace_once(
     workbook = Workbook()
     workbook.remove(workbook.active)
     used_names: set[str] = set()
-
     for index, sheet in enumerate(sheets[:20], start=1):
         headers, rows = _normalize_rows(sheet.get("headers") or [], sheet.get("rows") or [])
         base_name = (str(sheet.get("sheet_name") or f"Dados {index}").strip() or f"Dados {index}")[:31]
@@ -215,28 +237,21 @@ spreadsheet = replace_once(
             name = f"{base_name[:31-len(tail)]}{tail}"
             suffix += 1
         used_names.add(name.casefold())
-
         worksheet = workbook.create_sheet(title=name)
         worksheet.freeze_panes = "A2"
         worksheet.auto_filter.ref = f"A1:{get_column_letter(len(headers))}{max(1, len(rows) + 1)}"
-
         for column_index, header in enumerate(headers, start=1):
             cell = worksheet.cell(row=1, column=column_index, value=header)
             cell.font = Font(bold=True)
             cell.alignment = Alignment(horizontal="center", vertical="center", wrap_text=True)
-
         for row_index, row in enumerate(rows, start=2):
             for column_index, value in enumerate(row, start=1):
-                cell = worksheet.cell(row=row_index, column=column_index, value=value)
-                cell.alignment = Alignment(vertical="top", wrap_text=True)
-
+                worksheet.cell(row=row_index, column=column_index, value=value).alignment = Alignment(vertical="top", wrap_text=True)
         for column_index, header in enumerate(headers, start=1):
             max_length = len(header)
             for row_index in range(2, min(len(rows) + 2, 302)):
-                value = worksheet.cell(row=row_index, column=column_index).value
-                max_length = max(max_length, len(str(value or "")))
+                max_length = max(max_length, len(str(worksheet.cell(row=row_index, column=column_index).value or "")))
             worksheet.column_dimensions[get_column_letter(column_index)].width = min(max(max_length + 2, 12), 42)
-
     output = io.BytesIO()
     workbook.save(output)
     return GeneratedSpreadsheet(
@@ -249,34 +264,28 @@ spreadsheet = replace_once(
 def generate_csv(title: str, headers: list[str], rows: list[list[Any]]) -> GeneratedSpreadsheet:''',
     'spreadsheet multi-sheet generator',
 )
-
 spreadsheet_path.write_text(spreadsheet, encoding='utf-8')
 
 
-# 3) Criação do artefato: usar múltiplas abas e rejeitar PDF operacional curto.
 chat_path = Path('/app/app/api/chat.py')
 chat = chat_path.read_text(encoding='utf-8')
-
 chat = replace_once(
     chat,
     '''from app.services.spreadsheet_artifact import generate_csv, generate_xlsx''',
     '''from app.services.spreadsheet_artifact import generate_csv, generate_xlsx, generate_xlsx_sheets''',
     'chat import multi-sheet',
 )
-
 chat = replace_once(
     chat,
     '''    if artifact_type == "pdf":
         generated = generate_pdf_report(''',
     '''    if artifact_type == "pdf":
         clean_answer = str(answer or "").strip()
-        operational_markers = ("vou preparar", "vou organizar", "vou gerar", "um momento", "aguarde")
-        if len(clean_answer) < 200 and any(marker in clean_answer.casefold() for marker in operational_markers):
-            raise ValueError("O conteúdo do relatório não foi localizado para gerar o PDF.")
+        if len(clean_answer) < 120:
+            raise ValueError("O relatório final não foi consolidado para gerar o PDF.")
         generated = generate_pdf_report(''',
     'chat pdf validation',
 )
-
 chat = replace_once(
     chat,
     '''                "summary": answer,
@@ -285,7 +294,6 @@ chat = replace_once(
                 "sections": [{"title": "Resultado", "content": clean_answer}],''',
     'chat pdf content',
 )
-
 chat = replace_once(
     chat,
     '''    elif artifact_type == "xlsx":
@@ -308,5 +316,4 @@ chat = replace_once(
             )''',
     'chat xlsx selection',
 )
-
 chat_path.write_text(chat, encoding='utf-8')
