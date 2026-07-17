@@ -44,6 +44,7 @@ COPY scripts/fix_user_block4.py /tmp/fix_user_block4.py
 COPY scripts/fix_p2p_audit_findings.py /tmp/fix_p2p_audit_findings.py
 COPY scripts/fix_chat_conversation_pdf_regressions.py /tmp/fix_chat_conversation_pdf_regressions.py
 COPY scripts/fix_chat_operation_history_atomic.py /tmp/fix_chat_operation_history_atomic.py
+COPY scripts/fix_operation_single_click_execution.py /tmp/fix_operation_single_click_execution.py
 RUN apk add --no-cache python3 \
     && python3 /tmp/connect_domnai_chat.py \
     && python3 /tmp/add_chat_retry_button.py \
@@ -85,6 +86,7 @@ RUN apk add --no-cache python3 \
     && python3 /tmp/fix_p2p_audit_findings.py \
     && python3 /tmp/fix_chat_conversation_pdf_regressions.py \
     && python3 /tmp/fix_chat_operation_history_atomic.py \
+    && python3 /tmp/fix_operation_single_click_execution.py \
     && npm run build
 
 FROM python:3.13-slim AS runtime
