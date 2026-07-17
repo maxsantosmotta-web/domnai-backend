@@ -9,7 +9,7 @@ from app.auth import require_authenticated_user
 from app.database import session_scope
 from app.models import LibraryAsset
 from app.services.artifact_decision import decide_artifact, resolve_pending_artifact_acceptance
-from app.services.credit_meter import charge_usage, ensure_artifact_credit, ensure_minimum_credit
+from app.services.credit_meter import charge_artifact, charge_usage, ensure_artifact_credit, ensure_minimum_credit
 from app.services.diagnosis_memory import load_diagnosis_state, save_diagnosis_state
 from app.services.orchestrated_brain import generate_orchestrated_response
 from app.services.pdf_report import generate_pdf_report
@@ -81,6 +81,7 @@ def _create_artifact(
     operation: str | None,
     answer: str,
     decision: dict,
+    billing_key: str | None = None,
 ) -> dict:
     artifact_type = decision.get("artifact_type")
     ensure_artifact_credit(user_id, artifact_type)
@@ -120,6 +121,12 @@ def _create_artifact(
     else:
         raise ValueError("Tipo de artefato inválido.")
 
+    artifact_usage = charge_artifact(
+        user_id,
+        artifact_type,
+        idempotency_key=billing_key,
+    )
+
     asset = LibraryAsset(
         user_id=user_id,
         name=generated.filename,
@@ -137,7 +144,10 @@ def _create_artifact(
             category="artifact",
             module="Chat",
             action=action,
-            description=f"Arquivo concluído e disponibilizado pelo chat: {asset.name}.",
+            description=(
+                f"Arquivo concluído e disponibilizado pelo chat: {asset.name}. "
+                f"{artifact_usage.get('charged_credits', 0)} crédito(s) consumido(s)."
+            ),
             source="chat",
             source_key=f"artifact:{asset.id}",
         )
@@ -152,6 +162,8 @@ def _create_artifact(
             "sizeBytes": asset.size_bytes,
             "contentUrl": f"/api/library/{asset.id}/content",
             "savedToLibrary": True,
+            "chargedCredits": artifact_usage.get("charged_credits", 0),
+            "remainingCredits": artifact_usage.get("remaining_credits"),
             "capabilityEvidence": {
                 "local_artifact_created": True,
                 "external_link_generated": False,
