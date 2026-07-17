@@ -10,6 +10,14 @@ def ensure_once(source: str, marker: str, label: str) -> None:
         raise RuntimeError(f'{label}: esperado 1 trecho, encontrado {count}.')
 
 
+def replace_once(source: str, old: str, new: str, label: str) -> str:
+    if old in source:
+        return source.replace(old, new, 1)
+    if new in source:
+        return source
+    raise RuntimeError(f'{label}: trecho esperado não encontrado.')
+
+
 # 1) Plano FREE com créditos avulsos pode usar chat e operações enquanto houver saldo.
 access_path = ROOT / 'dashboard-access-control.js'
 access = access_path.read_text(encoding='utf-8')
@@ -108,4 +116,170 @@ if missing:
 billing = profile_pattern.sub(lambda match: '${escapeHtmlAttribute(profile.%s)}' % match.group(1), billing)
 billing_path.write_text(billing, encoding='utf-8')
 
-print('Bloco 4 corrigido: FREE com saldo, cobrança real, capacidades claras e perfil escapado.')
+
+# 5) Falhas do chat/artefatos: mensagem em português e repetição com o mesmo snapshot.
+dashboard_path = ROOT / 'Dashboard.jsx'
+dashboard = dashboard_path.read_text(encoding='utf-8')
+
+friendly_helper = '''  function friendlyChatError(error, fallback = 'Não foi possível concluir esta operação.') {
+    const raw = String(error?.message || error || '').trim();
+    const normalized = raw.toLowerCase();
+    if (!raw || normalized === 'failed to fetch' || normalized.includes('networkerror') || normalized.includes('load failed')) {
+      return 'Não foi possível conectar ao DomnAI. Verifique sua conexão e tente novamente.';
+    }
+    if (normalized.includes('timeout') || normalized.includes('tempo limite')) {
+      return 'A operação demorou mais que o esperado. Tente novamente.';
+    }
+    return raw;
+  }
+
+'''
+if 'function friendlyChatError(error' not in dashboard:
+    marker = '  async function pollChatTask(taskId) {'
+    ensure_once(dashboard, marker, 'ponto do tradutor de falhas')
+    dashboard = dashboard.replace(marker, friendly_helper + marker, 1)
+
+dashboard = dashboard.replace(
+    "text: error.message || 'Não foi possível acompanhar a resposta.',",
+    "text: friendlyChatError(error, 'Não foi possível acompanhar a resposta.'),",
+)
+dashboard = dashboard.replace(
+    "text: error.message || 'Não foi possível concluir a análise. Tente novamente.',",
+    "text: friendlyChatError(error, 'Não foi possível concluir a análise. Tente novamente.'),",
+)
+dashboard = dashboard.replace(
+    "text: error.message || 'Não foi possível tentar novamente.',",
+    "text: friendlyChatError(error, 'Não foi possível tentar novamente.'),",
+)
+
+dashboard = replace_once(
+    dashboard,
+    '''    const operationName = operations.find((item) => item.id === activeOperation)?.name || null;
+    const messageForApi = text || `Analise os arquivos anexados: ${sentAttachments.map((item) => item.name).join(', ')}`;
+
+    setMessages((current) => [...current, userMessage]);''',
+    '''    const operationName = operations.find((item) => item.id === activeOperation)?.name || null;
+    const messageForApi = text || `Analise os arquivos anexados: ${sentAttachments.map((item) => item.name).join(', ')}`;
+    const requestSnapshot = {
+      message: messageForApi,
+      operation: operationName,
+      history,
+      attachments: sentAttachments
+        .filter((item) => item.libraryId)
+        .map((item) => ({ library_id: item.libraryId })),
+    };
+    userMessage.requestSnapshot = requestSnapshot;
+
+    setMessages((current) => [...current, userMessage]);''',
+    'snapshot da solicitação atual',
+)
+
+dashboard = replace_once(
+    dashboard,
+    '''          body: JSON.stringify({
+            message: messageForApi,
+            operation: operationName,
+            history,
+            attachments: sentAttachments
+              .filter((item) => item.libraryId)
+              .map((item) => ({ library_id: item.libraryId })),
+          }),''',
+    '''          body: JSON.stringify(requestSnapshot),''',
+    'envio pelo snapshot',
+)
+
+dashboard = replace_once(
+    dashboard,
+    '''          taskId,
+          processing: true,
+          isError: false,''',
+    '''          taskId,
+          requestSnapshot,
+          processing: true,
+          isError: false,''',
+    'snapshot na resposta em processamento',
+)
+
+dashboard = replace_once(
+    dashboard,
+    '''        attachments: [],
+        isError: true,
+        processing: false,''',
+    '''        attachments: [],
+        requestSnapshot,
+        isError: true,
+        processing: false,''',
+    'snapshot na falha inicial',
+)
+
+dashboard = replace_once(
+    dashboard,
+    '''        taskId: message.taskId || null,
+        processing: Boolean(message.processing),''',
+    '''        taskId: message.taskId || null,
+        requestSnapshot: message.requestSnapshot || null,
+        processing: Boolean(message.processing),''',
+    'persistência do snapshot',
+)
+
+dashboard = replace_once(
+    dashboard,
+    '''    const errorMessage = messages[errorIndex];
+    const userMessage = messages[userIndex];
+    const originalTaskId = errorMessage.taskId || userMessage.taskId || null;
+    const messageForApi = String(userMessage.text || '').trim()
+      || `Analise os arquivos anexados: ${(userMessage.attachments || []).map((item) => item.name).join(', ')}`;
+    if (!messageForApi) return;''',
+    '''    const errorMessage = messages[errorIndex];
+    const userMessage = messages[userIndex];
+    const originalTaskId = errorMessage.taskId || userMessage.taskId || null;
+    const savedSnapshot = errorMessage.requestSnapshot || userMessage.requestSnapshot || null;
+    const messageForApi = String(savedSnapshot?.message || userMessage.text || '').trim()
+      || `Analise os arquivos anexados: ${(userMessage.attachments || []).map((item) => item.name).join(', ')}`;
+    if (!messageForApi) return;''',
+    'recuperação do snapshot na nova tentativa',
+)
+
+dashboard = replace_once(
+    dashboard,
+    '''    const operationName = operations.find((item) => item.id === activeOperation)?.name || null;
+    setResponding(true);''',
+    '''    const operationName = savedSnapshot?.operation ?? operations.find((item) => item.id === activeOperation)?.name ?? null;
+    const retrySnapshot = savedSnapshot || {
+      message: messageForApi,
+      operation: operationName,
+      history,
+      attachments: (userMessage.attachments || [])
+        .filter((item) => item.libraryId)
+        .map((item) => ({ library_id: item.libraryId })),
+    };
+    setResponding(true);''',
+    'snapshot exato da nova tentativa',
+)
+
+dashboard = replace_once(
+    dashboard,
+    '''            body: JSON.stringify({
+              message: messageForApi,
+              operation: operationName,
+              history,
+              attachments: (userMessage.attachments || [])
+                .filter((item) => item.libraryId)
+                .map((item) => ({ library_id: item.libraryId })),
+            }),''',
+    '''            body: JSON.stringify(retrySnapshot),''',
+    'reenvio exato da operação',
+)
+
+dashboard = dashboard.replace(
+    '''            taskId: originalTaskId,
+            processing: true,''',
+    '''            taskId: originalTaskId,
+            requestSnapshot: retrySnapshot,
+            processing: true,''',
+    1,
+)
+
+dashboard_path.write_text(dashboard, encoding='utf-8')
+
+print('Bloco 4 corrigido: acesso, cobrança, perfil, contexto de artefatos e falhas em português.')
