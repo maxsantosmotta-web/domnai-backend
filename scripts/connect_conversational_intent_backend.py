@@ -43,15 +43,30 @@ model_first_function = '''def _simple_conversation_response(message: str, attach
     return None
 '''
 
-if old_function not in source:
-    raise RuntimeError('Função-base de conversa simples não encontrada no formato esperado.')
-source = source.replace(old_function, model_first_function, 1)
+contextual_signature = 'def _simple_conversation_response(message: str, attachments: list[dict], history: list[dict]) -> str | None:'
+legacy_model_first_signature = 'def _simple_conversation_response(message: str, attachments: list[dict], operation: str | None = None) -> str | None:'
+
+if contextual_signature in source:
+    # O código-fonte já contém a implementação contextual mais nova.
+    pass
+elif legacy_model_first_signature in source:
+    # Patch já aplicado em build anterior.
+    pass
+elif old_function in source:
+    source = source.replace(old_function, model_first_function, 1)
+else:
+    raise RuntimeError('Função conversacional não encontrada em formato conhecido.')
 
 old_call = '    simple_reply = _simple_conversation_response(message, safe_attachments)\n'
-new_call = '    simple_reply = _simple_conversation_response(message, safe_attachments, operation)\n'
-if old_call not in source:
-    raise RuntimeError('Chamada da camada conversacional não encontrada.')
-source = source.replace(old_call, new_call, 1)
+legacy_call = '    simple_reply = _simple_conversation_response(message, safe_attachments, operation)\n'
+contextual_call = '    simple_reply = _simple_conversation_response(message, safe_attachments, history)\n'
+
+if contextual_call in source or legacy_call in source:
+    pass
+elif old_call in source:
+    source = source.replace(old_call, legacy_call, 1)
+else:
+    raise RuntimeError('Chamada da camada conversacional não encontrada em formato conhecido.')
 
 path.write_text(source, encoding='utf-8')
 
