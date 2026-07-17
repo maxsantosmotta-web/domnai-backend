@@ -35,6 +35,17 @@ if "const [chatRefreshTick, setChatRefreshTick]" not in source:
         1,
     )
 
+
+def operation_marker(current_source: str) -> str:
+    async_marker = "  async function selectOperation(item) {"
+    sync_marker = "  function selectOperation(item) {"
+    if async_marker in current_source:
+        return async_marker
+    if sync_marker in current_source:
+        return sync_marker
+    raise RuntimeError('Não foi possível localizar o ponto seguro do chat.')
+
+
 scroll_tracking_effect = r'''
   useEffect(() => {
     if (section !== 'chat') return undefined;
@@ -60,9 +71,7 @@ scroll_tracking_effect = r'''
 '''
 
 if "domnai-chat-was-at-bottom" not in source:
-    marker = "  function selectOperation(item) {"
-    if marker not in source:
-        raise RuntimeError('Não foi possível localizar o ponto seguro do chat.')
+    marker = operation_marker(source)
     source = source.replace(marker, scroll_tracking_effect + marker, 1)
 
 single_effect = r'''
@@ -109,9 +118,7 @@ existing_effect_pattern = re.compile(
 source, effect_count = existing_effect_pattern.subn("\n" + single_effect.lstrip("\n"), source, count=1)
 
 if effect_count == 0 and "[section, conversationReady, messages.length, chatRefreshTick]" not in source:
-    marker = "  function selectOperation(item) {"
-    if marker not in source:
-        raise RuntimeError('Não foi possível localizar o ponto seguro do chat.')
+    marker = operation_marker(source)
     source = source.replace(marker, single_effect + marker, 1)
 elif effect_count == 0:
     raise RuntimeError('Não foi possível substituir com segurança o controlador atual de rolagem.')
