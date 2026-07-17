@@ -103,12 +103,26 @@ if "window.addEventListener('domnai-return-to-chat'" not in source:
         raise RuntimeError('Não foi possível localizar a seleção de operação.')
     source = source[:match.start()] + scroll_effect + source[match.start():]
 
-replacement = '''  function selectOperation(item) {
+replacement = '''  async function selectOperation(item) {
     if (responding) return;
 
+    try {
+      const response = await authorizedFetch('/api/chat-state', { method: 'DELETE' });
+      if (!response.ok && response.status !== 404) {
+        throw new Error('Não foi possível iniciar uma nova operação.');
+      }
+    } catch (error) {
+      window.alert(error.message || 'Não foi possível iniciar uma nova operação.');
+      return;
+    }
+
+    setMessages([]);
     setActiveOperation(item.id);
     setSection('chat');
     setAttachments([]);
+    setSearch('');
+    setSearchOpen(false);
+    setOptionsOpen(false);
     setPlusOpen(false);
     setSidebarOpen(false);
 
