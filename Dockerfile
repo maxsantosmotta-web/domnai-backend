@@ -39,6 +39,7 @@ COPY scripts/connect_user_sidebar_collapse.py /tmp/connect_user_sidebar_collapse
 COPY scripts/connect_single_chat_refresh_bottom.py /tmp/connect_single_chat_refresh_bottom.py
 COPY scripts/update_help_artifact_credits.py /tmp/update_help_artifact_credits.py
 COPY scripts/connect_user_personalization_frontend.py /tmp/connect_user_personalization_frontend.py
+COPY scripts/fix_admin_block3.py /tmp/fix_admin_block3.py
 RUN apk add --no-cache python3 \
     && python3 /tmp/connect_domnai_chat.py \
     && python3 /tmp/add_chat_retry_button.py \
@@ -75,6 +76,7 @@ RUN apk add --no-cache python3 \
     && python3 /tmp/connect_chat_sources_frontend.py \
     && python3 /tmp/update_help_artifact_credits.py \
     && python3 /tmp/connect_user_personalization_frontend.py \
+    && python3 /tmp/fix_admin_block3.py \
     && npm run build
 
 FROM python:3.13-slim AS runtime
@@ -90,10 +92,12 @@ COPY scripts/connect_chat_sources_backend.py /tmp/connect_chat_sources_backend.p
 COPY scripts/connect_user_personalization_backend.py /tmp/connect_user_personalization_backend.py
 COPY scripts/connect_conversational_intent_backend.py /tmp/connect_conversational_intent_backend.py
 COPY scripts/finalize_artifact_delivery.py /tmp/finalize_artifact_delivery.py
+COPY scripts/fix_admin_block3.py /tmp/fix_admin_block3.py
 RUN python /tmp/connect_chat_sources_backend.py \
     && python /tmp/connect_user_personalization_backend.py \
     && python /tmp/connect_conversational_intent_backend.py \
-    && python /tmp/finalize_artifact_delivery.py
+    && python /tmp/finalize_artifact_delivery.py \
+    && python /tmp/fix_admin_block3.py
 COPY --from=frontend-builder /frontend/dist ./frontend/dist
 EXPOSE 8080
 CMD ["sh", "-c", "alembic upgrade head && uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-8080}"]
