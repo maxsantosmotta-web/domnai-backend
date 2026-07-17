@@ -42,6 +42,7 @@ COPY scripts/connect_user_personalization_frontend.py /tmp/connect_user_personal
 COPY scripts/fix_admin_block3.py /tmp/fix_admin_block3.py
 COPY scripts/fix_user_block4.py /tmp/fix_user_block4.py
 COPY scripts/fix_p2p_audit_findings.py /tmp/fix_p2p_audit_findings.py
+COPY scripts/fix_chat_conversation_pdf_regressions.py /tmp/fix_chat_conversation_pdf_regressions.py
 RUN apk add --no-cache python3 \
     && python3 /tmp/connect_domnai_chat.py \
     && python3 /tmp/add_chat_retry_button.py \
@@ -81,6 +82,7 @@ RUN apk add --no-cache python3 \
     && python3 /tmp/fix_admin_block3.py \
     && python3 /tmp/fix_user_block4.py \
     && python3 /tmp/fix_p2p_audit_findings.py \
+    && python3 /tmp/fix_chat_conversation_pdf_regressions.py \
     && npm run build
 
 FROM python:3.13-slim AS runtime
@@ -100,6 +102,7 @@ COPY scripts/fix_admin_block3.py /tmp/fix_admin_block3.py
 COPY scripts/fix_p2p_audit_findings.py /tmp/fix_p2p_audit_findings.py
 COPY scripts/fix_artifact_exports.py /tmp/fix_artifact_exports.py
 COPY scripts/fix_chat_history_retention.py /tmp/fix_chat_history_retention.py
+COPY scripts/fix_chat_conversation_pdf_regressions.py /tmp/fix_chat_conversation_pdf_regressions.py
 RUN python /tmp/connect_chat_sources_backend.py \
     && python /tmp/connect_user_personalization_backend.py \
     && python /tmp/connect_conversational_intent_backend.py \
@@ -107,7 +110,8 @@ RUN python /tmp/connect_chat_sources_backend.py \
     && python /tmp/fix_admin_block3.py \
     && python /tmp/fix_p2p_audit_findings.py \
     && python /tmp/fix_artifact_exports.py \
-    && python /tmp/fix_chat_history_retention.py
+    && python /tmp/fix_chat_history_retention.py \
+    && python /tmp/fix_chat_conversation_pdf_regressions.py
 COPY --from=frontend-builder /frontend/dist ./frontend/dist
 EXPOSE 8080
 CMD ["sh", "-c", "alembic upgrade head && uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-8080}"]
