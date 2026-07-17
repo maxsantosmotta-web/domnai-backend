@@ -72,8 +72,12 @@ viewport_effect = r'''
 '''
 
 if "domnai-mobile-chat-viewport" not in source:
-    marker = "  function selectOperation(item) {"
-    if marker not in source:
+    markers = (
+        "  async function selectOperation(item) {",
+        "  function selectOperation(item) {",
+    )
+    marker = next((candidate for candidate in markers if candidate in source), None)
+    if marker is None:
         raise RuntimeError('Não foi possível localizar o ponto seguro antes da seleção de operação.')
     source = source.replace(marker, viewport_effect + marker, 1)
 
