@@ -108,4 +108,18 @@ if missing:
 billing = profile_pattern.sub(lambda match: '${escapeHtmlAttribute(profile.%s)}' % match.group(1), billing)
 billing_path.write_text(billing, encoding='utf-8')
 
-print('Bloco 4 corrigido: FREE com saldo, cobrança real, capacidades claras e perfil escapado.')
+
+# 5) Nunca exibir mensagens técnicas de rede no chat.
+dashboard_path = ROOT / 'Dashboard.jsx'
+dashboard = dashboard_path.read_text(encoding='utf-8')
+network_message = "'Não foi possível conectar ao DomnAI. Verifique sua conexão e tente novamente.'"
+replacements = {
+    "error.message || 'Não foi possível acompanhar a resposta.'": f"(String(error?.message || '').toLowerCase() === 'failed to fetch' ? {network_message} : (error.message || 'Não foi possível acompanhar a resposta.'))",
+    "error.message || 'Não foi possível concluir a análise. Tente novamente.'": f"(String(error?.message || '').toLowerCase() === 'failed to fetch' ? {network_message} : (error.message || 'Não foi possível concluir a análise. Tente novamente.'))",
+    "error.message || 'Não foi possível tentar novamente.'": f"(String(error?.message || '').toLowerCase() === 'failed to fetch' ? {network_message} : (error.message || 'Não foi possível tentar novamente.'))",
+}
+for old, new in replacements.items():
+    dashboard = dashboard.replace(old, new)
+dashboard_path.write_text(dashboard, encoding='utf-8')
+
+print('Bloco 4 corrigido: FREE com saldo, cobrança real, capacidades claras, perfil escapado e falhas em português.')
