@@ -75,17 +75,17 @@ backend_root = Path('/app/app')
 if backend_root.exists():
     state_path = backend_root / 'api' / 'chat_state.py'
     state = state_path.read_text(encoding='utf-8')
-    payload_marker = '''class ChatStatePayload(BaseModel):
-    messages: list[dict] = Field(default_factory=list, max_length=300)
-    active_operation: str | None = Field(default=None, max_length=120)
-'''
-    payload_replacement = payload_marker + '''
+
+    if 'class NewOperationPayload' not in state:
+        class_marker = '\n\ndef _user_id(session: dict) -> str:\n'
+        class_definition = '''
 
 class NewOperationPayload(BaseModel):
     active_operation: str = Field(min_length=1, max_length=120)
 '''
-    if 'class NewOperationPayload' not in state:
-        state = replace_once(state, payload_marker, payload_replacement, 'Backend: payload de nova operação')
+        if class_marker not in state:
+            raise RuntimeError('Backend: ponto seguro para o payload de nova operação não encontrado.')
+        state = state.replace(class_marker, class_definition + class_marker, 1)
 
     endpoint = '''
 
