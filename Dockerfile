@@ -113,6 +113,7 @@ COPY scripts/fix_artifact_wait_for_user.py /tmp/fix_artifact_wait_for_user.py
 COPY scripts/fix_chat_history_retention.py /tmp/fix_chat_history_retention.py
 COPY scripts/fix_chat_conversation_pdf_regressions.py /tmp/fix_chat_conversation_pdf_regressions.py
 COPY scripts/fix_chat_operation_history_atomic.py /tmp/fix_chat_operation_history_atomic.py
+COPY scripts/fix_conversation_reasoning_completion.py /tmp/fix_conversation_reasoning_completion.py
 RUN python /tmp/connect_chat_sources_backend.py \
     && python /tmp/connect_user_personalization_backend.py \
     && python /tmp/connect_conversational_intent_backend.py \
@@ -123,7 +124,8 @@ RUN python /tmp/connect_chat_sources_backend.py \
     && python /tmp/fix_artifact_wait_for_user.py \
     && python /tmp/fix_chat_history_retention.py \
     && python /tmp/fix_chat_conversation_pdf_regressions.py \
-    && python /tmp/fix_chat_operation_history_atomic.py
+    && python /tmp/fix_chat_operation_history_atomic.py \
+    && python /tmp/fix_conversation_reasoning_completion.py
 COPY --from=frontend-builder /frontend/dist ./frontend/dist
 EXPOSE 8080
 CMD ["sh", "-c", "alembic upgrade head && uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-8080}"]
