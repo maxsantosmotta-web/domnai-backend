@@ -116,6 +116,7 @@ COPY scripts/fix_chat_operation_history_atomic.py /tmp/fix_chat_operation_histor
 COPY scripts/fix_conversation_reasoning_completion.py /tmp/fix_conversation_reasoning_completion.py
 COPY scripts/fix_labor_structured_interpretation.py /tmp/fix_labor_structured_interpretation.py
 COPY scripts/force_gpt51_text_intelligence.py /tmp/force_gpt51_text_intelligence.py
+COPY scripts/enable_progressive_artifact_delivery.py /tmp/enable_progressive_artifact_delivery.py
 RUN python /tmp/connect_chat_sources_backend.py \
     && python /tmp/connect_user_personalization_backend.py \
     && python /tmp/connect_conversational_intent_backend.py \
@@ -129,7 +130,8 @@ RUN python /tmp/connect_chat_sources_backend.py \
     && python /tmp/fix_chat_operation_history_atomic.py \
     && python /tmp/fix_conversation_reasoning_completion.py \
     && python /tmp/fix_labor_structured_interpretation.py \
-    && python /tmp/force_gpt51_text_intelligence.py
+    && python /tmp/force_gpt51_text_intelligence.py \
+    && python /tmp/enable_progressive_artifact_delivery.py
 COPY --from=frontend-builder /frontend/dist ./frontend/dist
 EXPOSE 8080
 CMD ["sh", "-c", "alembic upgrade head && uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-8080}"]
