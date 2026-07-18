@@ -83,8 +83,24 @@ def _answer_requires_user_response(answer: str) -> bool:
         "aguardo sua confirmacao",
     )
     return any(marker in tail for marker in pending_markers)
+
+
+def _artifact_title_without_extension(value: str) -> str:
+    """Mantém o título sem extensão; o gerador acrescenta somente o tipo real."""
+    title = str(value or "Documento DomnAI").strip()
+    lowered = title.casefold()
+    changed = True
+    while changed:
+        changed = False
+        for suffix in (".pdf", ".xlsx", ".csv", "-pdf", "-xlsx", "-csv", "_pdf", "_xlsx", "_csv"):
+            if lowered.endswith(suffix):
+                title = title[:-len(suffix)].rstrip(" ._-–—")
+                lowered = title.casefold()
+                changed = True
+                break
+    return title or "Documento DomnAI"
 ''',
-    'artifact_decision deterministic pending-response guard',
+    'artifact_decision deterministic pending-response guard and title sanitizer',
 )
 
 text = replace_once(
@@ -136,10 +152,18 @@ text = replace_once(
             if chosen_type not in {"pdf", "xlsx", "csv"}:
                 chosen_type = "pdf"
             parsed["artifact_type"] = chosen_type
+            parsed["title"] = _artifact_title_without_extension(parsed.get("title"))
         elif automatic_generation:
             parsed = dict(_NONE)
 ''',
-    'artifact_decision do-not-force-create',
+    'artifact_decision do-not-force-create and sanitize title',
+)
+
+text = replace_once(
+    text,
+    '''        "title": str(payload.get("title") or "Documento DomnAI").strip()[:180],''',
+    '''        "title": _artifact_title_without_extension(str(payload.get("title") or "Documento DomnAI"))[:180],''',
+    'artifact_decision sanitize parsed title',
 )
 
 path.write_text(text, encoding='utf-8')
