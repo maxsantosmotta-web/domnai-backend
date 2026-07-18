@@ -35,8 +35,8 @@ class MeteredBrainResult:
 constant_block = '''
 
 DOMNAI_TEXT_MODEL = "gpt-5.1"
-DOMNAI_REASONING_EFFORT = "low"
-DOMNAI_MIN_OUTPUT_TOKENS = 2400
+DOMNAI_REASONING_EFFORT = "medium"
+DOMNAI_MIN_OUTPUT_TOKENS = 5000
 
 
 @dataclass(frozen=True)
@@ -66,7 +66,7 @@ metered = replace_once(
             "model": model,
             "messages": messages,
             "reasoning_effort": DOMNAI_REASONING_EFFORT,
-            "max_tokens": 3200,
+            "max_tokens": 5000,
         },
 ''',
     'payload do gateway GPT-5.1',
@@ -108,8 +108,8 @@ metered = replace_once(
     incomplete = data.get("incomplete_details") or {}
     if data.get("status") == "incomplete" and incomplete.get("reason") in {"max_output_tokens", "max_tokens"}:
         retry_payload = dict(request_payload)
-        retry_payload["reasoning"] = {"effort": "none"}
-        retry_payload["max_output_tokens"] = max(3200, request_payload["max_output_tokens"])
+        retry_payload["reasoning"] = {"effort": DOMNAI_REASONING_EFFORT}
+        retry_payload["max_output_tokens"] = max(7000, request_payload["max_output_tokens"])
         retry_data = _post_json(
             "https://api.openai.com/v1/responses",
             {"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"},
@@ -161,4 +161,4 @@ labor = replace_once(
 )
 labor_path.write_text(labor, encoding='utf-8')
 
-print('GPT-5.1 estabilizado com raciocínio baixo, orçamento de texto e recuperação de resposta incompleta.')
+print('GPT-5.1 mantido com raciocínio médio, orçamento ampliado e repetição técnica no mesmo nível.')
