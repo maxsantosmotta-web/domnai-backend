@@ -28,6 +28,7 @@ worker_path = Path('/app/app/services/chat_task_worker.py')
 orchestrator_path = Path('/app/app/services/orchestrated_brain.py')
 artifact_decision_path = Path('/app/app/services/artifact_decision.py')
 chat_api_path = Path('/app/app/api/chat.py')
+labor_path = Path('/app/app/services/labor_pipeline.py')
 
 if prompt_path.exists():
     prompt = prompt_path.read_text(encoding='utf-8')
@@ -145,7 +146,6 @@ if chat_api_path.exists():
 if worker_path.exists():
     source = worker_path.read_text(encoding='utf-8')
 
-    # Substitui qualquer uma das mensagens posteriores já usadas.
     variants = [
         'Importante: Este documento tem finalidade informativa e foi elaborado com base nas informações fornecidas durante esta conversa. Para decisões definitivas, recomenda-se sempre a validação por um profissional habilitado.',
         'Confira o arquivo com calma. Se perceber que algum ponto ficou incompleto, incorreto ou diferente do que foi definido na conversa, me diga o trecho e eu preparo uma versão corrigida.',
@@ -153,7 +153,6 @@ if worker_path.exists():
     for variant in variants:
         source = source.replace(variant, POST_ARTIFACT_TEXT)
 
-    # Título contextual antes da criação.
     decision_anchor = '''        decision = decide_artifact(
             message=original_message,
             operation=operation,
@@ -166,7 +165,6 @@ if worker_path.exists():
 '''
     source, _ = replace_once(source, decision_anchor, decision_block)
 
-    # Resultado da tarefa precisa transportar a mensagem posterior ao frontend.
     result_anchor = '            "artifacts": artifacts,\n            "provider": result.provider,\n'
     if '"post_artifact_text":' not in source and result_anchor in source:
         source = source.replace(
@@ -186,6 +184,92 @@ if worker_path.exists():
 
     worker_path.write_text(source, encoding='utf-8')
     applied.append('entrega e texto posterior')
+
+
+# Fluxo trabalhista: mais histórico real, sem refinamentos duplicados e sem repetir perguntas respondidas.
+if labor_path.exists():
+    source = labor_path.read_text(encoding='utf-8')
+
+    old_conversation = '''def _conversation_input(message: str, history: list[dict], diagnosis_state: dict | None) -> list[dict]:
+    items = _normalized_history(history)
+    memory = diagnosis_context(diagnosis_state)
+    if memory:
+        items.insert(0, {"role": "developer", "content": memory})
+    items.append({"role": "user", "content": message})
+    return items
+'''
+    new_conversation = '''def _conversation_input(message: str, history: list[dict], diagnosis_state: dict | None) -> list[dict]:
+    # O cálculo trabalhista precisa enxergar o caso completo, não apenas as últimas 10 mensagens.
+    items: list[dict] = []
+    for item in history[-30:]:
+        role = str(item.get("role") or "").strip().lower()
+        content = str(item.get("content") or "").strip()
+        if role in {"user", "assistant"} and content:
+            items.append({"role": role, "content": content[:6000]})
+    memory = diagnosis_context(diagnosis_state)
+    if memory:
+        items.insert(0, {"role": "developer", "content": memory})
+    items.append({"role": "user", "content": message})
+    return items
+'''
+    source, ok_history = replace_once(source, old_conversation, new_conversation)
+
+    old_payload = '''        context_payload = {
+            "orchestrator_plan": plan,
+            "missing_fields": calculation.missing_fields,
+            "known_data": extracted,
+            "current_message": message,
+        }
+'''
+    new_payload = '''        context_payload = {
+            "orchestrator_plan": plan,
+            "missing_fields": calculation.missing_fields,
+            "known_data": extracted,
+            "current_message": message,
+            "recent_history": history[-30:],
+            "structured_memory": diagnosis_state or {},
+            "instruction": "Pergunte somente o que nunca foi respondido. Correções recentes substituem dados antigos.",
+        }
+'''
+    source, ok_payload = replace_once(source, old_payload, new_payload)
+
+    old_question_refine = '''        questions, refinement_usage = _refine(
+            api_key,
+            model,
+            message,
+            candidate_questions,
+            plan,
+            immutable_evidence="Campos indispensáveis ainda ausentes: " + ", ".join(calculation.missing_fields),
+        )
+'''
+    new_question_refine = '''        # A própria etapa de perguntas já recebe dados, histórico e memória completos.
+        # Evita uma segunda chamada que apenas reescrevia as mesmas perguntas e aumentava a demora.
+        questions = candidate_questions.strip()
+        refinement_usage = {}
+'''
+    source, ok_questions = replace_once(source, old_question_refine, new_question_refine)
+
+    old_final_refine = '''    final_text, refinement_usage = _refine(
+        api_key,
+        model,
+        message,
+        candidate_text,
+        plan,
+        immutable_evidence=report_json,
+    )
+'''
+    new_final_refine = '''    # O renderizador já recebe o relatório determinístico como evidência obrigatória.
+    # Uma segunda reescrita completa duplicava latência sem alterar o cálculo local.
+    final_text = candidate_text.strip()
+    refinement_usage = {}
+'''
+    source, ok_final = replace_once(source, old_final_refine, new_final_refine)
+
+    if not all((ok_history, ok_payload, ok_questions, ok_final)):
+        raise RuntimeError('Não foi possível aplicar integralmente o refinamento do fluxo trabalhista.')
+
+    labor_path.write_text(source, encoding='utf-8')
+    applied.append('especialista trabalhista sem repetição e com menos latência')
 
 
 # =========================
@@ -236,8 +320,21 @@ if dashboard_path.exists():
         else:
             raise RuntimeError('Fluxo de conclusão da tarefa não localizado no Dashboard.jsx.')
 
+    # No celular/tablet, Enter sempre quebra linha. Envio somente pelo botão do chat.
+    # No computador com teclado/ponteiro preciso, Enter envia e Shift+Enter quebra linha.
+    touch_safe_handler = "onKeyDown={(event) => { const isTouchDevice = window.matchMedia?.('(pointer: coarse)')?.matches || navigator.maxTouchPoints > 0; if (event.key === 'Enter' && !event.shiftKey && !event.nativeEvent.isComposing && !isTouchDevice) { event.preventDefault(); event.currentTarget.form?.requestSubmit(); } }}"
+    source, enter_count = re.subn(
+        r'onKeyDown=\{\(event\) => \{.*?event\.currentTarget\.form\?\.requestSubmit\(\);.*?\}\}',
+        touch_safe_handler,
+        source,
+        count=1,
+        flags=re.DOTALL,
+    )
+    if enter_count != 1 and touch_safe_handler not in source:
+        raise RuntimeError('Manipulador principal de Enter não localizado no Dashboard.jsx.')
+
     dashboard_path.write_text(source, encoding='utf-8')
-    applied.append('mensagem posterior no frontend')
+    applied.append('mensagem posterior e Enter móvel corrigidos')
 
 
 if not applied:
