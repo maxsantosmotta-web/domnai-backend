@@ -3,6 +3,7 @@ from app.services.diagnosis_memory import (
     empty_diagnosis_state,
     sanitize_diagnosis_state,
 )
+from app.services.domnai_brain import build_system_prompt
 from app.services.orchestrated_brain import _simple_conversation_response
 
 
@@ -30,6 +31,26 @@ def test_farewell_after_productive_context_is_left_for_contextual_intelligence()
         {"role": "assistant", "content": "Certo, já organizei as primeiras decisões."},
     ]
     assert _simple_conversation_response("Até mais", [], productive_history) is None
+
+
+def test_free_chat_does_not_require_an_operation():
+    prompt = build_system_prompt(None)
+    normalized = prompt.casefold()
+
+    assert "não selecionou uma operação" in normalized
+    assert "identifique a intenção naturalmente" in normalized
+    assert "operação obrigatória" not in normalized
+    assert "escolha uma operação" not in normalized
+
+
+def test_operation_is_context_not_a_mandatory_script():
+    prompt = build_system_prompt("Plano de Ação Empresarial").casefold()
+
+    assert "operação ativa" in prompt
+    assert "não pareça um formulário" in prompt
+    assert "use as informações já fornecidas" in prompt
+    assert "responda prioritariamente ao ponto mais recente" not in prompt
+    assert "modo de conversa progressiva" not in prompt
 
 
 def test_universal_memory_preserves_general_decision_context():
