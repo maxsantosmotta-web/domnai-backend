@@ -144,10 +144,10 @@ create_block = '''        if decision.get("action") == "create":
 source = replace_once(source, create_anchor, create_block, 'aviso antes da geração')
 
 old_delivery = '''                artifacts.append(artifact)
-                if result.provider == "local-artifact":
-                    reply = "PDF criado e enviado aqui no chat. O mesmo arquivo também foi salvo automaticamente na Biblioteca."
-                else:
-                    reply = f"{reply.rstrip()}\n\nArquivo criado e enviado aqui no chat."
+                clean_reply = _clean_artifact_contradictions(reply)
+                completion = _artifact_completion_message(decision.get("artifact_type"))
+                reply = f"{clean_reply}\n\n{completion}" if clean_reply and result.provider != "local-artifact" else completion
+                payload["artifact_delivery_state"] = "completed"
 '''
 new_delivery = '''                artifacts.append(artifact)
                 reply = (
@@ -155,6 +155,7 @@ new_delivery = '''                artifacts.append(artifact)
                     "O conteúdo foi organizado para facilitar a leitura e a consulta. "
                     "Ele também foi salvo automaticamente na Biblioteca."
                 )
+                payload["artifact_delivery_state"] = "completed"
 '''
 source = replace_once(source, old_delivery, new_delivery, 'mensagem final de arquivo pronto')
 
