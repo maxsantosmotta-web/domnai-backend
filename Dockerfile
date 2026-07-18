@@ -47,6 +47,7 @@ COPY scripts/fix_chat_operation_history_atomic.py /tmp/fix_chat_operation_histor
 COPY scripts/fix_operation_single_click_execution.py /tmp/fix_operation_single_click_execution.py
 COPY scripts/fix_operation_boundary_hidden.py /tmp/fix_operation_boundary_hidden.py
 COPY scripts/restore_operation_composer_flow.py /tmp/restore_operation_composer_flow.py
+COPY scripts/enable_desktop_enter_to_send.py /tmp/enable_desktop_enter_to_send.py
 RUN apk add --no-cache python3 \
     && python3 /tmp/connect_domnai_chat.py \
     && python3 /tmp/add_chat_retry_button.py \
@@ -91,6 +92,7 @@ RUN apk add --no-cache python3 \
     && python3 /tmp/fix_operation_single_click_execution.py \
     && python3 /tmp/fix_operation_boundary_hidden.py \
     && python3 /tmp/restore_operation_composer_flow.py \
+    && python3 /tmp/enable_desktop_enter_to_send.py \
     && npm run build
 
 FROM python:3.13-slim AS runtime
