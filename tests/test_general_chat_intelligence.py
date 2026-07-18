@@ -19,6 +19,19 @@ def test_first_greeting_can_stay_local_but_greeting_inside_conversation_does_not
     assert _simple_conversation_response("Oi", [], history) is None
 
 
+def test_farewell_after_productive_context_is_left_for_contextual_intelligence():
+    short_history = [{"role": "assistant", "content": "Olá!"}]
+    assert _simple_conversation_response("Até mais", [], short_history) == "Até mais!"
+
+    productive_history = [
+        {"role": "user", "content": "Quero estruturar meu projeto."},
+        {"role": "assistant", "content": "Vamos definir o objetivo principal."},
+        {"role": "user", "content": "O objetivo é lançar em agosto."},
+        {"role": "assistant", "content": "Certo, já organizei as primeiras decisões."},
+    ]
+    assert _simple_conversation_response("Até mais", [], productive_history) is None
+
+
 def test_universal_memory_preserves_general_decision_context():
     state = sanitize_diagnosis_state({
         "operation": "Abrir um Negócio do Zero",
