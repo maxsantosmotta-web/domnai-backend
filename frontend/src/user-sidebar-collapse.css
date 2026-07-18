@@ -77,6 +77,33 @@
   margin: 0 clamp(18px, 3vw, 34px) 22px;
 }
 
+/*
+ * No desktop com o menu aberto, mensagens e compositor compartilham
+ * uma única coluna central. Isso evita o deslocamento e a quebra visual
+ * provocados pela largura reduzida ao lado da barra lateral.
+ */
+@media (min-width: 901px) {
+  .domnai-app-shell:not(.user-sidebar-collapsed) .clean-chat-area {
+    align-items: center;
+  }
+
+  .domnai-app-shell:not(.user-sidebar-collapsed) .chat-message,
+  .domnai-app-shell:not(.user-sidebar-collapsed) .chat-message.user {
+    width: min(100%, 920px);
+    max-width: 920px;
+    margin-inline: auto;
+    align-self: auto;
+    box-sizing: border-box;
+  }
+
+  .domnai-app-shell:not(.user-sidebar-collapsed) .chat-composer {
+    width: calc(100% - 44px);
+    max-width: 920px;
+    margin: 0 auto 22px;
+    box-sizing: border-box;
+  }
+}
+
 @media (max-width: 900px) {
   .domnai-sidebar .sidebar-brand {
     justify-content: space-between;
