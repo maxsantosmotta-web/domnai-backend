@@ -62,7 +62,10 @@ def _simple_conversation_response(message: str, attachments: list[dict], history
         return "Tudo ótimo! E com você? Como posso ajudar hoje?"
     if normalized in thanks_messages:
         return "Por nada!"
-    if normalized in farewell_messages:
+    # Uma despedida no começo pode ser respondida localmente. Após uma conversa
+    # real, o modelo precisa avaliar se deve apenas encerrar ou oferecer a
+    # consolidação do trabalho já produzido.
+    if normalized in farewell_messages and len(history) < 4:
         return "Até mais!"
     return None
 

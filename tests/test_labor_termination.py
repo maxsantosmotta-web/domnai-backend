@@ -23,14 +23,20 @@ def complete_payload(**overrides):
     return payload
 
 
-def test_missing_values_are_not_assumed_zero():
+def test_missing_optional_variable_pay_produces_explicit_estimate_limitation():
     result = calculate(complete_payload(variable_pay_average=None))
 
-    assert result.ready is False
-    assert "variable_pay_average_or_confirmed_zero" in result.missing_fields
+    assert result.ready is True
+    assert result.missing_fields == []
+    assert result.report["inputs"]["variable_pay_average"] == "0.00"
+    assert result.report["rules_applied"]["unconfirmed_values_assumed_zero"] is True
+    assert any(
+        "Média de remuneração variável não informada" in limitation
+        for limitation in result.report["limitations"]
+    )
 
 
-def test_multiple_unconfirmed_values_block_calculation():
+def test_multiple_optional_unknowns_do_not_block_estimate_and_are_disclosed():
     result = calculate(complete_payload(
         thirteenth_already_paid=None,
         vacation_periods_already_paid=None,
@@ -40,11 +46,17 @@ def test_multiple_unconfirmed_values_block_calculation():
         fgts_information_status=None,
     ))
 
-    assert result.ready is False
-    assert "thirteenth_already_paid_or_confirmed_zero" in result.missing_fields
-    assert "vacation_history" in result.missing_fields
-    assert "deductions_or_confirmed_zero" in result.missing_fields
-    assert "fgts_balance_or_unavailability" in result.missing_fields
+    assert result.ready is True
+    assert result.missing_fields == []
+    assert result.report["rules_applied"]["unconfirmed_values_assumed_zero"] is True
+    limitations = " ".join(result.report["limitations"])
+    assert "Valor de 13º já pago não informado" in limitations
+    assert "Histórico completo de férias" in limitations
+    assert "Média de remuneração variável não informada" in limitations
+    assert "Adicionais salariais não informados" in limitations
+    assert "Descontos não informados" in limitations
+    assert result.report["amounts"]["fgts_information_status"] == "not_informed"
+    assert result.report["amounts"]["fgts_40_percent_penalty"] is None
 
 
 def test_brazilian_currency_format_is_parsed_correctly():
