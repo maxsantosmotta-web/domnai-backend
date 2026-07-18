@@ -29,7 +29,13 @@ jobs:
         run: python -m compileall -q app
       - name: Run chat regression suite
         run: |
-          python -m pytest -q --tb=short \
+          python -m pytest -q --tb=short --junitxml=pytest-chat-report.xml \
             tests/test_general_chat_intelligence.py \
             tests/test_orchestrated_brain.py \
             tests/test_labor_termination.py
+      - name: Upload concise pytest report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: pytest-chat-report
+          path: pytest-chat-report.xml
