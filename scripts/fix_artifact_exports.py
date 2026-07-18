@@ -9,8 +9,9 @@ def replace_once(text: str, old: str, new: str, label: str) -> str:
     raise RuntimeError(f"{label}: trecho esperado não encontrado")
 
 
-# O código-fonte é mantido intacto; este script aplica somente as correções do
-# módulo de artefatos no runtime final, depois dos patches anteriores do Docker.
+# Este script consolida a política final de artefatos no runtime depois dos
+# patches anteriores do Docker. A escolha explícita do usuário prevalece; na
+# geração automática, XLSX/CSV só passa com estrutura tabular realmente útil.
 decision_path = Path('/app/app/services/artifact_decision.py')
 decision = decision_path.read_text(encoding='utf-8')
 
@@ -23,6 +24,14 @@ decision = replace_once(
     "final_content": "",
 }''',
     'artifact_decision._NONE',
+)
+
+decision = replace_once(
+    decision,
+    '''    return bool(operation and len(str(answer or "").strip()) >= 1000)''',
+    '''    minimum_chars = max(120, int(os.getenv("DOMNAI_AUTO_ARTIFACT_MIN_CHARS", "800")))
+    return bool(operation and len(str(answer or "").strip()) >= minimum_chars)''',
+    'artifact_decision automatic threshold',
 )
 
 decision = replace_once(
@@ -93,6 +102,23 @@ def _clean_final_content(value: Any) -> str:
         if not any(marker in _normalize(part) for marker in operational_markers)
     ]
     return "\\n\\n".join(kept).strip()
+
+
+def _table_is_useful(headers: list[Any], rows: list[Any]) -> bool:
+    if len(headers or []) < 4:
+        return False
+    useful_rows = [
+        row for row in (rows or [])
+        if isinstance(row, list) and any(str(value or "").strip() for value in row)
+    ]
+    return len(useful_rows) >= 10
+
+
+def _spreadsheet_payload_is_useful(payload: dict) -> bool:
+    sheets = payload.get("sheets") or []
+    if sheets:
+        return any(_table_is_useful(sheet.get("headers") or [], sheet.get("rows") or []) for sheet in sheets)
+    return _table_is_useful(payload.get("headers") or [], payload.get("rows") or [])
 ''',
     'artifact_decision helpers',
 )
@@ -143,10 +169,17 @@ decision = replace_once(
         "recent_history": recent_history,
         "completed_answer": answer,
     }''',
-    '''    request_payload = {
+    '''    normalized_message = _normalize(message)
+    explicit_request = _contains_any(normalized_message, _EXPLICIT_ARTIFACT_MARKERS)
+    minimum_chars = max(120, int(os.getenv("DOMNAI_AUTO_ARTIFACT_MIN_CHARS", "800")))
+    automatic_generation = bool(operation and not explicit_request and len(str(answer or "").strip()) >= minimum_chars)
+    request_payload = {
         "operation": operation,
         "current_request": message,
         "completed_answer_for_current_request": answer,
+        "automatic_generation": automatic_generation,
+        "minimum_spreadsheet_columns": 4,
+        "minimum_spreadsheet_rows": 10,
     }''',
     'artifact_decision isolated payload',
 )
@@ -161,7 +194,7 @@ decision = replace_once(
   "headers":["colunas quando houver somente uma aba"],
   "rows":[["valores quando houver somente uma aba"]],
   "sheets":[{"sheet_name":"nome da aba","headers":["colunas"],"rows":[["valores"]]}],
-  "final_content":"relatório final consolidado, somente para PDF"
+  "final_content":"relatório final consolidado, obrigatório para PDF"
 }''',
     'artifact_decision schema',
 )
@@ -171,7 +204,12 @@ decision = replace_once(
     '''- Não escolha formato por uma lista fixa de operações. Analise o pedido, o histórico e o conteúdo concluído.
 - O formato explicitamente pedido na mensagem atual sempre tem prioridade sobre qualquer oferta anterior.''',
     '''- Analise SOMENTE `current_request` e `completed_answer_for_current_request`. Não use memória, histórico ou conversas anteriores.
-- O formato explicitamente pedido na solicitação atual sempre tem prioridade.
+- O formato explicitamente pedido na solicitação atual sempre tem prioridade e nunca pode ser trocado pela IA.
+- Quando `automatic_generation=true`, escolha o formato pela natureza principal da entrega e retorne `action=create`; nunca devolva `offer`.
+- Relatório, parecer, diagnóstico, análise narrativa, memória de cálculo explicativa, contrato, plano ou documento em que tabelas sejam apenas apoio deve ser PDF.
+- XLSX/CSV automático só é permitido quando a entrega principal for uma base tabular editável, filtrável, calculável ou reutilizável e puder conter pelo menos 4 colunas coerentes e 10 linhas úteis reais.
+- A presença isolada de uma tabela não transforma um relatório em planilha. Em dúvida entre relatório e planilha, escolha PDF.
+- Não repita, fragmente ou invente informações para alcançar 4 colunas e 10 linhas.
 - Quando a solicitação atual pedir criação, retorne `action=create` e entregue o conteúdo completo; nunca faça nova pergunta nem devolva `offer`.
 - Para PDF, `final_content` deve conter somente o relatório final consolidado. Exclua confirmações, ofertas, avisos operacionais e frases como “vou preparar”, “quer que eu faça” ou “pronto”.''',
     'artifact_decision isolation rules',
@@ -183,8 +221,9 @@ decision = replace_once(
 - Prefira XLSX para uso humano e CSV quando o usuário pedir CSV ou quando o foco for importação de dados.''',
     '''- Para XLSX com action=create, quando o pedido exigir categorias, conjuntos ou abas distintas, produza `sheets` com TODAS as abas necessárias, cada uma com headers e rows completos.
 - Para XLSX de uma única tabela ou CSV, produza headers e rows completos em estrutura tabular real. Não coloque listas inteiras dentro de uma única célula.
+- Em geração automática de XLSX/CSV, produza no mínimo 4 colunas coerentes e 10 linhas úteis reais; se o conteúdo não sustentar isso, escolha PDF.
 - Use apenas dados sustentados pela solicitação atual e pela resposta atual. Não invente números.
-- Prefira XLSX para uso humano e CSV quando o usuário pedir CSV ou quando o foco for importação de dados.''',
+- Prefira XLSX para uso humano e CSV somente quando o usuário pedir CSV ou quando o foco inequívoco for importação de dados.''',
     'artifact_decision spreadsheet rules',
 )
 
@@ -201,15 +240,36 @@ decision = replace_once(
     except Exception:
         return dict(_NONE)''',
     '''        parsed = _parse_decision(raw_text)
+
+        normalized_message = _normalize(message)
+        explicitly_csv = "csv" in normalized_message and explicit_request
+        explicitly_xlsx = _explicit_spreadsheet_request(message) and not explicitly_csv
+        explicitly_pdf = "pdf" in normalized_message and explicit_request
+        if explicitly_csv:
+            parsed["artifact_type"] = "csv"
+        elif explicitly_xlsx:
+            parsed["artifact_type"] = "xlsx"
+        elif explicitly_pdf:
+            parsed["artifact_type"] = "pdf"
+
+        if automatic_generation:
+            chosen_type = parsed.get("artifact_type")
+            if chosen_type in {"xlsx", "csv"} and not _spreadsheet_payload_is_useful(parsed):
+                chosen_type = "pdf"
+            if chosen_type not in {"pdf", "xlsx", "csv"}:
+                chosen_type = "pdf"
+            parsed["action"] = "create"
+            parsed["artifact_type"] = chosen_type
+
         if parsed.get("action") == "create":
             if parsed.get("artifact_type") == "pdf":
-                parsed["source_answer"] = parsed.get("final_content") or ""
+                parsed["source_answer"] = parsed.get("final_content") or str(answer or "").strip()
             else:
                 parsed["source_answer"] = str(answer or "").strip()
         return parsed
     except Exception:
         return dict(_NONE)''',
-    'artifact_decision source answer',
+    'artifact_decision validated selection',
 )
 
 decision_path.write_text(decision, encoding='utf-8')
@@ -217,6 +277,19 @@ decision_path.write_text(decision, encoding='utf-8')
 
 spreadsheet_path = Path('/app/app/services/spreadsheet_artifact.py')
 spreadsheet = spreadsheet_path.read_text(encoding='utf-8')
+spreadsheet = replace_once(
+    spreadsheet,
+    '''def _safe_filename(value: str, extension: str) -> str:
+    base = re.sub(r"[^A-Za-z0-9À-ÿ._-]+", "_", str(value or "planilha").strip())
+    base = base.strip("._-") or "planilha"
+    return f"{base[:120]}.{extension}"''',
+    '''def _safe_filename(value: str, extension: str) -> str:
+    base = re.sub(r"[^A-Za-z0-9À-ÿ._-]+", "_", str(value or "planilha").strip())
+    base = re.sub(r"\\.(pdf|xlsx|csv)$", "", base, flags=re.IGNORECASE)
+    base = base.strip("._-") or "planilha"
+    return f"{base[:120]}.{extension}"''',
+    'spreadsheet filename extension',
+)
 spreadsheet = replace_once(
     spreadsheet,
     '''def generate_csv(title: str, headers: list[str], rows: list[list[Any]]) -> GeneratedSpreadsheet:''',
