@@ -48,6 +48,7 @@ COPY scripts/fix_operation_single_click_execution.py /tmp/fix_operation_single_c
 COPY scripts/fix_operation_boundary_hidden.py /tmp/fix_operation_boundary_hidden.py
 COPY scripts/restore_operation_composer_flow.py /tmp/restore_operation_composer_flow.py
 COPY scripts/enable_desktop_enter_to_send.py /tmp/enable_desktop_enter_to_send.py
+COPY scripts/finalize_natural_conversation_and_artifact_flow.py /tmp/finalize_natural_conversation_and_artifact_flow.py
 RUN apk add --no-cache python3 \
     && python3 /tmp/connect_domnai_chat.py \
     && python3 /tmp/add_chat_retry_button.py \
@@ -93,6 +94,7 @@ RUN apk add --no-cache python3 \
     && python3 /tmp/fix_operation_boundary_hidden.py \
     && python3 /tmp/restore_operation_composer_flow.py \
     && python3 /tmp/enable_desktop_enter_to_send.py \
+    && python3 /tmp/finalize_natural_conversation_and_artifact_flow.py \
     && npm run build
 
 FROM python:3.13-slim AS runtime
@@ -119,6 +121,7 @@ COPY scripts/fix_conversation_reasoning_completion.py /tmp/fix_conversation_reas
 COPY scripts/fix_labor_structured_interpretation.py /tmp/fix_labor_structured_interpretation.py
 COPY scripts/force_gpt51_text_intelligence.py /tmp/force_gpt51_text_intelligence.py
 COPY scripts/enable_progressive_artifact_delivery.py /tmp/enable_progressive_artifact_delivery.py
+COPY scripts/finalize_natural_conversation_and_artifact_flow.py /tmp/finalize_natural_conversation_and_artifact_flow.py
 RUN python /tmp/connect_chat_sources_backend.py \
     && python /tmp/connect_user_personalization_backend.py \
     && python /tmp/connect_conversational_intent_backend.py \
@@ -133,7 +136,8 @@ RUN python /tmp/connect_chat_sources_backend.py \
     && python /tmp/fix_conversation_reasoning_completion.py \
     && python /tmp/fix_labor_structured_interpretation.py \
     && python /tmp/force_gpt51_text_intelligence.py \
-    && python /tmp/enable_progressive_artifact_delivery.py
+    && python /tmp/enable_progressive_artifact_delivery.py \
+    && python /tmp/finalize_natural_conversation_and_artifact_flow.py
 COPY --from=frontend-builder /frontend/dist ./frontend/dist
 EXPOSE 8080
 CMD ["sh", "-c", "alembic upgrade head && uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-8080}"]
