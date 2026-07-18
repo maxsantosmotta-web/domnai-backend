@@ -159,7 +159,9 @@ Extraia os dados confirmados no caso de rescisão trabalhista usando toda a conv
 REGRAS
 - Não invente datas, valores ou fatos.
 - Interprete o sentido da resposta, não apenas palavras exatas.
-- Quando o usuário disser algo como “tenho 7 meses para contabilizar férias e décimo”, “são 7 avos dos dois” ou equivalente, registre 7 em thirteenth_proportional_months e vacation_proportional_months, além de marcar os respectivos campos pending como true.
+- Nunca copie automaticamente a mesma quantidade de avos para férias e 13º. Férias seguem o período aquisitivo iniciado na admissão; o 13º segue exclusivamente o ano civil da data final projetada do contrato.
+- Preencha thirteenth_proportional_months somente quando o usuário informar de forma inequívoca os avos referentes ao ano civil da rescisão. Uma quantidade que represente todo o tempo de contrato, atravesse a virada do ano ou tenha sido dita conjuntamente para férias e décimo não deve ser usada como avos do 13º.
+- Uma eventual pendência de 13º de ano anterior não deve ser somada aos avos do ano da rescisão; apenas marque thirteenth_pending como true e preserve os avos do ano anterior separados na conversa.
 - Quando o usuário disser que uma verba está pendente, não pergunte novamente se ela foi paga sem existir contradição real.
 - Uma correção mais recente do usuário substitui informação anterior incompatível.
 - Use null quando a informação realmente não estiver disponível.
@@ -174,7 +176,7 @@ def missing_data_prompt_instructions() -> str:
 Você é o DomnAI conduzindo uma conversa natural sobre rescisão trabalhista.
 Peça somente os dados essenciais realmente ausentes indicados pelo backend.
 Antes de perguntar, confira known_data, a mensagem atual e o plano para não repetir informação já fornecida de outra forma.
-Aceite respostas equivalentes, correções, números compartilhados entre férias e décimo e linguagem informal.
+Aceite respostas equivalentes, correções e linguagem informal, mas trate férias e 13º como verbas com calendários diferentes.
 Não siga roteiro fixo, não transforme a conversa em formulário e não exponha nomes técnicos dos campos.
 Faça no máximo duas perguntas curtas e contextualizadas.
 Dados complementares que não impedem uma estimativa inicial não devem bloquear a conversa.
@@ -286,13 +288,17 @@ def calculate(data: dict[str, Any]) -> LaborCalculationResult:
     balance_days = max(0, min(30, balance_days))
     salary_balance = _money(base / Decimal("30") * Decimal(balance_days))
 
+    # O 13º é sempre apurado pelo ano civil da data final projetada.
+    # Um número extraído da conversa nunca pode substituir o cálculo por datas,
+    # pois pode representar férias ou meses acumulados de anos anteriores.
     calculated_thirteenth_avos = thirteenth_months(admission, projected_end)
-    thirteenth_avos = (
-        max(0, min(12, explicit_thirteenth_avos))
-        if explicit_thirteenth_avos is not None
-        else calculated_thirteenth_avos
-    )
-    thirteenth_source = "explicitly_informed" if explicit_thirteenth_avos is not None else "calculated_from_dates"
+    thirteenth_avos = calculated_thirteenth_avos
+    thirteenth_source = "calculated_from_dates"
+    if explicit_thirteenth_avos is not None and explicit_thirteenth_avos != calculated_thirteenth_avos:
+        assumptions.append(
+            "Quantidade de avos de 13º informada na conversa divergiu das datas; "
+            "foi aplicado o ano civil da rescisão sem somar períodos de anos anteriores."
+        )
     thirteenth_gross = _money(base * Decimal(thirteenth_avos) / Decimal("12"))
     thirteenth_due = _money(max(Decimal("0"), thirteenth_gross - thirteenth_paid))
 
@@ -349,8 +355,8 @@ def calculate(data: dict[str, Any]) -> LaborCalculationResult:
         "rules_applied": {
             "notice_projection_applied": notice_type in {"indemnified", "worked"},
             "notice_rule": "Na dispensa sem justa causa pelo empregador, o prazo foi calculado proporcionalmente ao tempo de serviço, limitado a 90 dias.",
-            "thirteenth_rule": "Cada mês civil com 15 dias ou mais de contrato conta 1/12.",
-            "vacation_rule": "Cada período mensal completo ou fração final de 15 dias ou mais conta 1/12.",
+            "thirteenth_rule": "O 13º é apurado por ano civil; cada mês do ano da data final projetada com 15 dias ou mais de contrato conta 1/12, sem somar anos anteriores.",
+            "vacation_rule": "Cada período mensal completo ou fração final de 15 dias ou mais conta 1/12 dentro do período aquisitivo.",
             "unconfirmed_values_assumed_zero": bool(assumptions),
         },
         "amounts": {
@@ -384,7 +390,8 @@ def render_instructions() -> str:
 Você é o redator final do cálculo de rescisão do DomnAI. Use exclusivamente o relatório determinístico fornecido pelo backend.
 Não altere datas, avos, fórmulas, prazo de aviso ou valores. Não recalcule por conta própria.
 Apresente em português claro: dados confirmados, base remuneratória, projeção do aviso, memória de cálculo por verba, total direto, FGTS separado e limitações.
-Quando os avos de férias ou décimo tiverem sido informados diretamente pelo usuário, respeite essa informação e deixe claro que ela foi usada.
+Os avos do 13º vêm obrigatoriamente do cálculo por datas e do ano civil da rescisão. Não some meses de anos anteriores e não reutilize os avos de férias para o 13º.
+Quando os avos de férias tiverem sido informados diretamente pelo usuário, respeite essa informação e deixe claro que ela foi usada.
 Não transforme limitações em novas perguntas quando já for possível apresentar uma estimativa útil.
 Destaque quando o aviso legal proporcional for diferente do prazo inicialmente citado pelo usuário.
 Nunca chame estimativa de valor definitivo. Quando o FGTS estiver indisponível ou não informado, diga que essa parcela não foi fechada.
