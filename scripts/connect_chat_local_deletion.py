@@ -99,14 +99,23 @@ source, count = re.subn(
   }
 
   async function deleteConversation() {
-    runSingleDeletePrompt('Apagar conversa?', () => {
-      setMessages([]);
-      setActiveOperation(null);
-      setSearch('');
-      setSearchOpen(false);
-      setAttachments([]);
-      setOptionsOpen(false);
-      setPlusOpen(false);
+    runSingleDeletePrompt('Apagar conversa?', async () => {
+      try {
+        const response = await authorizedFetch('/api/chat-state', { method: 'DELETE' });
+        if (!response.ok) {
+          const payload = await response.json().catch(() => ({}));
+          throw new Error(payload.detail || 'Não foi possível apagar a conversa.');
+        }
+        setMessages([]);
+        setActiveOperation(null);
+        setSearch('');
+        setSearchOpen(false);
+        setAttachments([]);
+        setOptionsOpen(false);
+        setPlusOpen(false);
+      } catch (error) {
+        window.alert(error.message || 'Não foi possível apagar a conversa.');
+      }
     });
   }''',
     source,
