@@ -35,7 +35,8 @@ class MeteredBrainResult:
 constant_block = '''
 
 DOMNAI_TEXT_MODEL = "gpt-5.1"
-DOMNAI_REASONING_EFFORT = "medium"
+DOMNAI_REASONING_EFFORT = "low"
+DOMNAI_MIN_OUTPUT_TOKENS = 2400
 
 
 @dataclass(frozen=True)
@@ -65,7 +66,7 @@ metered = replace_once(
             "model": model,
             "messages": messages,
             "reasoning_effort": DOMNAI_REASONING_EFFORT,
-            "max_tokens": 2200,
+            "max_tokens": 3200,
         },
 ''',
     'payload do gateway GPT-5.1',
@@ -79,11 +80,19 @@ metered = replace_once(
         {"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"},
         payload,
     )
+    text = _extract_response_text(data)
+    if not text:
+        raise RuntimeError("O provedor não retornou uma resposta em texto.")
+    return text, data.get("usage") or {}
 ''',
     '''def _openai_request(api_key: str, payload: dict) -> tuple[str, dict]:
     request_payload = dict(payload or {})
     request_payload["model"] = DOMNAI_TEXT_MODEL
     request_payload["reasoning"] = {"effort": DOMNAI_REASONING_EFFORT}
+    request_payload["max_output_tokens"] = max(
+        DOMNAI_MIN_OUTPUT_TOKENS,
+        _as_int(request_payload.get("max_output_tokens")),
+    )
     # Parâmetros de amostragem não devem controlar uma chamada com raciocínio.
     request_payload.pop("temperature", None)
     request_payload.pop("top_p", None)
@@ -92,8 +101,37 @@ metered = replace_once(
         {"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"},
         request_payload,
     )
+    text = _extract_response_text(data)
+    if text:
+        return text, data.get("usage") or {}
+
+    incomplete = data.get("incomplete_details") or {}
+    if data.get("status") == "incomplete" and incomplete.get("reason") in {"max_output_tokens", "max_tokens"}:
+        retry_payload = dict(request_payload)
+        retry_payload["reasoning"] = {"effort": "none"}
+        retry_payload["max_output_tokens"] = max(3200, request_payload["max_output_tokens"])
+        retry_data = _post_json(
+            "https://api.openai.com/v1/responses",
+            {"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"},
+            retry_payload,
+        )
+        retry_text = _extract_response_text(retry_data)
+        if retry_text:
+            first_usage = data.get("usage") or {}
+            retry_usage = retry_data.get("usage") or {}
+            combined_usage = {
+                "input_tokens": _as_int(first_usage.get("input_tokens")) + _as_int(retry_usage.get("input_tokens")),
+                "output_tokens": _as_int(first_usage.get("output_tokens")) + _as_int(retry_usage.get("output_tokens")),
+                "input_tokens_details": {
+                    "cached_tokens": _as_int((first_usage.get("input_tokens_details") or {}).get("cached_tokens"))
+                    + _as_int((retry_usage.get("input_tokens_details") or {}).get("cached_tokens")),
+                },
+            }
+            return retry_text, combined_usage
+
+    raise RuntimeError("O provedor não retornou uma resposta em texto.")
 ''',
-    'forçamento central do GPT-5.1',
+    'forçamento central robusto do GPT-5.1',
 )
 
 metered = replace_once(
@@ -123,4 +161,4 @@ labor = replace_once(
 )
 labor_path.write_text(labor, encoding='utf-8')
 
-print('Inteligência textual centralizada em gpt-5.1 com raciocínio médio.')
+print('GPT-5.1 estabilizado com raciocínio baixo, orçamento de texto e recuperação de resposta incompleta.')
