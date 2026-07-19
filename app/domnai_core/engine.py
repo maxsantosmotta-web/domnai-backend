@@ -151,7 +151,6 @@ class ConversationEngine:
                         "name": result.name,
                         "output": dict(result.output),
                         "call_id": result.call_id,
-                        "status": "success",
                     }
                 except Exception as exc:
                     tool_failures += 1
