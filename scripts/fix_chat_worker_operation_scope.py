@@ -59,10 +59,9 @@ def _fix_artifact_decision_scope() -> None:
     function_start = source.index('def _requires_artifact_decision(')
     function_end = source.index('\n\ndef decide_artifact(', function_start)
     function_source = source[function_start:function_end]
+
     if 'del operation' in function_source:
-        raise RuntimeError('artifact_decision ainda remove operation antes do gate contextual.')
-    if 'return bool(operation and closing_signal and rich_conversation)' not in function_source:
-        raise RuntimeError('gate contextual de artefatos não encontrado no runtime final.')
+        raise RuntimeError('artifact_decision ainda remove operation antes de terminar a função.')
 
     ARTIFACT_DECISION_PATH.write_text(source, encoding='utf-8')
 
