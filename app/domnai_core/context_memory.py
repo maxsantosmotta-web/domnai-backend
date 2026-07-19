@@ -149,36 +149,37 @@ class ContextMemoryManager:
         seen: set[tuple[str, str]] = set()
         for raw in values:
             if isinstance(raw, str):
-                item = {"value": raw.strip(), "source": "user", "key": "", "expires_at": None}
+                value = raw.strip()
+                source = "user"
+                explicit_key = ""
+                expires_at = None
             elif isinstance(raw, dict):
-                item = {
-                    "value": str(raw.get("value") or "").strip(),
-                    "source": str(raw.get("source") or "").strip().lower(),
-                    "key": str(raw.get("key") or "").strip().lower(),
-                    "expires_at": raw.get("expires_at"),
-                }
+                value = str(raw.get("value") or "").strip()
+                source = str(raw.get("source") or "").strip().lower() or "unknown"
+                explicit_key = str(raw.get("key") or "").strip().lower()
+                expires_at = raw.get("expires_at")
             else:
                 raise TypeError(f"Item de memória em {category} deve ser texto ou objeto.")
-            value = item["value"][:_MAX_VALUE_LENGTH]
-            source = item["source"] or "unknown"
+            value = value[:_MAX_VALUE_LENGTH]
             if not value:
                 continue
             if category == "facts" and source != "user":
                 continue
-            expires_at = item["expires_at"]
             if expires_at is not None:
                 try:
                     expires_at = float(expires_at)
                 except (TypeError, ValueError) as exc:
                     raise TypeError("expires_at deve ser numérico.") from exc
-            key = item["key"] or value.casefold()
-            signature = (key, value.casefold())
+            signature = (explicit_key or value.casefold(), value.casefold())
             if signature in seen:
                 continue
             seen.add(signature)
-            normalized.append(
-                {"value": value, "source": source, "key": key, "expires_at": expires_at}
-            )
+            item = {"value": value, "source": source}
+            if explicit_key:
+                item["key"] = explicit_key
+            if expires_at is not None:
+                item["expires_at"] = expires_at
+            normalized.append(item)
             if len(normalized) >= _MAX_ITEMS_PER_CATEGORY:
                 break
         return normalized
@@ -189,9 +190,13 @@ class ContextMemoryManager:
         correction_keys = {item.get("key") for item in corrections if item.get("key")}
         if correction_keys:
             for category in ("preferences", "decisions", "restrictions", "facts"):
-                result[category] = [
+                filtered = [
                     item for item in result.get(category, []) if item.get("key") not in correction_keys
                 ]
+                if filtered:
+                    result[category] = filtered
+                else:
+                    result.pop(category, None)
 
         for category in _ALLOWED_CATEGORIES:
             incoming = update.get(category) or []
@@ -216,13 +221,18 @@ class ContextMemoryManager:
         result = deepcopy(profile) if isinstance(profile, dict) else {}
         now = float(self._now_provider())
         for category in _ALLOWED_CATEGORIES:
-            items = result.get(category) or []
-            normalized = self._normalize_items(items, category=category)
-            result[category] = [
+            if category not in result:
+                continue
+            normalized = self._normalize_items(result.get(category) or [], category=category)
+            active = [
                 item
                 for item in normalized
                 if item.get("expires_at") is None or float(item["expires_at"]) > now
             ]
+            if active:
+                result[category] = active
+            else:
+                result.pop(category, None)
         if "summary" in result:
             result["summary"] = str(result.get("summary") or "")[:_MAX_SUMMARY_LENGTH]
         return result
