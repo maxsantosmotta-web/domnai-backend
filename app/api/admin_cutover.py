@@ -26,9 +26,11 @@ def cutover_overview(
     try:
         settings = ControlledCutoverSettings.from_env()
         config_error = None
+        config_error_type = None
     except Exception as exc:
         settings = ControlledCutoverSettings()
-        config_error = type(exc).__name__
+        config_error = str(exc).strip() or type(exc).__name__
+        config_error_type = type(exc).__name__
     summary = get_cutover_metric_store().summary(limit=limit)
     shadow_approved = shadow_is_approved()
     return {
@@ -38,6 +40,7 @@ def cutover_overview(
         "requireShadowApproval": settings.require_shadow_approval,
         "shadowApproved": shadow_approved,
         "configurationError": config_error,
+        "configurationErrorType": config_error_type,
         "rollback": "Defina DOMNAI_CUTOVER_ENABLED=false e reinicie o serviço.",
         "summary": summary,
         "readyForFullCutover": bool(
