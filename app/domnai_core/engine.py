@@ -149,21 +149,22 @@ class ConversationEngine:
                     result = self._tools.execute(call)
                     serialized = {
                         "name": result.name,
-                        "output": {"ok": True, **dict(result.output)},
+                        "output": dict(result.output),
                         "call_id": result.call_id,
+                        "status": "success",
                     }
                 except Exception as exc:
                     tool_failures += 1
                     serialized = {
                         "name": call.name,
                         "output": {
-                            "ok": False,
                             "error": {
                                 "type": type(exc).__name__,
                                 "message": str(exc) or "Falha ao executar ferramenta.",
-                            },
+                            }
                         },
                         "call_id": call.call_id,
+                        "status": "error",
                     }
 
                 tool_results.append(serialized)
