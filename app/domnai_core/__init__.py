@@ -11,6 +11,7 @@ from app.domnai_core.attachments import (
 from app.domnai_core.builtin_tools import build_builtin_tool_registry
 from app.domnai_core.composition import DomnAICoreRuntime, build_domnai_core_runtime
 from app.domnai_core.config import DomnAICoreSettings
+from app.domnai_core.context_memory import ContextMemoryManager, MemoryScope
 from app.domnai_core.contracts import (
     Attachment,
     ConversationRequest,
@@ -55,6 +56,7 @@ __all__ = [
     "Attachment",
     "AttachmentPreparer",
     "AttachmentValidationError",
+    "ContextMemoryManager",
     "ConversationEngine",
     "ConversationRecord",
     "ConversationRepository",
@@ -68,6 +70,7 @@ __all__ = [
     "InMemoryConversationRepository",
     "InMemoryCoreMetricsSink",
     "InMemoryMemoryStore",
+    "MemoryScope",
     "MemoryStore",
     "ModelProvider",
     "NullConversationRepository",
