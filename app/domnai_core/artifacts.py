@@ -7,7 +7,8 @@ import json
 from copy import deepcopy
 from dataclasses import dataclass, field
 from threading import RLock
-from typing import Literal, Protocol
+from time import time
+from typing import Callable, Literal, Protocol
 from uuid import uuid4
 
 ArtifactOrigin = Literal["uploaded", "generated"]
@@ -105,6 +106,10 @@ class ArtifactService:
         "text/csv",
         "application/json",
     }
+    _BINARY_GENERATED_MIME_TYPES = {
+        "application/pdf",
+        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    }
     _READABLE_MIME_TYPES = _GENERATED_MIME_TYPES | {
         "text/html",
         "application/xml",
@@ -117,6 +122,7 @@ class ArtifactService:
         *,
         max_artifact_bytes: int = DEFAULT_MAX_ARTIFACT_BYTES,
         max_text_characters: int = DEFAULT_MAX_TEXT_CHARACTERS,
+        now_provider: Callable[[], float] = time,
     ) -> None:
         if max_artifact_bytes < 1:
             raise ValueError("max_artifact_bytes deve ser maior que zero.")
@@ -125,6 +131,7 @@ class ArtifactService:
         self._store = store
         self._max_artifact_bytes = max_artifact_bytes
         self._max_text_characters = max_text_characters
+        self._now_provider = now_provider
 
     def register_uploaded(
         self,
@@ -142,6 +149,32 @@ class ArtifactService:
             origin="uploaded",
             owner_id=owner_id,
             metadata=metadata,
+        )
+        self._store.save(artifact)
+        return artifact
+
+    def register_generated_binary(
+        self,
+        *,
+        name: str,
+        mime_type: str,
+        content: bytes,
+        owner_id: str = "",
+        metadata: dict | None = None,
+    ) -> Artifact:
+        normalized_mime = mime_type.strip().lower()
+        safe_metadata = deepcopy(metadata) if isinstance(metadata, dict) else {}
+        if normalized_mime not in self._BINARY_GENERATED_MIME_TYPES:
+            raise ArtifactValidationError(f"Geração binária não suportada para {normalized_mime}.")
+        if safe_metadata.get("generation_authorized") is not True:
+            raise PermissionError("Artefato binário sem autorização explícita registrada.")
+        artifact = self._build_artifact(
+            name=name,
+            mime_type=normalized_mime,
+            content=content,
+            origin="generated",
+            owner_id=owner_id,
+            metadata=safe_metadata,
         )
         self._store.save(artifact)
         return artifact
@@ -243,20 +276,33 @@ class ArtifactService:
         owner_id: str = "",
         origin: ArtifactOrigin | None = None,
     ) -> tuple[dict, ...]:
-        return tuple(item.summary() for item in self._store.list(owner_id=owner_id, origin=origin))
+        return tuple(
+            item.summary()
+            for item in self._store.list(owner_id=owner_id, origin=origin)
+            if not self._is_expired(item)
+        )
 
     def _require_access(self, artifact_id: str, *, owner_id: str) -> Artifact:
         normalized_id = artifact_id.strip()
         if not normalized_id:
             raise ArtifactValidationError("artifact_id não pode ser vazio.")
         artifact = self._store.get(normalized_id)
-        if artifact is None:
+        if artifact is None or self._is_expired(artifact):
             raise KeyError(f"Artefato não encontrado: {normalized_id}")
         normalized_owner = owner_id.strip()
         stored_owner = str(artifact.metadata.get("owner_id") or "")
         if normalized_owner and stored_owner and stored_owner != normalized_owner:
             raise PermissionError("Artefato pertence a outro usuário.")
         return artifact
+
+    def _is_expired(self, artifact: Artifact) -> bool:
+        expires_at = artifact.metadata.get("expires_at")
+        if expires_at is None:
+            return False
+        try:
+            return float(expires_at) <= float(self._now_provider())
+        except (TypeError, ValueError) as exc:
+            raise ArtifactValidationError("expires_at do artefato deve ser numérico.") from exc
 
     def _build_artifact(
         self,

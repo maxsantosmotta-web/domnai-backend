@@ -36,7 +36,7 @@ jobs:
         run: |
           python -c "from app.services.labor_termination import calculate; print('labor import ok')"
           python -c "from app.services.orchestrated_brain import generate_orchestrated_response; print('orchestrator import ok')"
-          python -c "from app.domnai_core import ArtifactService, InMemoryArtifactStore, ContextMemoryManager, MemoryScope, ConversationEngine, DomnAICoreSettings, OpenAIResponsesProvider, PostgresMemoryStore, ToolPolicy, ToolTimeoutError, build_builtin_tool_registry, build_domnai_core_runtime; print('new core import ok')"
+          python -c "from app.domnai_core import ArtifactGenerationAuthorization, ArtifactService, BinaryArtifactService, InMemoryArtifactStore, PostgresArtifactStore, ContextMemoryManager, MemoryScope, ConversationEngine, DomnAICoreSettings, OpenAIResponsesProvider, PostgresMemoryStore, ToolPolicy, ToolTimeoutError, build_builtin_tool_registry, build_domnai_core_runtime; print('new core import ok')"
           python -c "from app.api.domnai_core_preview import router; print('preview route import ok')"
 
       - name: Run labor tests
@@ -74,3 +74,6 @@ jobs:
 
       - name: Run phase 4 artifact foundation tests
         run: pytest -vv --tb=short tests/test_domnai_core_artifacts.py
+
+      - name: Run phase 4 binary and persistence tests
+        run: pytest -vv --tb=short tests/test_domnai_core_phase4_binary_persistence.py

@@ -15,6 +15,10 @@ from app.domnai_core.attachments import (
     AttachmentValidationError,
     PreparedAttachment,
 )
+from app.domnai_core.binary_artifacts import (
+    ArtifactGenerationAuthorization,
+    BinaryArtifactService,
+)
 from app.domnai_core.builtin_tools import build_builtin_tool_registry
 from app.domnai_core.composition import DomnAICoreRuntime, build_domnai_core_runtime
 from app.domnai_core.config import DomnAICoreSettings
@@ -44,6 +48,10 @@ from app.domnai_core.postgres import (
     PostgresMemoryStore,
     PostgresSchemaManager,
 )
+from app.domnai_core.postgres_artifacts import (
+    PostgresArtifactSchemaManager,
+    PostgresArtifactStore,
+)
 from app.domnai_core.providers import OpenAIResponsesProvider
 from app.domnai_core.tool_execution import (
     ToolExecutionError,
@@ -61,12 +69,14 @@ from app.domnai_core.tools import (
 
 __all__ = [
     "Artifact",
+    "ArtifactGenerationAuthorization",
     "ArtifactService",
     "ArtifactStore",
     "ArtifactValidationError",
     "Attachment",
     "AttachmentPreparer",
     "AttachmentValidationError",
+    "BinaryArtifactService",
     "ContextMemoryManager",
     "ConversationEngine",
     "ConversationRecord",
@@ -89,6 +99,8 @@ __all__ = [
     "NullCoreMetricsSink",
     "NullMemoryStore",
     "OpenAIResponsesProvider",
+    "PostgresArtifactSchemaManager",
+    "PostgresArtifactStore",
     "PostgresConversationRepository",
     "PostgresMemoryStore",
     "PostgresSchemaManager",
