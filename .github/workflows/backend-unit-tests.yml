@@ -44,63 +44,47 @@ jobs:
           python -c "from app.domnai_core.shadow_results import evaluate_shadow_results; from app.services.shadow_validation_worker import start_shadow_validation_worker; print('shadow completion import ok')"
           python -c "from app.domnai_core.cutover import ControlledCutoverRouter; print('controlled cutover import ok')"
           python -c "from app.domnai_core.cutover_runtime import route_brain_request; from app.services.cutover_worker_bootstrap import install_cutover_router; print('cutover completion import ok')"
+          python -c "from app.domnai_core.retirement_readiness import evaluate_legacy_retirement; print('retirement readiness import ok')"
 
       - name: Run labor tests
         run: pytest -vv --tb=short tests/test_labor_termination.py
-
       - name: Run orchestrator tests
         run: pytest -vv --tb=short tests/test_orchestrated_brain.py
-
       - name: Run core foundation and capabilities
         run: pytest -vv --tb=short tests/test_domnai_core_foundation.py tests/test_domnai_core_capabilities.py
-
       - name: Run core attachments and postgres
         run: pytest -vv --tb=short tests/test_domnai_core_tools_attachments.py tests/test_domnai_core_postgres.py
-
       - name: Run core OpenAI tool tests
         run: pytest -vv --tb=short tests/test_domnai_core_openai_tools.py
-
       - name: Run core composition tests
         run: pytest -vv --tb=short tests/test_domnai_core_composition.py
-
       - name: Run phase 2 builtin tool tests
         run: pytest -vv --tb=short tests/test_domnai_core_builtin_tools.py
-
       - name: Run phase 2 policy and multi-step tests
         run: pytest -vv --tb=short tests/test_domnai_core_tool_policies.py
-
       - name: Run phase 2 completion tests
         run: pytest -vv --tb=short tests/test_domnai_core_phase2_completion.py
-
       - name: Run phase 3 contextual memory tests
         run: pytest -vv --tb=short tests/test_domnai_core_context_memory.py
-
       - name: Run phase 3 completion tests
         run: pytest -vv --tb=short tests/test_domnai_core_phase3_memory_completion.py
-
       - name: Run phase 4 artifact foundation tests
         run: pytest -vv --tb=short tests/test_domnai_core_artifacts.py
-
       - name: Run phase 4 binary and persistence tests
         run: pytest -vv --tb=short tests/test_domnai_core_phase4_binary_persistence.py
-
       - name: Run phase 4 completion tests
         run: pytest -vv --tb=short tests/test_domnai_core_phase4_completion.py
-
       - name: Run phase 5 protected parallel API tests
         run: pytest -vv --tb=short tests/test_domnai_core_phase5_parallel_api.py
-
       - name: Run phase 5 completion tests
         run: pytest -vv --tb=short tests/test_domnai_core_phase5_completion.py
-
       - name: Run phase 6 shadow validation tests
         run: pytest -vv --tb=short tests/test_domnai_core_phase6_shadow_validation.py
-
       - name: Run phase 6 completion tests
         run: pytest -vv --tb=short tests/test_domnai_core_phase6_completion.py
-
       - name: Run phase 7 controlled cutover tests
         run: pytest -vv --tb=short tests/test_domnai_core_phase7_controlled_cutover.py
-
       - name: Run phase 7 completion tests
         run: pytest -vv --tb=short tests/test_domnai_core_phase7_completion.py
+      - name: Run phase 8 retirement readiness tests
+        run: pytest -vv --tb=short tests/test_domnai_core_phase8_retirement_readiness.py

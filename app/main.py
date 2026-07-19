@@ -8,6 +8,7 @@ from app.api.admin_audit import router as admin_audit_router
 from app.api.admin_billing import router as admin_billing_router
 from app.api.admin_cutover import router as admin_cutover_router
 from app.api.admin_errors import router as admin_errors_router
+from app.api.admin_legacy_retirement import router as admin_legacy_retirement_router
 from app.api.admin_shadow_validation import router as admin_shadow_validation_router
 from app.api.admin_users import router as admin_users_router
 from app.api.artifacts import router as artifacts_router
@@ -96,6 +97,7 @@ app.include_router(admin_errors_router)
 app.include_router(admin_audit_router)
 app.include_router(admin_shadow_validation_router)
 app.include_router(admin_cutover_router)
+app.include_router(admin_legacy_retirement_router)
 app.include_router(chat_persistent_router)
 app.include_router(chat_state_router)
 app.include_router(chat_tasks_router)
