@@ -25,7 +25,7 @@ PRs principais: #26, #27 e #28.
 
 ## Fase 1 — Fundação do novo núcleo
 
-Status: em execução avançada.
+Status: concluída.
 
 Inclui:
 - pacote isolado `app/domnai_core`;
@@ -38,26 +38,38 @@ Inclui:
 - anexos;
 - rota interna de prévia ainda não montada;
 - persistência PostgreSQL exclusiva do novo núcleo;
-- ciclo controlado modelo → ferramenta → modelo.
+- ciclo controlado modelo → ferramenta → modelo;
+- composição central e configuração tipada;
+- observabilidade isolada;
+- testes unitários e CI obrigatória.
 
-PRs principais: #29, #30, #31 e #32.
+PRs principais: #29, #30, #31, #32, #33, #34 e #35.
 
-Critério de saída:
+Critério de saída atendido:
 - núcleo isolado completo;
 - testes unitários cobrindo contratos, memória, anexos, persistência e ferramentas;
 - nenhum acoplamento obrigatório ao backend legado.
 
 ## Fase 2 — Ferramentas reais e execução multi-etapas
 
-Status: pendente.
+Status: em execução.
 
-Inclui:
+Já concluído:
 - contrato oficial de chamadas de ferramentas vindas do modelo;
-- ferramentas reais registradas explicitamente;
+- ferramentas locais reais registradas explicitamente;
 - limite de iterações;
 - proteção contra repetição e loops;
-- rastreio de cada etapa;
-- falhas previsíveis e recuperáveis.
+- rastreio de cada etapa e `call_id`;
+- falhas de ferramenta devolvidas ao modelo de forma recuperável;
+- ativação e desativação explícita das ferramentas internas;
+- testes determinísticos das ferramentas e do fluxo de recuperação.
+
+Próximo escopo:
+- ampliar o catálogo seguro conforme necessidades reais do DomnAI;
+- definir política por categoria de ferramenta e risco;
+- adicionar timeout e limites específicos por ferramenta;
+- consolidar logs estruturados de cada execução;
+- validar fluxos multi-etapas mais longos sem efeitos externos.
 
 ## Fase 3 — Memória, contexto e identidade conversacional
 
@@ -84,15 +96,21 @@ Inclui:
 
 ## Fase 5 — API paralela, autenticação e observabilidade
 
-Status: pendente.
+Status: parcialmente preparada, sem montagem externa.
 
-Inclui:
+Já preparado:
+- rota interna isolada;
+- feature flag desligada por padrão;
+- métricas de latência, tokens, ferramentas e falhas;
+- endpoint interno de status;
+- composição segura do runtime.
+
+Ainda pendente:
 - montar rota paralela protegida;
 - autenticação e autorização;
-- métricas de latência, tokens, ferramentas e falhas;
 - logs estruturados;
 - correlação por conversa;
-- feature flags e desligamento imediato.
+- desligamento imediato validado na aplicação real.
 
 ## Fase 6 — Integração com frontend e validação comparativa
 
