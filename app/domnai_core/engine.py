@@ -97,12 +97,24 @@ class ConversationEngine:
 
         generated_summary = ""
         if len(request.history) >= self._long_context_threshold:
-            generated_summary = ContextMemoryManager.summarize_history(
-                request.history,
-                max_characters=self._long_context_summary_characters,
-            )
+            if scoped_memory_enabled:
+                generated_summary = self._context_memory.persist_history_summary(
+                    scope,
+                    request.history,
+                    max_characters=self._long_context_summary_characters,
+                )
+            else:
+                generated_summary = ContextMemoryManager.summarize_history(
+                    request.history,
+                    max_characters=self._long_context_summary_characters,
+                )
             effective_memory = {**effective_memory, "recent_context_summary": generated_summary}
 
+        memory_guidance = (
+            self._context_memory.build_usage_guidance(effective_memory)
+            if scoped_memory_enabled and effective_memory
+            else ""
+        )
         available_tools = self._tools.names()
         needs_enrichment = bool(
             stored_memory
@@ -110,6 +122,7 @@ class ConversationEngine:
             or supplied_request_id
             or scoped_memory_enabled
             or generated_summary
+            or memory_guidance
         )
         if needs_enrichment:
             effective_request = replace(
@@ -126,6 +139,7 @@ class ConversationEngine:
                         "scoped": scoped_memory_enabled,
                     },
                     "context_summary_generated": bool(generated_summary),
+                    "memory_usage_guidance": memory_guidance,
                 },
             )
         else:
