@@ -52,13 +52,11 @@ class ConversationEngine:
         effective_memory = {**stored_memory, **dict(request.memory)}
         available_tools = self._tools.names()
 
-        # Preserve the exact request object when there is no context to enrich.
-        # This keeps the foundation contract stable while still exposing tools
-        # whenever at least one tool is actually registered.
         if stored_memory or available_tools:
             effective_metadata = {
                 **dict(request.metadata),
                 "available_tools": available_tools,
+                "tool_definitions": self._tools.definitions(),
             }
             effective_request = replace(
                 request,
@@ -118,7 +116,11 @@ class ConversationEngine:
                     )
                 seen_calls.add(signature)
                 result = self._tools.execute(call)
-                serialized = {"name": result.name, "output": dict(result.output)}
+                serialized = {
+                    "name": result.name,
+                    "output": dict(result.output),
+                    "call_id": result.call_id,
+                }
                 tool_results.append(serialized)
                 iteration_results.append(serialized)
 
@@ -129,6 +131,7 @@ class ConversationEngine:
                     "tool_results": tuple(tool_results),
                     "last_tool_results": tuple(iteration_results),
                     "tool_iteration": iteration + 1,
+                    "previous_response_id": response.metadata.get("response_id"),
                 },
             )
 
@@ -146,11 +149,14 @@ class ConversationEngine:
                 raise TypeError("Cada chamada de ferramenta deve ser ToolCall ou dicionário.")
             name = str(raw.get("name") or "").strip()
             arguments = raw.get("arguments") or {}
+            call_id = str(raw.get("call_id") or "").strip() or None
             if not name:
                 raise ValueError("Chamada de ferramenta sem nome.")
             if not isinstance(arguments, dict):
                 raise TypeError("Os argumentos da ferramenta devem ser um dicionário.")
-            calls.append(ToolCall(name=name, arguments=dict(arguments)))
+            calls.append(
+                ToolCall(name=name, arguments=dict(arguments), call_id=call_id)
+            )
         return tuple(calls)
 
     @staticmethod

@@ -49,16 +49,40 @@ class OpenAIResponsesProvider:
                 request.memory, ensure_ascii=False, separators=(",", ":")
             )
 
-        input_items = [
-            {"role": item.role, "content": item.content}
-            for item in request.history
-            if item.role in {"user", "assistant", "system"}
-        ]
+        previous_response_id = str(
+            request.metadata.get("previous_response_id") or ""
+        ).strip()
+        last_tool_results = request.metadata.get("last_tool_results") or ()
 
-        user_content: list[dict] = [{"type": "input_text", "text": request.message}]
-        prepared_attachments = self._attachment_preparer.prepare(request.attachments)
-        user_content.extend(item.content_item for item in prepared_attachments)
-        input_items.append({"role": "user", "content": user_content})
+        prepared_attachments = ()
+        if previous_response_id and last_tool_results:
+            input_items = [
+                {
+                    "type": "function_call_output",
+                    "call_id": str(item.get("call_id") or ""),
+                    "output": json.dumps(
+                        item.get("output") or {},
+                        ensure_ascii=False,
+                        separators=(",", ":"),
+                    ),
+                }
+                for item in last_tool_results
+                if item.get("call_id")
+            ]
+            if not input_items:
+                raise ProviderRequestError(
+                    "Resultado de ferramenta sem call_id para continuidade da Responses API."
+                )
+        else:
+            input_items = [
+                {"role": item.role, "content": item.content}
+                for item in request.history
+                if item.role in {"user", "assistant", "system"}
+            ]
+            user_content: list[dict] = [{"type": "input_text", "text": request.message}]
+            prepared_attachments = self._attachment_preparer.prepare(request.attachments)
+            user_content.extend(item.content_item for item in prepared_attachments)
+            input_items.append({"role": "user", "content": user_content})
 
         payload = {
             "model": self._model,
@@ -67,34 +91,20 @@ class OpenAIResponsesProvider:
             "temperature": 0.2,
             "max_output_tokens": 2200,
         }
-        http_request = Request(
-            "https://api.openai.com/v1/responses",
-            data=json.dumps(payload).encode("utf-8"),
-            headers={
-                "Authorization": f"Bearer {self._api_key}",
-                "Content-Type": "application/json",
-            },
-            method="POST",
-        )
-        try:
-            with urlopen(http_request, timeout=self._timeout_seconds) as response:
-                data = json.loads(response.read().decode("utf-8"))
-        except HTTPError as exc:
-            detail = exc.read().decode("utf-8", errors="replace")[:500]
-            raise ProviderRequestError(f"OpenAI respondeu HTTP {exc.code}: {detail}") from exc
-        except (URLError, TimeoutError, json.JSONDecodeError) as exc:
-            raise ProviderRequestError(f"Falha ao consultar a OpenAI: {exc}") from exc
+        tool_definitions = request.metadata.get("tool_definitions") or ()
+        if tool_definitions:
+            payload["tools"] = list(tool_definitions)
+            payload["tool_choice"] = "auto"
+        if previous_response_id:
+            payload["previous_response_id"] = previous_response_id
 
-        text = str(data.get("output_text") or "").strip()
+        data = self._request(payload)
+        tool_calls = self._extract_function_calls(data)
+        text = self._extract_text(data)
+        if not text and tool_calls:
+            text = "Executando ferramenta solicitada."
         if not text:
-            parts: list[str] = []
-            for output in data.get("output") or []:
-                for content in output.get("content") or []:
-                    if content.get("type") == "output_text" and content.get("text"):
-                        parts.append(str(content["text"]).strip())
-            text = "\n".join(part for part in parts if part).strip()
-        if not text:
-            raise ProviderRequestError("A OpenAI não retornou texto.")
+            raise ProviderRequestError("A OpenAI não retornou texto nem chamada de ferramenta.")
 
         usage = data.get("usage") or {}
         details = usage.get("input_tokens_details") or {}
@@ -108,5 +118,61 @@ class OpenAIResponsesProvider:
             metadata={
                 "response_id": data.get("id"),
                 "attachment_count": len(prepared_attachments),
+                "tool_calls": tool_calls,
             },
         )
+
+    def _request(self, payload: dict) -> dict:
+        http_request = Request(
+            "https://api.openai.com/v1/responses",
+            data=json.dumps(payload).encode("utf-8"),
+            headers={
+                "Authorization": f"Bearer {self._api_key}",
+                "Content-Type": "application/json",
+            },
+            method="POST",
+        )
+        try:
+            with urlopen(http_request, timeout=self._timeout_seconds) as response:
+                return json.loads(response.read().decode("utf-8"))
+        except HTTPError as exc:
+            detail = exc.read().decode("utf-8", errors="replace")[:500]
+            raise ProviderRequestError(f"OpenAI respondeu HTTP {exc.code}: {detail}") from exc
+        except (URLError, TimeoutError, json.JSONDecodeError) as exc:
+            raise ProviderRequestError(f"Falha ao consultar a OpenAI: {exc}") from exc
+
+    @staticmethod
+    def _extract_text(data: dict) -> str:
+        text = str(data.get("output_text") or "").strip()
+        if text:
+            return text
+        parts: list[str] = []
+        for output in data.get("output") or []:
+            for content in output.get("content") or []:
+                if content.get("type") == "output_text" and content.get("text"):
+                    parts.append(str(content["text"]).strip())
+        return "\n".join(part for part in parts if part).strip()
+
+    @staticmethod
+    def _extract_function_calls(data: dict) -> tuple[dict, ...]:
+        calls: list[dict] = []
+        for output in data.get("output") or []:
+            if output.get("type") != "function_call":
+                continue
+            name = str(output.get("name") or "").strip()
+            call_id = str(output.get("call_id") or output.get("id") or "").strip()
+            raw_arguments = output.get("arguments") or "{}"
+            try:
+                arguments = (
+                    json.loads(raw_arguments)
+                    if isinstance(raw_arguments, str)
+                    else dict(raw_arguments)
+                )
+            except (json.JSONDecodeError, TypeError, ValueError) as exc:
+                raise ProviderRequestError(
+                    f"Argumentos inválidos na chamada da ferramenta {name or '<sem nome>'}."
+                ) from exc
+            if not name or not call_id or not isinstance(arguments, dict):
+                raise ProviderRequestError("Chamada de ferramenta incompleta na Responses API.")
+            calls.append({"name": name, "arguments": arguments, "call_id": call_id})
+        return tuple(calls)
