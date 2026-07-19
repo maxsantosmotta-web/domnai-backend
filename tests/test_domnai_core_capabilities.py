@@ -1,3 +1,5 @@
+import pytest
+
 from app.domnai_core import ConversationEngine, ConversationRequest, ConversationResponse
 from app.domnai_core.memory import InMemoryMemoryStore
 from app.domnai_core.persistence import InMemoryConversationRepository
@@ -15,6 +17,49 @@ class MemoryAwareProvider:
             provider="stub",
             model="stub",
             memory_update={"last_topic": request.message},
+        )
+
+
+class ToolLoopProvider:
+    def __init__(self, *, repeat: bool = False) -> None:
+        self.requests = []
+        self.repeat = repeat
+
+    def generate(self, request: ConversationRequest) -> ConversationResponse:
+        self.requests.append(request)
+        if len(self.requests) == 1 or self.repeat:
+            return ConversationResponse(
+                text="Consultando ferramenta.",
+                provider="stub",
+                model="stub",
+                metadata={
+                    "tool_calls": (
+                        {"name": "sum", "arguments": {"a": 2, "b": 3}},
+                    )
+                },
+            )
+        return ConversationResponse(
+            text=f"Resultado: {request.metadata['last_tool_results'][0]['output']['value']}",
+            provider="stub",
+            model="stub",
+        )
+
+
+class EndlessToolProvider:
+    def __init__(self) -> None:
+        self.counter = 0
+
+    def generate(self, request: ConversationRequest) -> ConversationResponse:
+        self.counter += 1
+        return ConversationResponse(
+            text="Continuando.",
+            provider="stub",
+            model="stub",
+            metadata={
+                "tool_calls": (
+                    {"name": "sum", "arguments": {"a": self.counter, "b": 1}},
+                )
+            },
         )
 
 
@@ -72,6 +117,45 @@ def test_available_tools_are_exposed_as_context_without_automatic_execution():
     registry.register("safe-tool", lambda arguments: arguments)
     engine = ConversationEngine(provider, tools=registry)
 
-    engine.respond(ConversationRequest(message="Converse comigo", metadata={"conversation_id": "c"}))
+    engine.respond(ConversationRequest(message="Converse comigo"))
 
     assert provider.requests[0].metadata["available_tools"] == ("safe-tool",)
+
+
+def test_engine_executes_tool_and_returns_final_provider_response():
+    provider = ToolLoopProvider()
+    registry = ToolRegistry()
+    registry.register("sum", lambda arguments: {"value": arguments["a"] + arguments["b"]})
+    engine = ConversationEngine(provider, tools=registry)
+
+    response = engine.respond(ConversationRequest(message="Quanto é 2 + 3?"))
+
+    assert response.text == "Resultado: 5"
+    assert response.metadata["tool_iterations"] == 1
+    assert response.metadata["tool_results"][0]["output"] == {"value": 5}
+    assert len(provider.requests) == 2
+
+
+def test_engine_blocks_repeated_identical_tool_call():
+    provider = ToolLoopProvider(repeat=True)
+    registry = ToolRegistry()
+    registry.register("sum", lambda arguments: {"value": arguments["a"] + arguments["b"]})
+    engine = ConversationEngine(provider, tools=registry)
+
+    with pytest.raises(RuntimeError, match="Chamada repetida"):
+        engine.respond(ConversationRequest(message="Repita indefinidamente"))
+
+
+def test_engine_stops_when_tool_iteration_limit_is_reached():
+    provider = EndlessToolProvider()
+    registry = ToolRegistry()
+    registry.register("sum", lambda arguments: {"value": arguments["a"] + arguments["b"]})
+    engine = ConversationEngine(provider, tools=registry, max_tool_iterations=2)
+
+    with pytest.raises(RuntimeError, match="Limite de iterações"):
+        engine.respond(ConversationRequest(message="Continue usando ferramentas"))
+
+
+def test_engine_rejects_negative_tool_iteration_limit():
+    with pytest.raises(ValueError, match="não pode ser negativo"):
+        ConversationEngine(MemoryAwareProvider(), max_tool_iterations=-1)
