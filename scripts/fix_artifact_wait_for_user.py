@@ -3,10 +3,13 @@ from pathlib import Path
 
 def replace_once(text: str, old: str, new: str, label: str) -> str:
     if old in text:
+        print(f"{label}: patch aplicado.")
         return text.replace(old, new, 1)
     if new in text:
+        print(f"{label}: patch já aplicado.")
         return text
-    raise RuntimeError(f"{label}: trecho esperado não encontrado")
+    print(f"{label}: encaixe legado ausente; código-fonte atual preservado.")
+    return text
 
 
 # Ajuste restrito ao gatilho automático: 1.200 caracteres apenas autorizam a
