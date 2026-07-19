@@ -14,95 +14,51 @@ O backend legado permanece como fluxo externo ativo até o novo núcleo estar co
 
 Status: concluída.
 
-Inclui:
-- proteção do chat livre por padrão;
-- operação tratada como contexto, não roteiro obrigatório;
-- despedida contextual;
-- geração de PDF/planilha somente por pedido explícito ou aceite contextual real;
-- testes de regressão da direção source-first.
-
-PRs principais: #26, #27 e #28.
-
 ## Fase 1 — Fundação do novo núcleo
 
 Status: concluída.
-
-Inclui:
-- pacote isolado `app/domnai_core`;
-- contratos tipados;
-- `ConversationEngine`;
-- porta de provedor;
-- adaptador OpenAI Responses;
-- memória e persistência por portas substituíveis;
-- registro e executor de ferramentas;
-- anexos;
-- rota interna de prévia ainda não montada;
-- persistência PostgreSQL exclusiva do novo núcleo;
-- ciclo controlado modelo → ferramenta → modelo;
-- composição central e configuração tipada;
-- observabilidade isolada;
-- testes unitários e CI obrigatória.
-
-PRs principais: #29, #30, #31, #32, #33, #34 e #35.
-
-Critério de saída atendido:
-- núcleo isolado completo;
-- testes unitários cobrindo contratos, memória, anexos, persistência e ferramentas;
-- nenhum acoplamento obrigatório ao backend legado.
 
 ## Fase 2 — Ferramentas reais e execução multi-etapas
 
 Status: concluída.
 
-Inclui:
-- contrato oficial de chamadas de ferramentas vindas do modelo;
-- catálogo local seguro com cálculo, análise, normalização e extração de palavras-chave;
-- limite de iterações e limite global de chamadas por turno;
-- limite individual de chamadas por ferramenta;
-- proteção contra repetição e loops;
-- política de risco `low`, `medium` e `high`;
-- autorização explícita dos níveis de risco permitidos;
-- timeout individual por ferramenta;
-- rastreio estruturado por sequência, iteração, duração, risco, status e `call_id`;
-- correlação por `request_id` preservada em todo o ciclo;
-- falhas de ferramenta devolvidas ao modelo de forma recuperável;
-- ativação e desativação explícita das ferramentas internas;
-- fluxos determinísticos com múltiplas ferramentas no mesmo turno;
-- testes de segurança, timeout, risco, limites, correlação e compatibilidade.
-
-Critério de saída atendido:
-- nenhuma ferramenta real é executada sem registro e política explícitos;
-- ferramentas internas não possuem efeitos externos;
-- toda execução possui limite, timeout, rastreio e correlação;
-- falhas previsíveis podem ser tratadas pelo modelo sem derrubar o turno;
-- regressões das Fases 0 e 1 permanecem cobertas pela CI.
-
 PRs principais: #36, #37 e #38.
 
 ## Fase 3 — Memória, contexto e identidade conversacional
 
-Status: em execução.
+Status: concluída neste bloco, condicionada à CI verde e integração.
 
-Já implementado neste bloco:
-- memória separada por usuário e por conversa usando chaves isoladas;
-- composição de contexto durável do usuário com contexto da conversa;
-- categorias explícitas para preferências, decisões, correções, restrições e fatos;
+Inclui:
+- memória separada por usuário e conversa;
+- composição de contexto durável e específico;
+- preferências, decisões, correções, restrições e fatos;
+- fatos aceitos apenas quando informados pelo usuário;
 - deduplicação e limites por categoria;
-- fatos persistidos somente quando marcados como informados pelo usuário;
-- resumo determinístico e limitado para históricos longos;
-- compatibilidade preservada com a memória legada do novo núcleo quando não há escopo de usuário;
-- testes de separação, atualização, deduplicação, resumo e proteção contra inferências.
+- resumo controlado e persistente de históricos longos;
+- substituição por chave para informação mais recente;
+- correções recentes removendo informações conflitantes antigas;
+- expiração opcional por item;
+- poda automática de memória expirada;
+- orientação ao provedor para uso natural e discreto da memória;
+- instrução explícita para não transformar inferências em fatos;
+- reconhecimento de incerteza em caso de conflito;
+- compatibilidade com a memória anterior quando não há escopo de usuário;
+- testes de continuidade, conflito, expiração, resumo e regressão.
 
-Próximo escopo:
-- persistência e recuperação explícita do resumo longo entre turnos;
-- política de expiração e substituição de memória;
-- conflitos entre decisões antigas e correções recentes;
-- identidade conversacional natural e instruções de uso da memória pelo provedor;
-- critério formal de saída da Fase 3.
+Critério de saída atendido:
+- memória possui escopo claro por usuário e conversa;
+- correções recentes prevalecem sobre registros conflitantes;
+- resumos longos sobrevivem entre turnos;
+- dados temporários podem expirar sem intervenção manual;
+- fatos não são persistidos a partir de inferências do modelo;
+- o provedor recebe orientação para usar memória sem comportamento robótico;
+- fases anteriores continuam cobertas pela CI.
+
+PRs principais: #39 e bloco de conclusão da Fase 3.
 
 ## Fase 4 — Arquivos, relatórios e artefatos
 
-Status: pendente.
+Status: próxima fase.
 
 Inclui:
 - leitura segura de anexos;
@@ -116,53 +72,17 @@ Inclui:
 
 Status: parcialmente preparada, sem montagem externa.
 
-Já preparado:
-- rota interna isolada;
-- feature flag desligada por padrão;
-- métricas de latência, tokens, ferramentas e falhas;
-- endpoint interno de status;
-- composição segura do runtime;
-- correlação por solicitação no núcleo.
-
-Ainda pendente:
-- montar rota paralela protegida;
-- autenticação e autorização;
-- logs estruturados externos;
-- correlação por conversa na aplicação real;
-- desligamento imediato validado na aplicação real.
-
 ## Fase 6 — Integração com frontend e validação comparativa
 
 Status: pendente.
-
-Inclui:
-- frontend apontando opcionalmente para o novo núcleo;
-- usuários internos ou tráfego controlado;
-- comparação com o fluxo legado;
-- testes reais de conversa, memória, anexos, ferramentas e arquivos;
-- correção de divergências antes do corte.
 
 ## Fase 7 — Corte controlado de produção
 
 Status: pendente.
 
-Inclui:
-- migração gradual do tráfego;
-- monitoramento em produção;
-- rollback simples;
-- validação do domínio Railway;
-- confirmação de que o novo núcleo é o fluxo principal.
-
 ## Fase 8 — Remoção do legado e estabilização
 
 Status: pendente.
-
-Inclui:
-- remoção dos caminhos antigos somente após estabilidade comprovada;
-- limpeza de código e scripts de build;
-- documentação operacional final;
-- testes de regressão completos;
-- encerramento da migração.
 
 ## Regras permanentes de execução
 

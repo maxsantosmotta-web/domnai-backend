@@ -68,3 +68,6 @@ jobs:
 
       - name: Run phase 3 contextual memory tests
         run: pytest -vv --tb=short tests/test_domnai_core_context_memory.py
+
+      - name: Run phase 3 completion tests
+        run: pytest -vv --tb=short tests/test_domnai_core_phase3_memory_completion.py
