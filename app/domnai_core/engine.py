@@ -6,6 +6,12 @@ from typing import Protocol
 
 from app.domnai_core.contracts import ConversationRequest, ConversationResponse
 from app.domnai_core.memory import MemoryStore, NullMemoryStore
+from app.domnai_core.observability import (
+    CoreMetricsSink,
+    CoreRequestMetric,
+    NullCoreMetricsSink,
+    RequestTimer,
+)
 from app.domnai_core.persistence import (
     ConversationRecord,
     ConversationRepository,
@@ -22,12 +28,7 @@ class ModelProvider(Protocol):
 
 
 class ConversationEngine:
-    """Ponto único de entrada do novo núcleo conversacional.
-
-    O motor coordena apenas contratos e portas explícitas. Provedor, memória,
-    persistência e ferramentas permanecem substituíveis e não importam serviços
-    do backend legado.
-    """
+    """Ponto único de entrada do novo núcleo conversacional."""
 
     def __init__(
         self,
@@ -37,6 +38,7 @@ class ConversationEngine:
         repository: ConversationRepository | None = None,
         tools: ToolRegistry | None = None,
         max_tool_iterations: int = 3,
+        metrics: CoreMetricsSink | None = None,
     ) -> None:
         if max_tool_iterations < 0:
             raise ValueError("max_tool_iterations não pode ser negativo.")
@@ -45,23 +47,46 @@ class ConversationEngine:
         self._repository = repository or NullConversationRepository()
         self._tools = tools or ToolRegistry()
         self._max_tool_iterations = max_tool_iterations
+        self._metrics = metrics or NullCoreMetricsSink()
 
     def respond(self, request: ConversationRequest) -> ConversationResponse:
+        timer = RequestTimer()
+        try:
+            response = self._respond(request)
+        except Exception:
+            self._metrics.record(
+                CoreRequestMetric(outcome="error", duration_ms=timer.elapsed_ms())
+            )
+            raise
+
+        self._metrics.record(
+            CoreRequestMetric(
+                outcome="success",
+                duration_ms=timer.elapsed_ms(),
+                provider=response.provider,
+                model=response.model,
+                input_tokens=response.input_tokens,
+                output_tokens=response.output_tokens,
+                tool_iterations=max(0, int(response.metadata.get("tool_iterations") or 0)),
+            )
+        )
+        return response
+
+    def _respond(self, request: ConversationRequest) -> ConversationResponse:
         conversation_id = str(request.metadata.get("conversation_id") or "").strip()
         stored_memory = self._memory_store.load(conversation_id) if conversation_id else {}
         effective_memory = {**stored_memory, **dict(request.memory)}
         available_tools = self._tools.names()
 
         if stored_memory or available_tools:
-            effective_metadata = {
-                **dict(request.metadata),
-                "available_tools": available_tools,
-                "tool_definitions": self._tools.definitions(),
-            }
             effective_request = replace(
                 request,
                 memory=effective_memory,
-                metadata=effective_metadata,
+                metadata={
+                    **dict(request.metadata),
+                    "available_tools": available_tools,
+                    "tool_definitions": self._tools.definitions(),
+                },
             )
         else:
             effective_request = request
@@ -96,12 +121,14 @@ class ConversationEngine:
             calls = self._extract_tool_calls(response)
             if not calls:
                 if tool_results:
-                    metadata = {
-                        **dict(response.metadata),
-                        "tool_iterations": iteration,
-                        "tool_results": tuple(tool_results),
-                    }
-                    return replace(response, metadata=metadata)
+                    return replace(
+                        response,
+                        metadata={
+                            **dict(response.metadata),
+                            "tool_iterations": iteration,
+                            "tool_results": tuple(tool_results),
+                        },
+                    )
                 return response
 
             if iteration >= self._max_tool_iterations:
@@ -154,9 +181,7 @@ class ConversationEngine:
                 raise ValueError("Chamada de ferramenta sem nome.")
             if not isinstance(arguments, dict):
                 raise TypeError("Os argumentos da ferramenta devem ser um dicionário.")
-            calls.append(
-                ToolCall(name=name, arguments=dict(arguments), call_id=call_id)
-            )
+            calls.append(ToolCall(name=name, arguments=dict(arguments), call_id=call_id))
         return tuple(calls)
 
     @staticmethod
