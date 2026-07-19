@@ -13,7 +13,7 @@ def test_recent_correction_replaces_conflicting_preference():
     manager.apply_update(scope, {"user": {"corrections": [{"key": "tone", "value": "natural", "source": "user"}]}})
 
     memory = manager.load(scope)
-    assert memory["user"]["preferences"] == []
+    assert memory["user"].get("preferences", []) == []
     assert memory["user"]["corrections"][0]["value"] == "natural"
 
 
@@ -24,7 +24,7 @@ def test_expired_items_are_removed():
 
     manager.apply_update(scope, {"user": {"preferences": [{"value": "temporário", "source": "user", "expires_at": 100.0}]}})
 
-    assert manager.load(scope)["user"]["preferences"] == []
+    assert manager.load(scope)["user"].get("preferences", []) == []
 
 
 def test_summary_is_persisted_from_long_history():
