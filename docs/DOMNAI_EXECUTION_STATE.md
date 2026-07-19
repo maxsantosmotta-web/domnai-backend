@@ -29,11 +29,17 @@ Atualizado em: 2026-07-19
 - PR #34: ferramentas nativas da Responses API e continuidade por `call_id`.
 - PR #35: configuração, composição, observabilidade e rota interna executável ainda não montada.
 
-Merge mais recente antes deste bloco: `15be13ad50eb839ff536032f3754e8b27e4ea8d3`.
+Merge mais recente antes do PR #36: `15be13ad50eb839ff536032f3754e8b27e4ea8d3`.
 
-## Bloco atual — início operacional da Fase 2
+## PR #36 — início operacional da Fase 2
 
 Branch: `feature/source-first-phase2-real-tools`
+
+Estado validado:
+- CI `Backend unit tests #489`: concluída com sucesso;
+- regressões do núcleo anterior: aprovadas;
+- testes novos da Fase 2: aprovados;
+- pronto para integração na `main`.
 
 Inclui:
 - ferramenta real `calculate_expression`, com avaliação aritmética por AST e sem execução de código;
@@ -41,25 +47,26 @@ Inclui:
 - limites de tamanho, potência e resultado;
 - ativação por `DOMNAI_CORE_ENABLE_BUILTIN_TOOLS`;
 - composição automática e explicitamente substituível do registro;
-- falhas de ferramenta devolvidas ao modelo como resultado estruturado;
-- preservação de `call_id`, status e histórico de cada execução;
+- falhas de ferramenta devolvidas ao modelo como resultado estruturado e recuperável;
+- preservação de `call_id` e histórico de cada execução;
 - contagem de falhas recuperáveis no resultado final;
+- preservação do contrato anterior para ferramentas bem-sucedidas;
 - testes de segurança, resultado e recuperação;
-- atualização da CI e do roadmap.
+- CI detalhada por capacidade;
+- roadmap atualizado com Fase 1 concluída e Fase 2 iniciada.
 
 ## Próximo passo exato
 
-1. Abrir PR do bloco atual.
-2. Aguardar e verificar a CI completa.
-3. Corrigir qualquer falha comprovada sem reduzir cobertura.
-4. Integrar somente com CI verde.
-5. Continuar a Fase 2 com:
+1. Confirmar que o PR #36 foi integrado na `main`.
+2. Abrir nova branch a partir da `main` atualizada.
+3. Continuar a Fase 2 com um bloco agrupado contendo:
    - política de risco por ferramenta;
    - timeout e limites específicos;
    - rastreio estruturado de execução;
-   - novos fluxos multi-etapas determinísticos.
-6. Não montar a rota interna no `main.py` ainda.
-7. Não alterar frontend nem tráfego de produção.
+   - fluxo multi-etapas determinístico com mais de uma ferramenta;
+   - testes de falha, limite e compatibilidade.
+4. Não montar a rota interna no `main.py` ainda.
+5. Não alterar frontend nem tráfego de produção.
 
 ## O que não deve ser feito agora
 
