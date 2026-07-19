@@ -45,5 +45,8 @@ jobs:
       - name: Run orchestrator tests
         run: pytest -vv --tb=short tests/test_orchestrated_brain.py
 
-      - name: Run new core tests
-        run: pytest -vv --tb=short tests/test_domnai_core_foundation.py tests/test_domnai_core_capabilities.py tests/test_domnai_core_tools_attachments.py tests/test_domnai_core_postgres.py tests/test_domnai_core_openai_tools.py tests/test_domnai_core_composition.py tests/test_domnai_core_builtin_tools.py
+      - name: Run established core tests
+        run: pytest -vv --tb=short tests/test_domnai_core_foundation.py tests/test_domnai_core_capabilities.py tests/test_domnai_core_tools_attachments.py tests/test_domnai_core_postgres.py tests/test_domnai_core_openai_tools.py tests/test_domnai_core_composition.py
+
+      - name: Run phase 2 tool tests
+        run: pytest -vv --tb=short tests/test_domnai_core_builtin_tools.py
