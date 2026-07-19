@@ -24,6 +24,7 @@ from app.api.profile import router as profile_router
 from app.api.reports import router as reports_router
 from app.api.trash import router as trash_router
 from app.config import settings
+from app.domnai_core.parallel_api_bootstrap import mount_parallel_api
 from app.error_monitoring import module_from_path, record_operational_event
 from app.services.chat_task_worker import start_chat_task_worker
 
@@ -101,6 +102,9 @@ app.include_router(trash_router)
 app.include_router(profile_router)
 app.include_router(billing_router)
 app.include_router(feedback_router)
+
+# Desligada por padrão. Reverter a flag remove imediatamente toda a superfície paralela.
+mount_parallel_api(app)
 
 frontend_dist = Path(__file__).resolve().parent.parent / "frontend" / "dist"
 
