@@ -3,6 +3,8 @@
 Este pacote não depende do fluxo legado nem altera a rota de produção.
 """
 
+from app.domnai_core.artifact_engine import ArtifactAwareConversationEngine
+from app.domnai_core.artifact_flow import ArtifactCoordinator, ArtifactIntent
 from app.domnai_core.artifacts import (
     Artifact,
     ArtifactService,
@@ -69,7 +71,10 @@ from app.domnai_core.tools import (
 
 __all__ = [
     "Artifact",
+    "ArtifactAwareConversationEngine",
+    "ArtifactCoordinator",
     "ArtifactGenerationAuthorization",
+    "ArtifactIntent",
     "ArtifactService",
     "ArtifactStore",
     "ArtifactValidationError",
