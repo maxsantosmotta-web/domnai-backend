@@ -4,6 +4,7 @@ import json
 import os
 import threading
 import time
+import traceback
 from datetime import datetime, timezone
 
 from sqlalchemy import select, update
@@ -162,6 +163,7 @@ def _process_task(task_id: str) -> None:
             return
         payload = json.loads(task.request_json)
         payload["task_id"] = task_id
+        operation = payload.get("operation")
         existing_result = json.loads(task.result_json) if task.result_json else None
         user_id = task.user_id
         created_at = task.created_at
@@ -178,7 +180,6 @@ def _process_task(task_id: str) -> None:
         if not payload.get("local_artifact_followup"):
             ensure_minimum_credit(user_id)
         original_message = str(payload.get("message") or "").strip()
-        operation = payload.get("operation")
         history = payload.get("history") or []
         attachments = _load_attachments(user_id, payload.get("attachment_ids") or [])
         diagnosis_state = load_diagnosis_state(user_id, operation)
@@ -287,7 +288,7 @@ def _process_task(task_id: str) -> None:
 
     if existing_result.get("diagnosis_state") is not None:
         try:
-            save_diagnosis_state(user_id, payload.get("operation"), existing_result["diagnosis_state"])
+            save_diagnosis_state(user_id, operation, existing_result["diagnosis_state"])
         except Exception:
             pass
 
@@ -322,6 +323,11 @@ def _loop(worker_index: int) -> None:
         try:
             _process_task(task_id)
         except Exception as exc:
+            error_traceback = traceback.format_exc()
+            print(
+                f"chat_task_worker failure worker={worker_index + 1} task_id={task_id}\n{error_traceback}",
+                flush=True,
+            )
             with session_scope() as db:
                 task = db.get(ChatTask, task_id)
                 if task is not None:
