@@ -13,11 +13,12 @@ Atualizado em: 2026-07-19
 
 - Fase 0: concluída.
 - Fase 1 de 8: concluída.
-- Fase 2 de 8: em execução avançada.
+- Fase 2 de 8: concluída neste bloco, condicionada à CI verde e merge.
+- Próxima fase: Fase 3 — memória, contexto e identidade conversacional.
 - Fluxo externo atual: backend legado.
 - Novo núcleo: isolado, sem montagem na rota principal.
 
-## Concluído e integrado na main
+## Concluído e integrado na main antes deste bloco
 
 - PR #29: pacote isolado, contratos tipados e `ConversationEngine`.
 - PR #30: adaptador OpenAI Responses, portas de memória/persistência e rota interna preparada.
@@ -26,40 +27,38 @@ Atualizado em: 2026-07-19
 - PR #33: ciclo controlado modelo → ferramenta → modelo.
 - PR #34: ferramentas nativas da Responses API e continuidade por `call_id`.
 - PR #35: configuração, composição, observabilidade e rota interna executável ainda não montada.
-- PR #36: ferramentas reais locais, falhas recuperáveis e início operacional da Fase 2.
+- PR #36: ferramentas reais locais e falhas recuperáveis.
+- PR #37: políticas de risco, timeout, limites e rastreio multi-etapas.
 
-Merge mais recente antes deste bloco: `75afb7f27b5951cae4922c080526fe4e5243016e`.
+Merge mais recente antes deste bloco: `feb29591ca282d684f42f0f807659a085eca75a5`.
 
-## Bloco atual — políticas, timeout e execução multi-etapas
+## Bloco atual — conclusão da Fase 2
 
-Branch: `feature/source-first-phase2-policy-timeouts`
+Branch: `feature/source-first-phase2-completion`
 
 Inclui:
-- política individual por ferramenta com risco `low`, `medium` ou `high`;
-- autorização global dos níveis permitidos;
-- timeout específico por ferramenta;
-- limite individual de chamadas por turno;
-- limite global de chamadas por turno;
-- rastreio estruturado com sequência, iteração, duração, risco, status e `call_id`;
-- falhas de política e timeout devolvidas ao modelo como resultado recuperável;
-- preservação do formato anterior de resultados bem-sucedidos;
-- fluxo determinístico com duas ferramentas diferentes no mesmo turno;
-- endpoint interno de status com riscos e limites configurados;
-- testes de política, timeout, limites, compatibilidade e multi-etapas;
-- CI detalhada atualizada.
+- ferramenta `normalize_text` para transformação determinística sem inventar conteúdo;
+- ferramenta `extract_keywords` para leitura por frequência sem fontes externas;
+- catálogo interno ampliado para quatro ferramentas seguras;
+- `request_id` gerado quando ausente e preservado quando fornecido;
+- correlação do `request_id` entre requisição, provedor, resultados e cada item do rastreio;
+- fluxo determinístico com duas ferramentas de leitura/transformação no mesmo turno;
+- testes de catálogo, normalização, palavras-chave, correlação e compatibilidade;
+- CI atualizada;
+- critério formal de saída da Fase 2 documentado.
 
 ## Próximo passo exato
 
-1. Abrir o PR deste bloco.
+1. Abrir o PR do bloco de conclusão da Fase 2.
 2. Executar toda a CI.
-3. Corrigir qualquer regressão sem retirar cobertura ou compatibilidade.
+3. Corrigir qualquer regressão comprovada sem retirar cobertura.
 4. Integrar somente com CI verde.
-5. Continuar a Fase 2 com um bloco agrupado contendo:
-   - ferramentas seguras de leitura e transformação sem efeitos externos;
-   - correlação por conversa e solicitação;
-   - catálogo e descrição operacional das ferramentas;
-   - fluxos multi-etapas mais longos;
-   - critério formal de encerramento da Fase 2.
+5. Após o merge, iniciar a Fase 3 em bloco agrupado com:
+   - escopo de memória por usuário e conversa;
+   - modelo tipado para preferências, decisões, correções e restrições;
+   - resumo controlado de contexto longo;
+   - regras para evitar fatos inventados pela própria memória;
+   - testes de continuidade conversacional.
 6. Não montar a rota interna no `main.py` ainda.
 7. Não alterar frontend nem tráfego de produção.
 
