@@ -42,7 +42,7 @@ PRs principais: #39 e #40.
 
 Status: em execução.
 
-Já implementado neste bloco:
+Já implementado:
 - contrato isolado de artefato com origem `uploaded` ou `generated`;
 - armazenamento substituível por porta própria;
 - implementação em memória para desenvolvimento e testes;
@@ -51,17 +51,20 @@ Já implementado neste bloco:
 - registro seguro de arquivos enviados;
 - geração determinística de TXT, Markdown, JSON e CSV;
 - leitura textual limitada a formatos explicitamente autorizados;
-- limites de tamanho e caracteres;
-- validação de formato, conteúdo e acesso;
-- listagem separada entre enviados e gerados;
-- testes de segurança, geração, leitura, isolamento e regressão.
+- persistência PostgreSQL isolada de conteúdo e metadados;
+- geração real de PDF com ReportLab;
+- geração real de XLSX com openpyxl;
+- autorização obrigatória por pedido explícito ou aceite contextual confirmado;
+- bloqueio de registro binário sem autorização registrada;
+- recuperação por identificador e filtros por proprietário/origem;
+- expiração opcional com ocultação em leitura e listagem;
+- testes de segurança, autorização, geração, leitura, isolamento, persistência e regressão.
 
 Próximo escopo:
-- persistência PostgreSQL dos metadados e conteúdo de forma isolada;
-- geração real de PDF e XLSX sob pedido explícito;
-- integração do fluxo de artefatos ao `ConversationEngine` sem geração automática indevida;
-- recuperação e expiração;
-- preparação da futura Biblioteca;
+- integração controlada do fluxo de artefatos ao `ConversationEngine`;
+- contrato de intenção para impedir geração automática indevida;
+- retenção, recuperação e preparação da futura Biblioteca;
+- entrega segura sem exposição do conteúdo bruto;
 - critério formal de saída da Fase 4.
 
 ## Fase 5 — API paralela, autenticação e observabilidade
