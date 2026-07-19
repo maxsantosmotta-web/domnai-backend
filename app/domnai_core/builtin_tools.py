@@ -43,6 +43,9 @@ def build_builtin_tool_registry() -> ToolRegistry:
             "required": ["expression"],
             "additionalProperties": False,
         },
+        risk_level="low",
+        timeout_seconds=1.0,
+        max_calls_per_turn=4,
     )
     registry.register(
         "analyze_text",
@@ -58,6 +61,9 @@ def build_builtin_tool_registry() -> ToolRegistry:
             "required": ["text"],
             "additionalProperties": False,
         },
+        risk_level="low",
+        timeout_seconds=1.0,
+        max_calls_per_turn=3,
     )
     return registry
 
