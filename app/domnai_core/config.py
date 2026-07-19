@@ -11,6 +11,7 @@ class DomnAICoreSettings:
     enabled: bool
     use_postgres: bool
     ensure_schema: bool
+    enable_builtin_tools: bool
     model: str
     timeout_seconds: float
     max_tool_iterations: int
@@ -26,6 +27,7 @@ class DomnAICoreSettings:
             enabled=_read_bool("DOMNAI_CORE_PREVIEW_ENABLED", False),
             use_postgres=_read_bool("DOMNAI_CORE_USE_POSTGRES", False),
             ensure_schema=_read_bool("DOMNAI_CORE_ENSURE_SCHEMA", False),
+            enable_builtin_tools=_read_bool("DOMNAI_CORE_ENABLE_BUILTIN_TOOLS", True),
             model=model,
             timeout_seconds=timeout_seconds,
             max_tool_iterations=max_tool_iterations,

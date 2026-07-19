@@ -12,90 +12,69 @@ Atualizado em: 2026-07-19
 ## Situação geral
 
 - Fase 0: concluída.
-- Fase 1 de 8: em execução avançada.
+- Fase 1 de 8: concluída.
+- Fase 2 de 8: em execução.
 - Fluxo externo atual: backend legado.
 - Novo núcleo: isolado, sem montagem na rota principal.
 
 ## Concluído e integrado na main
 
-### PR #29 — Fundação isolada
+### Fundação e capacidades do núcleo
 
-- pacote `app/domnai_core`;
-- contratos tipados;
-- `ConversationEngine`;
-- porta `ModelProvider`;
-- validações;
-- testes e CI.
+- PR #29: pacote isolado, contratos tipados e `ConversationEngine`.
+- PR #30: adaptador OpenAI Responses, portas de memória/persistência e rota interna preparada.
+- PR #31: anexos e execução controlada.
+- PR #32: persistência PostgreSQL isolada.
+- PR #33: ciclo controlado modelo → ferramenta → modelo.
+- PR #34: ferramentas nativas da Responses API e continuidade por `call_id`.
+- PR #35: configuração, composição, observabilidade e rota interna executável ainda não montada.
 
-Merge principal relacionado: `68b8e3dd74d88ac1a193e72bacfa4b34d3844f75`.
+Merge mais recente antes do PR #36: `15be13ad50eb839ff536032f3754e8b27e4ea8d3`.
 
-### PR #30 — Capacidades do núcleo
+## PR #36 — início operacional da Fase 2
 
-- adaptador OpenAI Responses;
-- memória em porta substituível;
-- persistência em porta substituível;
-- registro de ferramentas;
-- rota interna preparada, mas não montada;
-- testes e CI.
+Branch: `feature/source-first-phase2-real-tools`
 
-Merge: `94e69b55b9f16b0c50bcba924f01a0213ad96fae`.
-
-### PR #31 — Anexos e execução controlada
-
-- preparação de imagens e arquivos;
-- limites por arquivo, total e quantidade;
-- suporte de anexos no adaptador;
-- executor de ferramentas;
-- limite por turno;
-- tratamento de ferramentas inexistentes e retornos inválidos;
-- testes e CI.
-
-Merge: `f7bb671e6b72211847a3384c240cdebd612acac9`.
-
-## Em andamento
-
-### PR #32 — Persistência PostgreSQL isolada
-
-- Branch: `feature/source-first-persistence-tool-loop`
-- Base inicial: `f7bb671e6b72211847a3384c240cdebd612acac9`
-- PR: `#32`
-- Estado conhecido no momento deste registro: aberto, aguardando/rodando CI após novas atualizações.
+Estado validado:
+- CI `Backend unit tests #489`: concluída com sucesso;
+- regressões do núcleo anterior: aprovadas;
+- testes novos da Fase 2: aprovados;
+- pronto para integração na `main`.
 
 Inclui:
-- tabelas exclusivas `domnai_core_memory` e `domnai_core_conversation_records`;
-- gerenciador de schema independente;
-- `PostgresMemoryStore`;
-- `PostgresConversationRepository`;
-- serialização segura de solicitações e respostas;
-- persistência apenas de metadados de anexos;
-- testes com SQLite isolado;
-- documentação permanente de roadmap e continuidade.
+- ferramenta real `calculate_expression`, com avaliação aritmética por AST e sem execução de código;
+- ferramenta real `analyze_text`, com contagens determinísticas;
+- limites de tamanho, potência e resultado;
+- ativação por `DOMNAI_CORE_ENABLE_BUILTIN_TOOLS`;
+- composição automática e explicitamente substituível do registro;
+- falhas de ferramenta devolvidas ao modelo como resultado estruturado e recuperável;
+- preservação de `call_id` e histórico de cada execução;
+- contagem de falhas recuperáveis no resultado final;
+- preservação do contrato anterior para ferramentas bem-sucedidas;
+- testes de segurança, resultado e recuperação;
+- CI detalhada por capacidade;
+- roadmap atualizado com Fase 1 concluída e Fase 2 iniciada.
 
 ## Próximo passo exato
 
-1. Verificar a CI do head atual do PR #32.
-2. Corrigir somente se houver erro novo comprovado.
-3. Integrar o PR #32 se a CI estiver verde.
-4. Abrir nova branch a partir da `main` atualizada.
-5. Implementar o ciclo controlado modelo → ferramenta → modelo.
-6. Adicionar:
-   - contrato de solicitação de ferramenta pelo provedor;
-   - retorno de resultado ao modelo;
-   - limite rígido de iterações;
-   - bloqueio de chamadas repetidas;
-   - rastreio das etapas;
-   - testes unitários.
-7. Não registrar ferramentas reais de produção ainda.
-8. Não montar a rota interna no `main.py` ainda.
+1. Confirmar que o PR #36 foi integrado na `main`.
+2. Abrir nova branch a partir da `main` atualizada.
+3. Continuar a Fase 2 com um bloco agrupado contendo:
+   - política de risco por ferramenta;
+   - timeout e limites específicos;
+   - rastreio estruturado de execução;
+   - fluxo multi-etapas determinístico com mais de uma ferramenta;
+   - testes de falha, limite e compatibilidade.
+4. Não montar a rota interna no `main.py` ainda.
+5. Não alterar frontend nem tráfego de produção.
 
 ## O que não deve ser feito agora
 
 - não substituir a rota de produção;
 - não alterar frontend;
-- não criar automaticamente as tabelas por importação;
 - não ligar a nova memória ao chat externo;
+- não registrar ferramentas com efeitos externos sem política e autorização;
 - não remover o backend legado;
-- não iniciar testes manuais de conversa antes da arquitetura isolada estar pronta;
 - não alterar cobrança, Clerk, Stripe ou regras de créditos.
 
 ## Regra de retomada por outra janela

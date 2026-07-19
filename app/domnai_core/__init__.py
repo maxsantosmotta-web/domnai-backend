@@ -8,6 +8,7 @@ from app.domnai_core.attachments import (
     AttachmentValidationError,
     PreparedAttachment,
 )
+from app.domnai_core.builtin_tools import build_builtin_tool_registry
 from app.domnai_core.composition import DomnAICoreRuntime, build_domnai_core_runtime
 from app.domnai_core.config import DomnAICoreSettings
 from app.domnai_core.contracts import (
@@ -76,5 +77,6 @@ __all__ = [
     "ToolExecutor",
     "ToolRegistry",
     "ToolResult",
+    "build_builtin_tool_registry",
     "build_domnai_core_runtime",
 ]
