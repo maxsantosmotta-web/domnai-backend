@@ -42,7 +42,14 @@ from app.domnai_core.tool_execution import (
     ToolExecutionReport,
     ToolExecutor,
 )
-from app.domnai_core.tools import ToolCall, ToolRegistry, ToolResult
+from app.domnai_core.tools import (
+    ToolCall,
+    ToolPolicy,
+    ToolPolicyError,
+    ToolRegistry,
+    ToolResult,
+    ToolTimeoutError,
+)
 
 __all__ = [
     "Attachment",
@@ -75,8 +82,11 @@ __all__ = [
     "ToolExecutionError",
     "ToolExecutionReport",
     "ToolExecutor",
+    "ToolPolicy",
+    "ToolPolicyError",
     "ToolRegistry",
     "ToolResult",
+    "ToolTimeoutError",
     "build_builtin_tool_registry",
     "build_domnai_core_runtime",
 ]
