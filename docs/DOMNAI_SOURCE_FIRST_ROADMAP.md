@@ -77,18 +77,28 @@ Critério de saída atendido:
 - falhas previsíveis podem ser tratadas pelo modelo sem derrubar o turno;
 - regressões das Fases 0 e 1 permanecem cobertas pela CI.
 
-PRs principais: #36, #37 e o bloco de conclusão da Fase 2.
+PRs principais: #36, #37 e #38.
 
 ## Fase 3 — Memória, contexto e identidade conversacional
 
-Status: próxima fase.
+Status: em execução.
 
-Inclui:
-- memória persistente com escopo por usuário e conversa;
-- resumo de contexto longo;
-- preferências, decisões, correções e restrições;
-- prevenção de fatos inventados pela própria IA;
-- comportamento natural e contextual do DomnAI.
+Já implementado neste bloco:
+- memória separada por usuário e por conversa usando chaves isoladas;
+- composição de contexto durável do usuário com contexto da conversa;
+- categorias explícitas para preferências, decisões, correções, restrições e fatos;
+- deduplicação e limites por categoria;
+- fatos persistidos somente quando marcados como informados pelo usuário;
+- resumo determinístico e limitado para históricos longos;
+- compatibilidade preservada com a memória legada do novo núcleo quando não há escopo de usuário;
+- testes de separação, atualização, deduplicação, resumo e proteção contra inferências.
+
+Próximo escopo:
+- persistência e recuperação explícita do resumo longo entre turnos;
+- política de expiração e substituição de memória;
+- conflitos entre decisões antigas e correções recentes;
+- identidade conversacional natural e instruções de uso da memória pelo provedor;
+- critério formal de saída da Fase 3.
 
 ## Fase 4 — Arquivos, relatórios e artefatos
 
