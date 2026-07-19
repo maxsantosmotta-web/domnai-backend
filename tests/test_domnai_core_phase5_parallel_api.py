@@ -7,7 +7,6 @@ from app.domnai_core.api_security import StaticBearerAuthenticator
 from app.domnai_core.composition import DomnAICoreRuntime
 from app.domnai_core.config import DomnAICoreSettings
 from app.domnai_core.contracts import ConversationResponse
-from app.domnai_core.memory import InMemoryMemoryStore
 from app.domnai_core.observability import InMemoryCoreMetricsSink
 
 
@@ -38,8 +37,6 @@ def _runtime(engine):
     return DomnAICoreRuntime(
         settings=settings,
         engine=engine,
-        memory_store=InMemoryMemoryStore(),
-        repository=None,
         metrics=InMemoryCoreMetricsSink(),
         persistence_backend="memory",
         registered_tools=(),
