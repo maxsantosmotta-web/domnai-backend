@@ -15,7 +15,8 @@ Atualizado em: 2026-07-19
 - Fase 1 de 8: concluída.
 - Fase 2 de 8: concluída.
 - Fase 3 de 8: concluída.
-- Fase 4 de 8: em execução.
+- Fase 4 de 8: concluída neste bloco, condicionada à CI verde e merge.
+- Próxima fase: Fase 5 — API paralela, autenticação e observabilidade.
 - Fluxo externo atual: backend legado.
 - Novo núcleo: isolado, sem montagem na rota principal.
 
@@ -24,27 +25,28 @@ Atualizado em: 2026-07-19
 - PR #29 a #35: fundação, ferramentas, persistência, observabilidade e composição.
 - PR #36 a #38: ferramentas reais, políticas, rastreio e conclusão da Fase 2.
 - PR #39 e #40: memória contextual, conflito, expiração e conclusão da Fase 3.
-- PR #41: fundação segura de artefatos, formatos textuais e separação entre enviados e gerados.
+- PR #41: fundação segura de artefatos e formatos textuais.
+- PR #42: PostgreSQL, PDF, XLSX, autorização e expiração.
 
-Merge mais recente antes deste bloco: `fe888ed17b8c7742a16690be422dca3a1768cd89`.
+Merge mais recente antes deste bloco: `0aced682b610c4dbb79fd4fcde7a486ff78b1efe`.
 
-## Bloco atual — persistência e binários da Fase 4
+## Bloco atual — encerramento da Fase 4
 
-Branch: `feature/source-first-phase4-persistence-binary`
+Branch: `feature/source-first-phase4-completion`
 
 Inclui:
-- persistência PostgreSQL isolada em `domnai_core_artifacts`;
-- armazenamento íntegro de conteúdo binário e metadados;
-- filtros por proprietário e origem;
-- geração real de PDF com ReportLab;
-- geração real de XLSX com openpyxl;
-- autorização obrigatória por pedido explícito ou aceite contextual confirmado;
-- bloqueio de registro binário sem prova de autorização;
-- metadados de modo e origem da autorização;
-- expiração opcional com ocultação em leitura e listagem;
-- preservação de hash SHA-256 após persistência;
-- testes de autorização, PDF, XLSX, expiração, isolamento e PostgreSQL;
-- CI ampliada sem alterar produção.
+- contrato estruturado `ArtifactIntent`;
+- proibição de inferir geração automaticamente pela mensagem;
+- `ArtifactCoordinator` para intenção, autorização, retenção e Biblioteca;
+- `ArtifactAwareConversationEngine` opcional, preservando o motor base;
+- geração após resposta conversacional concluída;
+- autorização novamente validada no ponto de execução;
+- associação segura por usuário e conversa;
+- retenção opcional por prazo;
+- visibilidade configurável na futura Biblioteca;
+- listagem segura sem conteúdo bruto;
+- testes de ausência de efeito sem intenção, bloqueio sem autorização, geração real, retenção e Biblioteca;
+- critério formal de saída da Fase 4.
 
 ## Próximo passo exato
 
@@ -52,21 +54,23 @@ Inclui:
 2. Executar toda a CI.
 3. Corrigir qualquer regressão comprovada sem retirar cobertura.
 4. Integrar somente com CI verde.
-5. Continuar a Fase 4 com:
-   - integração controlada de artefatos ao motor conversacional;
-   - recuperação e política de retenção da futura Biblioteca;
-   - contratos de entrega sem exposição indevida do conteúdo bruto;
-   - critério formal de saída da Fase 4.
-6. Não montar a rota interna no `main.py` ainda.
-7. Não alterar frontend nem tráfego de produção.
+5. Após o merge, iniciar a Fase 5 com:
+   - rota paralela protegida e desligada por padrão;
+   - autenticação e autorização próprias;
+   - composição do núcleo completo;
+   - correlação, logs e métricas externos;
+   - feature flag e desligamento imediato;
+   - testes de API sem substituir o legado.
+6. Não substituir a rota principal.
+7. Não alterar o frontend nem direcionar tráfego real antes da Fase 6.
 
 ## O que não deve ser feito agora
 
 - não substituir a rota de produção;
 - não alterar frontend;
 - não acoplar artefatos ao backend legado;
-- não gerar arquivos automaticamente sem pedido ou aceite contextual;
 - não publicar arquivos externamente;
+- não montar rota pública sem autenticação;
 - não remover o backend legado;
 - não alterar cobrança, Clerk, Stripe ou regras de créditos.
 
