@@ -22,6 +22,11 @@ from app.domnai_core.persistence import (
     InMemoryConversationRepository,
     NullConversationRepository,
 )
+from app.domnai_core.postgres import (
+    PostgresConversationRepository,
+    PostgresMemoryStore,
+    PostgresSchemaManager,
+)
 from app.domnai_core.providers import OpenAIResponsesProvider
 from app.domnai_core.tool_execution import (
     ToolExecutionError,
@@ -47,6 +52,9 @@ __all__ = [
     "NullConversationRepository",
     "NullMemoryStore",
     "OpenAIResponsesProvider",
+    "PostgresConversationRepository",
+    "PostgresMemoryStore",
+    "PostgresSchemaManager",
     "PreparedAttachment",
     "ToolCall",
     "ToolExecutionError",
