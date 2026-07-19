@@ -26,47 +26,43 @@ PRs principais: #36, #37 e #38.
 
 ## Fase 3 — Memória, contexto e identidade conversacional
 
-Status: concluída neste bloco, condicionada à CI verde e integração.
+Status: concluída.
 
 Inclui:
 - memória separada por usuário e conversa;
-- composição de contexto durável e específico;
 - preferências, decisões, correções, restrições e fatos;
-- fatos aceitos apenas quando informados pelo usuário;
-- deduplicação e limites por categoria;
-- resumo controlado e persistente de históricos longos;
-- substituição por chave para informação mais recente;
-- correções recentes removendo informações conflitantes antigas;
-- expiração opcional por item;
-- poda automática de memória expirada;
-- orientação ao provedor para uso natural e discreto da memória;
-- instrução explícita para não transformar inferências em fatos;
-- reconhecimento de incerteza em caso de conflito;
-- compatibilidade com a memória anterior quando não há escopo de usuário;
-- testes de continuidade, conflito, expiração, resumo e regressão.
+- resumo persistente de históricos longos;
+- substituição, conflito e expiração controlados;
+- bloqueio de fatos inferidos;
+- orientação para uso natural da memória.
 
-Critério de saída atendido:
-- memória possui escopo claro por usuário e conversa;
-- correções recentes prevalecem sobre registros conflitantes;
-- resumos longos sobrevivem entre turnos;
-- dados temporários podem expirar sem intervenção manual;
-- fatos não são persistidos a partir de inferências do modelo;
-- o provedor recebe orientação para usar memória sem comportamento robótico;
-- fases anteriores continuam cobertas pela CI.
-
-PRs principais: #39 e bloco de conclusão da Fase 3.
+PRs principais: #39 e #40.
 
 ## Fase 4 — Arquivos, relatórios e artefatos
 
-Status: próxima fase.
+Status: em execução.
 
-Inclui:
-- leitura segura de anexos;
-- PDF, XLSX, CSV e outros artefatos sob pedido;
-- armazenamento e recuperação;
-- integração com Biblioteca;
-- separação entre arquivos enviados e arquivos gerados;
-- validação de conteúdo e limites.
+Já implementado neste bloco:
+- contrato isolado de artefato com origem `uploaded` ou `generated`;
+- armazenamento substituível por porta própria;
+- implementação em memória para desenvolvimento e testes;
+- isolamento por proprietário;
+- hash SHA-256, tamanho e metadados sem exposição do conteúdo bruto;
+- registro seguro de arquivos enviados;
+- geração determinística de TXT, Markdown, JSON e CSV;
+- leitura textual limitada a formatos explicitamente autorizados;
+- limites de tamanho e caracteres;
+- validação de formato, conteúdo e acesso;
+- listagem separada entre enviados e gerados;
+- testes de segurança, geração, leitura, isolamento e regressão.
+
+Próximo escopo:
+- persistência PostgreSQL dos metadados e conteúdo de forma isolada;
+- geração real de PDF e XLSX sob pedido explícito;
+- integração do fluxo de artefatos ao `ConversationEngine` sem geração automática indevida;
+- recuperação e expiração;
+- preparação da futura Biblioteca;
+- critério formal de saída da Fase 4.
 
 ## Fase 5 — API paralela, autenticação e observabilidade
 
