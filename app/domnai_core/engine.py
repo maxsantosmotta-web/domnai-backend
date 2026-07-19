@@ -50,15 +50,23 @@ class ConversationEngine:
         conversation_id = str(request.metadata.get("conversation_id") or "").strip()
         stored_memory = self._memory_store.load(conversation_id) if conversation_id else {}
         effective_memory = {**stored_memory, **dict(request.memory)}
-        effective_metadata = {
-            **dict(request.metadata),
-            "available_tools": self._tools.names(),
-        }
-        effective_request = replace(
-            request,
-            memory=effective_memory,
-            metadata=effective_metadata,
-        )
+        available_tools = self._tools.names()
+
+        # Preserve the exact request object when there is no context to enrich.
+        # This keeps the foundation contract stable while still exposing tools
+        # whenever at least one tool is actually registered.
+        if stored_memory or available_tools:
+            effective_metadata = {
+                **dict(request.metadata),
+                "available_tools": available_tools,
+            }
+            effective_request = replace(
+                request,
+                memory=effective_memory,
+                metadata=effective_metadata,
+            )
+        else:
+            effective_request = request
 
         response = self._run_provider_tool_loop(effective_request)
 
