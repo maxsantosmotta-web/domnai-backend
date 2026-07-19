@@ -112,6 +112,7 @@ class ConversationEngine:
         current_request = request
         seen_calls: set[str] = set()
         tool_results: list[dict] = []
+        tool_failures = 0
 
         for iteration in range(self._max_tool_iterations + 1):
             response = self._provider.generate(current_request)
@@ -127,6 +128,7 @@ class ConversationEngine:
                             **dict(response.metadata),
                             "tool_iterations": iteration,
                             "tool_results": tuple(tool_results),
+                            "tool_failures": tool_failures,
                         },
                     )
                 return response
@@ -142,12 +144,28 @@ class ConversationEngine:
                         f"Chamada repetida de ferramenta bloqueada: {call.name}"
                     )
                 seen_calls.add(signature)
-                result = self._tools.execute(call)
-                serialized = {
-                    "name": result.name,
-                    "output": dict(result.output),
-                    "call_id": result.call_id,
-                }
+
+                try:
+                    result = self._tools.execute(call)
+                    serialized = {
+                        "name": result.name,
+                        "output": {"ok": True, **dict(result.output)},
+                        "call_id": result.call_id,
+                    }
+                except Exception as exc:
+                    tool_failures += 1
+                    serialized = {
+                        "name": call.name,
+                        "output": {
+                            "ok": False,
+                            "error": {
+                                "type": type(exc).__name__,
+                                "message": str(exc) or "Falha ao executar ferramenta.",
+                            },
+                        },
+                        "call_id": call.call_id,
+                    }
+
                 tool_results.append(serialized)
                 iteration_results.append(serialized)
 
@@ -158,6 +176,7 @@ class ConversationEngine:
                     "tool_results": tuple(tool_results),
                     "last_tool_results": tuple(iteration_results),
                     "tool_iteration": iteration + 1,
+                    "tool_failures": tool_failures,
                     "previous_response_id": response.metadata.get("response_id"),
                 },
             )
