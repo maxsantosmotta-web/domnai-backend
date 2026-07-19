@@ -66,7 +66,12 @@ def test_runtime_uses_memory_backend_without_touching_database():
     runtime = build_domnai_core_runtime(settings())
     assert runtime.persistence_backend == "memory"
     assert runtime.settings.model == "test-model"
-    assert runtime.registered_tools == ("analyze_text", "calculate_expression")
+    assert runtime.registered_tools == (
+        "analyze_text",
+        "calculate_expression",
+        "extract_keywords",
+        "normalize_text",
+    )
 
 
 def test_runtime_can_disable_builtin_tools_explicitly():
