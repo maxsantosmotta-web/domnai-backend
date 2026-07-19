@@ -3,6 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 from app.database import is_database_configured
+from app.domnai_core.builtin_tools import build_builtin_tool_registry
 from app.domnai_core.config import DomnAICoreSettings
 from app.domnai_core.engine import ConversationEngine
 from app.domnai_core.memory import InMemoryMemoryStore
@@ -23,6 +24,7 @@ class DomnAICoreRuntime:
     engine: ConversationEngine
     metrics: CoreMetricsSink
     persistence_backend: str
+    registered_tools: tuple[str, ...]
 
 
 def build_domnai_core_runtime(
@@ -49,6 +51,13 @@ def build_domnai_core_runtime(
         repository = InMemoryConversationRepository()
         persistence_backend = "memory"
 
+    if tools is not None:
+        resolved_tools = tools
+    elif resolved.enable_builtin_tools:
+        resolved_tools = build_builtin_tool_registry()
+    else:
+        resolved_tools = ToolRegistry()
+
     provider = OpenAIResponsesProvider(
         model=resolved.model,
         timeout_seconds=resolved.timeout_seconds,
@@ -57,7 +66,7 @@ def build_domnai_core_runtime(
         provider,
         memory_store=memory_store,
         repository=repository,
-        tools=tools or ToolRegistry(),
+        tools=resolved_tools,
         max_tool_iterations=resolved.max_tool_iterations,
         metrics=metrics_sink,
     )
@@ -66,4 +75,5 @@ def build_domnai_core_runtime(
         engine=engine,
         metrics=metrics_sink,
         persistence_backend=persistence_backend,
+        registered_tools=resolved_tools.names(),
     )
