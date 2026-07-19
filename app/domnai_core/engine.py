@@ -72,18 +72,19 @@ class ConversationEngine:
         return response
 
     def _respond(self, request: ConversationRequest) -> ConversationResponse:
-        request_id = str(request.metadata.get("request_id") or "").strip() or uuid4().hex
+        supplied_request_id = str(request.metadata.get("request_id") or "").strip()
+        request_id = supplied_request_id or uuid4().hex
         conversation_id = str(request.metadata.get("conversation_id") or "").strip()
         stored_memory = self._memory_store.load(conversation_id) if conversation_id else {}
         effective_memory = {**stored_memory, **dict(request.memory)}
         available_tools = self._tools.names()
-        enriched_metadata = {**dict(request.metadata), "request_id": request_id}
-        if stored_memory or available_tools or enriched_metadata != dict(request.metadata):
+        if stored_memory or available_tools or supplied_request_id:
             effective_request = replace(
                 request,
                 memory=effective_memory,
                 metadata={
-                    **enriched_metadata,
+                    **dict(request.metadata),
+                    "request_id": request_id,
                     "available_tools": available_tools,
                     "tool_definitions": self._tools.definitions(),
                 },
