@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import re
 from pathlib import Path
 
 
@@ -7,8 +8,7 @@ STRICT_LINES = (
     '    raise RuntimeError(f"{label}: trecho esperado não encontrado")',
     "    raise RuntimeError(f'{label}: trecho esperado não encontrado')",
 )
-IDEMPOTENT_BLOCK = '''    print(f"{label}: encaixe legado ausente; código-fonte atual preservado.")
-    return text'''
+FUNCTION_PATTERN = re.compile(r"def\s+replace_once\s*\(\s*([A-Za-z_][A-Za-z0-9_]*)")
 
 
 def main() -> None:
@@ -18,14 +18,24 @@ def main() -> None:
     for path in sorted(Path('/tmp').glob('*.py')):
         if path.name == Path(__file__).name:
             continue
-        text = path.read_text(encoding='utf-8')
-        if 'def replace_once(' not in text:
+
+        source = path.read_text(encoding='utf-8')
+        match = FUNCTION_PATTERN.search(source)
+        if not match:
             continue
+
         inspected.append(path.name)
-        updated = text
+        first_parameter = match.group(1)
+        idempotent_block = (
+            '    print(f"{label}: encaixe legado ausente; código-fonte atual preservado.")\n'
+            f'    return {first_parameter}'
+        )
+
+        updated = source
         for strict_line in STRICT_LINES:
-            updated = updated.replace(strict_line, IDEMPOTENT_BLOCK)
-        if updated != text:
+            updated = updated.replace(strict_line, idempotent_block)
+
+        if updated != source:
             path.write_text(updated, encoding='utf-8')
             changed.append(path.name)
 
