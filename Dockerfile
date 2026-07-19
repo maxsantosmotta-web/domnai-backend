@@ -124,7 +124,10 @@ COPY scripts/fix_labor_structured_interpretation.py /tmp/fix_labor_structured_in
 COPY scripts/force_gpt51_text_intelligence.py /tmp/force_gpt51_text_intelligence.py
 COPY scripts/enable_progressive_artifact_delivery.py /tmp/enable_progressive_artifact_delivery.py
 COPY scripts/finalize_natural_conversation_and_artifact_flow.py /tmp/finalize_natural_conversation_and_artifact_flow.py
-RUN python /tmp/connect_chat_sources_backend.py \
+COPY scripts/make_runtime_patches_idempotent.py /tmp/make_runtime_patches_idempotent.py
+RUN python /tmp/make_runtime_patches_idempotent.py \
+    && python -m py_compile /tmp/*.py \
+    && python /tmp/connect_chat_sources_backend.py \
     && python /tmp/connect_user_personalization_backend.py \
     && python /tmp/connect_conversational_intent_backend.py \
     && python /tmp/finalize_artifact_delivery.py \
