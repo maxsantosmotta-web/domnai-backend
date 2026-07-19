@@ -52,11 +52,11 @@ Critério de saída atendido:
 
 ## Fase 2 — Ferramentas reais e execução multi-etapas
 
-Status: em execução avançada.
+Status: concluída.
 
-Já concluído:
+Inclui:
 - contrato oficial de chamadas de ferramentas vindas do modelo;
-- ferramentas locais reais registradas explicitamente;
+- catálogo local seguro com cálculo, análise, normalização e extração de palavras-chave;
 - limite de iterações e limite global de chamadas por turno;
 - limite individual de chamadas por ferramenta;
 - proteção contra repetição e loops;
@@ -64,21 +64,24 @@ Já concluído:
 - autorização explícita dos níveis de risco permitidos;
 - timeout individual por ferramenta;
 - rastreio estruturado por sequência, iteração, duração, risco, status e `call_id`;
+- correlação por `request_id` preservada em todo o ciclo;
 - falhas de ferramenta devolvidas ao modelo de forma recuperável;
 - ativação e desativação explícita das ferramentas internas;
-- fluxo determinístico com múltiplas ferramentas no mesmo turno;
-- testes de segurança, timeout, risco, limites e compatibilidade.
+- fluxos determinísticos com múltiplas ferramentas no mesmo turno;
+- testes de segurança, timeout, risco, limites, correlação e compatibilidade.
 
-Próximo escopo:
-- ampliar o catálogo seguro conforme necessidades reais do DomnAI;
-- adicionar ferramentas de leitura e transformação sem efeitos externos;
-- consolidar correlação estruturada por conversa;
-- validar fluxos multi-etapas mais longos;
-- definir o critério de saída formal da Fase 2.
+Critério de saída atendido:
+- nenhuma ferramenta real é executada sem registro e política explícitos;
+- ferramentas internas não possuem efeitos externos;
+- toda execução possui limite, timeout, rastreio e correlação;
+- falhas previsíveis podem ser tratadas pelo modelo sem derrubar o turno;
+- regressões das Fases 0 e 1 permanecem cobertas pela CI.
+
+PRs principais: #36, #37 e o bloco de conclusão da Fase 2.
 
 ## Fase 3 — Memória, contexto e identidade conversacional
 
-Status: pendente.
+Status: próxima fase.
 
 Inclui:
 - memória persistente com escopo por usuário e conversa;
@@ -108,13 +111,14 @@ Já preparado:
 - feature flag desligada por padrão;
 - métricas de latência, tokens, ferramentas e falhas;
 - endpoint interno de status;
-- composição segura do runtime.
+- composição segura do runtime;
+- correlação por solicitação no núcleo.
 
 Ainda pendente:
 - montar rota paralela protegida;
 - autenticação e autorização;
-- logs estruturados;
-- correlação por conversa;
+- logs estruturados externos;
+- correlação por conversa na aplicação real;
 - desligamento imediato validado na aplicação real.
 
 ## Fase 6 — Integração com frontend e validação comparativa
