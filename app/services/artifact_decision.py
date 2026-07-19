@@ -248,6 +248,7 @@ def _requires_artifact_decision(
     history: list[dict],
     answer: str,
 ) -> bool:
+    del operation, answer
     normalized = _normalize(message)
     recent_text = _history_text(history)
     offer_already_made = _contains_any(recent_text, _OFFER_MARKERS)
@@ -258,12 +259,7 @@ def _requires_artifact_decision(
 
     explicit_request = _contains_any(normalized, _EXPLICIT_ARTIFACT_MARKERS)
     accepted_previous_offer = offer_already_made and _accepted_offer(normalized)
-
-    if explicit_request or accepted_previous_offer:
-        return True
-    if offer_already_made:
-        return False
-    return bool(operation and len(str(answer or "").strip()) >= 1000)
+    return explicit_request or accepted_previous_offer
 
 
 def decide_artifact(
@@ -284,16 +280,15 @@ def decide_artifact(
     if not api_key:
         return dict(_NONE)
 
-    recent_history = history[-10:]
     request_payload = {
         "operation": operation,
         "current_message": message,
-        "recent_history": recent_history,
+        "recent_history": history[-10:],
         "completed_answer": answer,
     }
 
     instructions = """
-Você decide a melhor forma de entrega de uma resposta concluída pelo DomnAI.
+Você decide como criar um arquivo que foi pedido explicitamente pelo usuário.
 Retorne somente JSON válido com:
 {
   "action":"none|offer|create",
@@ -305,13 +300,12 @@ Retorne somente JSON válido com:
 }
 
 Regras:
-- Não escolha formato por uma lista fixa de operações. Analise o pedido, o histórico e o conteúdo concluído.
-- O formato explicitamente pedido na mensagem atual sempre tem prioridade sobre qualquer oferta anterior.
+- Não ofereça arquivo por iniciativa própria.
+- Só use create porque a mensagem atual pediu explicitamente um arquivo ou aceitou uma oferta anterior real.
+- O formato explicitamente pedido na mensagem atual sempre tem prioridade.
 - Entenda como pedido de planilha expressões naturais como Excel, tabela editável, folha de cálculo, linhas e colunas e formato tabular.
-- Use create quando o usuário pediu naturalmente um arquivo.
-- Use offer somente quando um arquivo agregaria valor relevante, a explicação estiver concluída e não existir oferta anterior no histórico.
-- Uma oferta de arquivo pode acontecer no máximo uma vez por conversa.
-- Use none quando texto é a melhor entrega, não há conteúdo suficiente ou uma oferta anterior não foi aceita.
+- Use offer apenas quando o usuário pediu planilha/CSV, mas faltam dados indispensáveis para formar colunas e linhas com segurança.
+- Use none quando o pedido não puder ser atendido sem inventar conteúdo.
 - PDF é adequado para relatório, parecer, análise narrativa, plano ou documento de leitura.
 - XLSX/CSV é adequado quando os dados precisam ser editados, calculados, filtrados, comparados ou reutilizados em linhas e colunas.
 - Para XLSX/CSV com action=create, produza headers e rows completos usando apenas dados sustentados pela conversa e pela resposta. Não invente números.

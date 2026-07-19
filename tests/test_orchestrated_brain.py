@@ -202,13 +202,13 @@ def test_provider_400_is_not_retried_or_exposed():
     assert "sensitive detail" not in str(raised.value)
 
 
-def test_completed_operation_can_offer_artifact_once():
+def test_completed_operation_does_not_offer_artifact_without_user_request():
     assert _requires_artifact_decision(
         "Conclua meu plano",
         "Plano de Ação Empresarial",
         [],
         "x" * 1200,
-    ) is True
+    ) is False
 
 
 def test_previous_pdf_offer_is_not_repeated_when_user_changes_subject():
