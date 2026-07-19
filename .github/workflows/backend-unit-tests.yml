@@ -62,3 +62,6 @@ jobs:
 
       - name: Run phase 2 policy and multi-step tests
         run: pytest -vv --tb=short tests/test_domnai_core_tool_policies.py
+
+      - name: Run phase 2 completion tests
+        run: pytest -vv --tb=short tests/test_domnai_core_phase2_completion.py
