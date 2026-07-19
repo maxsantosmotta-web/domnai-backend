@@ -36,7 +36,7 @@ jobs:
         run: |
           python -c "from app.services.labor_termination import calculate; print('labor import ok')"
           python -c "from app.services.orchestrated_brain import generate_orchestrated_response; print('orchestrator import ok')"
-          python -c "from app.domnai_core import AttachmentPreparer, ConversationEngine, DomnAICoreSettings, OpenAIResponsesProvider, PostgresMemoryStore, ToolExecutor, build_domnai_core_runtime; print('new core import ok')"
+          python -c "from app.domnai_core import AttachmentPreparer, ConversationEngine, DomnAICoreSettings, OpenAIResponsesProvider, PostgresMemoryStore, ToolExecutor, build_builtin_tool_registry, build_domnai_core_runtime; print('new core import ok')"
           python -c "from app.api.domnai_core_preview import router; print('preview route import ok')"
 
       - name: Run labor tests
@@ -46,4 +46,4 @@ jobs:
         run: pytest -vv --tb=short tests/test_orchestrated_brain.py
 
       - name: Run new core tests
-        run: pytest -vv --tb=short tests/test_domnai_core_foundation.py tests/test_domnai_core_capabilities.py tests/test_domnai_core_tools_attachments.py tests/test_domnai_core_postgres.py tests/test_domnai_core_openai_tools.py tests/test_domnai_core_composition.py
+        run: pytest -vv --tb=short tests/test_domnai_core_foundation.py tests/test_domnai_core_capabilities.py tests/test_domnai_core_tools_attachments.py tests/test_domnai_core_postgres.py tests/test_domnai_core_openai_tools.py tests/test_domnai_core_composition.py tests/test_domnai_core_builtin_tools.py
