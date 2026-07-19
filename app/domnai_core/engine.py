@@ -4,26 +4,16 @@ import json
 from dataclasses import replace
 from time import perf_counter
 from typing import Protocol
+from uuid import uuid4
 
 from app.domnai_core.contracts import ConversationRequest, ConversationResponse
 from app.domnai_core.memory import MemoryStore, NullMemoryStore
-from app.domnai_core.observability import (
-    CoreMetricsSink,
-    CoreRequestMetric,
-    NullCoreMetricsSink,
-    RequestTimer,
-)
-from app.domnai_core.persistence import (
-    ConversationRecord,
-    ConversationRepository,
-    NullConversationRepository,
-)
+from app.domnai_core.observability import CoreMetricsSink, CoreRequestMetric, NullCoreMetricsSink, RequestTimer
+from app.domnai_core.persistence import ConversationRecord, ConversationRepository, NullConversationRepository
 from app.domnai_core.tools import ToolCall, ToolPolicyError, ToolRegistry
 
 
 class ModelProvider(Protocol):
-    """Porta de saída do núcleo para qualquer provedor de inteligência."""
-
     def generate(self, request: ConversationRequest) -> ConversationResponse:
         ...
 
@@ -66,11 +56,8 @@ class ConversationEngine:
         try:
             response = self._respond(request)
         except Exception:
-            self._metrics.record(
-                CoreRequestMetric(outcome="error", duration_ms=timer.elapsed_ms())
-            )
+            self._metrics.record(CoreRequestMetric(outcome="error", duration_ms=timer.elapsed_ms()))
             raise
-
         self._metrics.record(
             CoreRequestMetric(
                 outcome="success",
@@ -85,17 +72,18 @@ class ConversationEngine:
         return response
 
     def _respond(self, request: ConversationRequest) -> ConversationResponse:
+        request_id = str(request.metadata.get("request_id") or "").strip() or uuid4().hex
         conversation_id = str(request.metadata.get("conversation_id") or "").strip()
         stored_memory = self._memory_store.load(conversation_id) if conversation_id else {}
         effective_memory = {**stored_memory, **dict(request.memory)}
         available_tools = self._tools.names()
-
-        if stored_memory or available_tools:
+        enriched_metadata = {**dict(request.metadata), "request_id": request_id}
+        if stored_memory or available_tools or enriched_metadata != dict(request.metadata):
             effective_request = replace(
                 request,
                 memory=effective_memory,
                 metadata={
-                    **dict(request.metadata),
+                    **enriched_metadata,
                     "available_tools": available_tools,
                     "tool_definitions": self._tools.definitions(),
                 },
@@ -104,24 +92,18 @@ class ConversationEngine:
             effective_request = request
 
         response = self._run_provider_tool_loop(effective_request)
-
+        response = replace(response, metadata={**dict(response.metadata), "request_id": request_id})
         if conversation_id and response.memory_update is not None:
             next_memory = {**dict(effective_request.memory), **dict(response.memory_update)}
             self._memory_store.save(conversation_id, next_memory)
-
         self._repository.append(
-            ConversationRecord(
-                conversation_id=conversation_id,
-                request=effective_request,
-                response=response,
-            )
+            ConversationRecord(conversation_id=conversation_id, request=effective_request, response=response)
         )
         return response
 
-    def _run_provider_tool_loop(
-        self, request: ConversationRequest
-    ) -> ConversationResponse:
+    def _run_provider_tool_loop(self, request: ConversationRequest) -> ConversationResponse:
         current_request = request
+        request_id = str(request.metadata.get("request_id") or "")
         seen_calls: set[str] = set()
         tool_results: list[dict] = []
         tool_trace: list[dict] = []
@@ -133,7 +115,6 @@ class ConversationEngine:
             response = self._provider.generate(current_request)
             if not isinstance(response, ConversationResponse):
                 raise TypeError("O provedor deve retornar ConversationResponse.")
-
             calls = self._extract_tool_calls(response)
             if not calls:
                 if tool_results:
@@ -141,6 +122,7 @@ class ConversationEngine:
                         response,
                         metadata={
                             **dict(response.metadata),
+                            "request_id": request_id,
                             "tool_iterations": iteration,
                             "tool_results": tuple(tool_results),
                             "tool_trace": tuple(tool_trace),
@@ -148,8 +130,7 @@ class ConversationEngine:
                             "tool_calls_executed": total_calls,
                         },
                     )
-                return response
-
+                return replace(response, metadata={**dict(response.metadata), "request_id": request_id})
             if iteration >= self._max_tool_iterations:
                 raise RuntimeError("Limite de iterações de ferramentas atingido.")
             if total_calls + len(calls) > self._max_tool_calls_per_turn:
@@ -161,15 +142,12 @@ class ConversationEngine:
             for call in calls:
                 signature = self._tool_call_signature(call)
                 if signature in seen_calls:
-                    raise RuntimeError(
-                        f"Chamada repetida de ferramenta bloqueada: {call.name}"
-                    )
+                    raise RuntimeError(f"Chamada repetida de ferramenta bloqueada: {call.name}")
                 seen_calls.add(signature)
                 total_calls += 1
                 call_counts[call.name] = call_counts.get(call.name, 0) + 1
                 started = perf_counter()
                 risk_level = "unknown"
-
                 try:
                     policy = self._tools.policy(call.name)
                     risk_level = policy.risk_level
@@ -179,50 +157,39 @@ class ConversationEngine:
                         )
                     if call_counts[call.name] > policy.max_calls_per_turn:
                         raise ToolPolicyError(
-                            f"Ferramenta {call.name} excedeu o limite de "
-                            f"{policy.max_calls_per_turn} chamadas por turno."
+                            f"Ferramenta {call.name} excedeu o limite de {policy.max_calls_per_turn} chamadas por turno."
                         )
                     result = self._tools.execute(call)
-                    duration_ms = result.duration_ms
-                    serialized = {
-                        "name": result.name,
-                        "output": dict(result.output),
-                        "call_id": result.call_id,
-                    }
+                    serialized = {"name": result.name, "output": dict(result.output), "call_id": result.call_id}
                     trace_item = {
+                        "request_id": request_id,
                         "sequence": total_calls,
                         "iteration": iteration + 1,
                         "name": result.name,
                         "call_id": result.call_id,
                         "status": "success",
                         "risk_level": result.risk_level,
-                        "duration_ms": round(duration_ms, 3),
+                        "duration_ms": round(result.duration_ms, 3),
                     }
                 except Exception as exc:
                     tool_failures += 1
-                    duration_ms = max(0.0, (perf_counter() - started) * 1000)
                     serialized = {
                         "name": call.name,
-                        "output": {
-                            "error": {
-                                "type": type(exc).__name__,
-                                "message": str(exc) or "Falha ao executar ferramenta.",
-                            }
-                        },
+                        "output": {"error": {"type": type(exc).__name__, "message": str(exc) or "Falha ao executar ferramenta."}},
                         "call_id": call.call_id,
                         "status": "error",
                     }
                     trace_item = {
+                        "request_id": request_id,
                         "sequence": total_calls,
                         "iteration": iteration + 1,
                         "name": call.name,
                         "call_id": call.call_id,
                         "status": "error",
                         "risk_level": risk_level,
-                        "duration_ms": round(duration_ms, 3),
+                        "duration_ms": round(max(0.0, (perf_counter() - started) * 1000), 3),
                         "error_type": type(exc).__name__,
                     }
-
                 tool_results.append(serialized)
                 iteration_results.append(serialized)
                 tool_trace.append(trace_item)
@@ -231,6 +198,7 @@ class ConversationEngine:
                 current_request,
                 metadata={
                     **dict(current_request.metadata),
+                    "request_id": request_id,
                     "tool_results": tuple(tool_results),
                     "last_tool_results": tuple(iteration_results),
                     "tool_trace": tuple(tool_trace),
@@ -240,7 +208,6 @@ class ConversationEngine:
                     "previous_response_id": response.metadata.get("response_id"),
                 },
             )
-
         raise RuntimeError("Ciclo de ferramentas terminou em estado inválido.")
 
     @staticmethod
