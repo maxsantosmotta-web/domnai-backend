@@ -7,6 +7,7 @@ from fastapi.staticfiles import StaticFiles
 from app.api.admin_audit import router as admin_audit_router
 from app.api.admin_billing import router as admin_billing_router
 from app.api.admin_errors import router as admin_errors_router
+from app.api.admin_shadow_validation import router as admin_shadow_validation_router
 from app.api.admin_users import router as admin_users_router
 from app.api.artifacts import router as artifacts_router
 from app.api.auth import router as auth_router
@@ -27,6 +28,7 @@ from app.config import settings
 from app.domnai_core.parallel_api_bootstrap import mount_parallel_api
 from app.error_monitoring import module_from_path, record_operational_event
 from app.services.chat_task_worker import start_chat_task_worker
+from app.services.shadow_validation_worker import start_shadow_validation_worker
 
 app = FastAPI(
     title=settings.app_name,
@@ -50,6 +52,7 @@ app.add_middleware(
 @app.on_event("startup")
 def start_persistent_chat_worker():
     start_chat_task_worker()
+    start_shadow_validation_worker()
 
 
 @app.middleware("http")
@@ -90,6 +93,7 @@ app.include_router(admin_users_router)
 app.include_router(admin_billing_router)
 app.include_router(admin_errors_router)
 app.include_router(admin_audit_router)
+app.include_router(admin_shadow_validation_router)
 app.include_router(chat_persistent_router)
 app.include_router(chat_state_router)
 app.include_router(chat_tasks_router)
