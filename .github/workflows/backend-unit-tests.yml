@@ -36,9 +36,13 @@ jobs:
         run: |
           python -c "from app.services.labor_termination import calculate; print('labor import ok')"
           python -c "from app.services.orchestrated_brain import generate_orchestrated_response; print('orchestrator import ok')"
+          python -c "from app.domnai_core import ConversationEngine, ConversationRequest; print('new core import ok')"
 
       - name: Run labor tests
         run: pytest -vv --tb=short tests/test_labor_termination.py
 
       - name: Run orchestrator tests
         run: pytest -vv --tb=short tests/test_orchestrated_brain.py
+
+      - name: Run new core foundation tests
+        run: pytest -vv --tb=short tests/test_domnai_core_foundation.py
