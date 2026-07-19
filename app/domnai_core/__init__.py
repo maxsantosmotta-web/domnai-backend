@@ -3,6 +3,13 @@
 Este pacote não depende do fluxo legado nem altera a rota de produção.
 """
 
+from app.domnai_core.artifacts import (
+    Artifact,
+    ArtifactService,
+    ArtifactStore,
+    ArtifactValidationError,
+    InMemoryArtifactStore,
+)
 from app.domnai_core.attachments import (
     AttachmentPreparer,
     AttachmentValidationError,
@@ -53,6 +60,10 @@ from app.domnai_core.tools import (
 )
 
 __all__ = [
+    "Artifact",
+    "ArtifactService",
+    "ArtifactStore",
+    "ArtifactValidationError",
     "Attachment",
     "AttachmentPreparer",
     "AttachmentValidationError",
@@ -67,6 +78,7 @@ __all__ = [
     "DomnAICoreRuntime",
     "DomnAICoreSettings",
     "HistoryMessage",
+    "InMemoryArtifactStore",
     "InMemoryConversationRepository",
     "InMemoryCoreMetricsSink",
     "InMemoryMemoryStore",
