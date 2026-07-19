@@ -52,24 +52,29 @@ Critério de saída atendido:
 
 ## Fase 2 — Ferramentas reais e execução multi-etapas
 
-Status: em execução.
+Status: em execução avançada.
 
 Já concluído:
 - contrato oficial de chamadas de ferramentas vindas do modelo;
 - ferramentas locais reais registradas explicitamente;
-- limite de iterações;
+- limite de iterações e limite global de chamadas por turno;
+- limite individual de chamadas por ferramenta;
 - proteção contra repetição e loops;
-- rastreio de cada etapa e `call_id`;
+- política de risco `low`, `medium` e `high`;
+- autorização explícita dos níveis de risco permitidos;
+- timeout individual por ferramenta;
+- rastreio estruturado por sequência, iteração, duração, risco, status e `call_id`;
 - falhas de ferramenta devolvidas ao modelo de forma recuperável;
 - ativação e desativação explícita das ferramentas internas;
-- testes determinísticos das ferramentas e do fluxo de recuperação.
+- fluxo determinístico com múltiplas ferramentas no mesmo turno;
+- testes de segurança, timeout, risco, limites e compatibilidade.
 
 Próximo escopo:
 - ampliar o catálogo seguro conforme necessidades reais do DomnAI;
-- definir política por categoria de ferramenta e risco;
-- adicionar timeout e limites específicos por ferramenta;
-- consolidar logs estruturados de cada execução;
-- validar fluxos multi-etapas mais longos sem efeitos externos.
+- adicionar ferramentas de leitura e transformação sem efeitos externos;
+- consolidar correlação estruturada por conversa;
+- validar fluxos multi-etapas mais longos;
+- definir o critério de saída formal da Fase 2.
 
 ## Fase 3 — Memória, contexto e identidade conversacional
 

@@ -68,6 +68,8 @@ def build_domnai_core_runtime(
         repository=repository,
         tools=resolved_tools,
         max_tool_iterations=resolved.max_tool_iterations,
+        max_tool_calls_per_turn=resolved.max_tool_calls_per_turn,
+        allowed_tool_risks=resolved.allowed_tool_risks,
         metrics=metrics_sink,
     )
     return DomnAICoreRuntime(
