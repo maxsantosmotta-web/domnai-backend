@@ -40,36 +40,50 @@ PRs principais: #39 e #40.
 
 ## Fase 4 — Arquivos, relatórios e artefatos
 
-Status: em execução.
+Status: concluída neste bloco, condicionada à CI verde e integração.
 
-Já implementado:
+Inclui:
 - contrato isolado de artefato com origem `uploaded` ou `generated`;
-- armazenamento substituível por porta própria;
-- implementação em memória para desenvolvimento e testes;
+- armazenamento substituível em memória e PostgreSQL;
 - isolamento por proprietário;
 - hash SHA-256, tamanho e metadados sem exposição do conteúdo bruto;
 - registro seguro de arquivos enviados;
-- geração determinística de TXT, Markdown, JSON e CSV;
-- leitura textual limitada a formatos explicitamente autorizados;
-- persistência PostgreSQL isolada de conteúdo e metadados;
-- geração real de PDF com ReportLab;
-- geração real de XLSX com openpyxl;
+- geração de TXT, Markdown, JSON, CSV, PDF e XLSX;
+- leitura textual limitada a formatos autorizados;
 - autorização obrigatória por pedido explícito ou aceite contextual confirmado;
-- bloqueio de registro binário sem autorização registrada;
-- recuperação por identificador e filtros por proprietário/origem;
-- expiração opcional com ocultação em leitura e listagem;
-- testes de segurança, autorização, geração, leitura, isolamento, persistência e regressão.
+- bloqueio de geração binária sem autorização registrada;
+- contrato `ArtifactIntent` sem inferência automática por linguagem natural;
+- integração opcional por `ArtifactAwareConversationEngine`;
+- retenção e expiração controladas;
+- recuperação por identificador e filtros;
+- visão segura para futura Biblioteca, sem conteúdo bruto;
+- arquivos ocultos da Biblioteca quando solicitado;
+- testes de segurança, intenção, autorização, geração, leitura, isolamento, persistência, retenção e regressão.
 
-Próximo escopo:
-- integração controlada do fluxo de artefatos ao `ConversationEngine`;
-- contrato de intenção para impedir geração automática indevida;
-- retenção, recuperação e preparação da futura Biblioteca;
-- entrega segura sem exposição do conteúdo bruto;
-- critério formal de saída da Fase 4.
+Critério de saída atendido:
+- nenhum artefato é gerado sem intenção estruturada e autorização;
+- o motor base continua sem efeitos de arquivo quando a integração opcional não é usada;
+- arquivos enviados e gerados permanecem separados;
+- conteúdo e metadados podem ser persistidos e recuperados com isolamento;
+- PDF e XLSX são gerados por bibliotecas próprias e validados;
+- expiração impede leitura e listagem após o prazo;
+- a futura Biblioteca recebe somente resumos seguros;
+- nenhuma rota externa ou fluxo de produção foi alterado.
+
+PRs principais: #41, #42 e bloco de conclusão da Fase 4.
 
 ## Fase 5 — API paralela, autenticação e observabilidade
 
-Status: parcialmente preparada, sem montagem externa.
+Status: próxima fase; parcialmente preparada, sem montagem externa.
+
+Inclui:
+- montar rota paralela protegida;
+- autenticação e autorização;
+- composição do núcleo completo;
+- logs estruturados e correlação;
+- métricas externas;
+- feature flag e desligamento imediato;
+- testes de API sem substituir o fluxo legado.
 
 ## Fase 6 — Integração com frontend e validação comparativa
 
