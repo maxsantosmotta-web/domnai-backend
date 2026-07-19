@@ -13,13 +13,11 @@ Atualizado em: 2026-07-19
 
 - Fase 0: concluída.
 - Fase 1 de 8: concluída.
-- Fase 2 de 8: em execução.
+- Fase 2 de 8: em execução avançada.
 - Fluxo externo atual: backend legado.
 - Novo núcleo: isolado, sem montagem na rota principal.
 
 ## Concluído e integrado na main
-
-### Fundação e capacidades do núcleo
 
 - PR #29: pacote isolado, contratos tipados e `ConversationEngine`.
 - PR #30: adaptador OpenAI Responses, portas de memória/persistência e rota interna preparada.
@@ -28,52 +26,49 @@ Atualizado em: 2026-07-19
 - PR #33: ciclo controlado modelo → ferramenta → modelo.
 - PR #34: ferramentas nativas da Responses API e continuidade por `call_id`.
 - PR #35: configuração, composição, observabilidade e rota interna executável ainda não montada.
+- PR #36: ferramentas reais locais, falhas recuperáveis e início operacional da Fase 2.
 
-Merge mais recente antes do PR #36: `15be13ad50eb839ff536032f3754e8b27e4ea8d3`.
+Merge mais recente antes deste bloco: `75afb7f27b5951cae4922c080526fe4e5243016e`.
 
-## PR #36 — início operacional da Fase 2
+## Bloco atual — políticas, timeout e execução multi-etapas
 
-Branch: `feature/source-first-phase2-real-tools`
-
-Estado validado:
-- CI `Backend unit tests #489`: concluída com sucesso;
-- regressões do núcleo anterior: aprovadas;
-- testes novos da Fase 2: aprovados;
-- pronto para integração na `main`.
+Branch: `feature/source-first-phase2-policy-timeouts`
 
 Inclui:
-- ferramenta real `calculate_expression`, com avaliação aritmética por AST e sem execução de código;
-- ferramenta real `analyze_text`, com contagens determinísticas;
-- limites de tamanho, potência e resultado;
-- ativação por `DOMNAI_CORE_ENABLE_BUILTIN_TOOLS`;
-- composição automática e explicitamente substituível do registro;
-- falhas de ferramenta devolvidas ao modelo como resultado estruturado e recuperável;
-- preservação de `call_id` e histórico de cada execução;
-- contagem de falhas recuperáveis no resultado final;
-- preservação do contrato anterior para ferramentas bem-sucedidas;
-- testes de segurança, resultado e recuperação;
-- CI detalhada por capacidade;
-- roadmap atualizado com Fase 1 concluída e Fase 2 iniciada.
+- política individual por ferramenta com risco `low`, `medium` ou `high`;
+- autorização global dos níveis permitidos;
+- timeout específico por ferramenta;
+- limite individual de chamadas por turno;
+- limite global de chamadas por turno;
+- rastreio estruturado com sequência, iteração, duração, risco, status e `call_id`;
+- falhas de política e timeout devolvidas ao modelo como resultado recuperável;
+- preservação do formato anterior de resultados bem-sucedidos;
+- fluxo determinístico com duas ferramentas diferentes no mesmo turno;
+- endpoint interno de status com riscos e limites configurados;
+- testes de política, timeout, limites, compatibilidade e multi-etapas;
+- CI detalhada atualizada.
 
 ## Próximo passo exato
 
-1. Confirmar que o PR #36 foi integrado na `main`.
-2. Abrir nova branch a partir da `main` atualizada.
-3. Continuar a Fase 2 com um bloco agrupado contendo:
-   - política de risco por ferramenta;
-   - timeout e limites específicos;
-   - rastreio estruturado de execução;
-   - fluxo multi-etapas determinístico com mais de uma ferramenta;
-   - testes de falha, limite e compatibilidade.
-4. Não montar a rota interna no `main.py` ainda.
-5. Não alterar frontend nem tráfego de produção.
+1. Abrir o PR deste bloco.
+2. Executar toda a CI.
+3. Corrigir qualquer regressão sem retirar cobertura ou compatibilidade.
+4. Integrar somente com CI verde.
+5. Continuar a Fase 2 com um bloco agrupado contendo:
+   - ferramentas seguras de leitura e transformação sem efeitos externos;
+   - correlação por conversa e solicitação;
+   - catálogo e descrição operacional das ferramentas;
+   - fluxos multi-etapas mais longos;
+   - critério formal de encerramento da Fase 2.
+6. Não montar a rota interna no `main.py` ainda.
+7. Não alterar frontend nem tráfego de produção.
 
 ## O que não deve ser feito agora
 
 - não substituir a rota de produção;
 - não alterar frontend;
 - não ligar a nova memória ao chat externo;
-- não registrar ferramentas com efeitos externos sem política e autorização;
+- não registrar ferramentas com efeitos externos sem autorização específica;
 - não remover o backend legado;
 - não alterar cobrança, Clerk, Stripe ou regras de créditos.
 
