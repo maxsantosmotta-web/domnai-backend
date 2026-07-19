@@ -2,7 +2,6 @@ from pathlib import Path
 
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.staticfiles import StaticFiles
 
 from app.api.admin_audit import router as admin_audit_router
 from app.api.admin_billing import router as admin_billing_router
@@ -29,6 +28,7 @@ from app.api.trash import router as trash_router
 from app.config import settings
 from app.domnai_core.parallel_api_bootstrap import mount_parallel_api
 from app.error_monitoring import module_from_path, record_operational_event
+from app.frontend_static import FrontendStaticFiles
 from app.services.cutover_worker_bootstrap import start_cutover_aware_chat_worker
 from app.services.shadow_validation_worker import start_shadow_validation_worker
 
@@ -117,7 +117,7 @@ mount_parallel_api(app)
 frontend_dist = Path(__file__).resolve().parent.parent / "frontend" / "dist"
 
 if frontend_dist.exists():
-    app.mount("/", StaticFiles(directory=frontend_dist, html=True), name="frontend")
+    app.mount("/", FrontendStaticFiles(directory=frontend_dist, html=True), name="frontend")
 else:
     @app.get("/")
     def root():
