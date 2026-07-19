@@ -114,6 +114,7 @@ COPY scripts/fix_admin_block3.py /tmp/fix_admin_block3.py
 COPY scripts/fix_p2p_audit_findings.py /tmp/fix_p2p_audit_findings.py
 COPY scripts/prepare_artifact_exports_compat.py /tmp/prepare_artifact_exports_compat.py
 COPY scripts/fix_artifact_exports.py /tmp/fix_artifact_exports.py
+COPY scripts/make_artifact_exports_idempotent.py /tmp/make_artifact_exports_idempotent.py
 COPY scripts/fix_artifact_wait_for_user.py /tmp/fix_artifact_wait_for_user.py
 COPY scripts/fix_chat_history_retention.py /tmp/fix_chat_history_retention.py
 COPY scripts/fix_chat_conversation_pdf_regressions.py /tmp/fix_chat_conversation_pdf_regressions.py
@@ -130,6 +131,7 @@ RUN python /tmp/connect_chat_sources_backend.py \
     && python /tmp/fix_admin_block3.py \
     && python /tmp/fix_p2p_audit_findings.py \
     && python /tmp/prepare_artifact_exports_compat.py \
+    && python /tmp/make_artifact_exports_idempotent.py \
     && python /tmp/fix_artifact_exports.py \
     && python /tmp/fix_artifact_wait_for_user.py \
     && python /tmp/fix_chat_history_retention.py \
@@ -139,7 +141,8 @@ RUN python /tmp/connect_chat_sources_backend.py \
     && python /tmp/fix_labor_structured_interpretation.py \
     && python /tmp/force_gpt51_text_intelligence.py \
     && python /tmp/enable_progressive_artifact_delivery.py \
-    && python /tmp/finalize_natural_conversation_and_artifact_flow.py
+    && python /tmp/finalize_natural_conversation_and_artifact_flow.py \
+    && python -m compileall -q app
 COPY --from=frontend-builder /frontend/dist ./frontend/dist
 EXPOSE 8080
 CMD ["sh", "-c", "alembic upgrade head && uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-8080}"]
