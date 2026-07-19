@@ -48,6 +48,8 @@ def status():
         "persistence_backend": runtime.persistence_backend,
         "model": runtime.settings.model,
         "max_tool_iterations": runtime.settings.max_tool_iterations,
+        "max_tool_calls_per_turn": runtime.settings.max_tool_calls_per_turn,
+        "allowed_tool_risks": runtime.settings.allowed_tool_risks,
         "registered_tools": runtime.registered_tools,
         "metrics_count": metrics_count,
     }
