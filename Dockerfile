@@ -125,6 +125,7 @@ COPY scripts/force_gpt51_text_intelligence.py /tmp/force_gpt51_text_intelligence
 COPY scripts/enable_progressive_artifact_delivery.py /tmp/enable_progressive_artifact_delivery.py
 COPY scripts/finalize_natural_conversation_and_artifact_flow.py /tmp/finalize_natural_conversation_and_artifact_flow.py
 COPY scripts/make_runtime_patches_idempotent.py /tmp/make_runtime_patches_idempotent.py
+COPY scripts/fix_chat_worker_operation_scope.py /tmp/fix_chat_worker_operation_scope.py
 RUN python /tmp/make_runtime_patches_idempotent.py \
     && python -m py_compile /tmp/*.py \
     && python /tmp/connect_chat_sources_backend.py \
@@ -145,6 +146,7 @@ RUN python /tmp/make_runtime_patches_idempotent.py \
     && python /tmp/force_gpt51_text_intelligence.py \
     && python /tmp/enable_progressive_artifact_delivery.py \
     && python /tmp/finalize_natural_conversation_and_artifact_flow.py \
+    && python /tmp/fix_chat_worker_operation_scope.py \
     && python -m compileall -q app
 COPY --from=frontend-builder /frontend/dist ./frontend/dist
 EXPOSE 8080
