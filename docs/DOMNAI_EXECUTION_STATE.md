@@ -11,63 +11,53 @@ Atualizado em: 2026-07-19
 
 ## Situação geral
 
-- Fase 0: concluída.
-- Fase 1 de 8: concluída.
-- Fase 2 de 8: concluída.
-- Fase 3 de 8: concluída.
-- Fase 4 de 8: concluída.
-- Fase 5 de 8: concluída.
-- Fase 6 de 8: em execução.
+- Fases 0 a 5: concluídas.
+- Fase 6 de 8: concluída neste bloco, condicionada à CI verde e merge.
+- Próxima fase: Fase 7 — corte controlado de produção.
 - Fluxo externo atual: backend legado.
-- Novo núcleo: disponível em superfície paralela protegida, desligada por padrão.
+- Novo núcleo: validável em paralelo, sem substituir a resposta real.
 
 ## Concluído e integrado na main
 
 - PR #29 a #35: fundação, ferramentas, persistência, observabilidade e composição.
 - PR #36 a #38: ferramentas reais, políticas, rastreio e conclusão da Fase 2.
-- PR #39 e #40: memória contextual, conflito, expiração e conclusão da Fase 3.
-- PR #41 a #43: artefatos, PostgreSQL, PDF/XLSX, autorização, Biblioteca e conclusão da Fase 4.
-- PR #44 e #45: API paralela, segurança, Clerk, feature flag e conclusão da Fase 5.
+- PR #39 e #40: memória contextual e conclusão da Fase 3.
+- PR #41 a #43: artefatos e conclusão da Fase 4.
+- PR #44 e #45: API paralela, Clerk, feature flag e conclusão da Fase 5.
+- PR #46: shadow mode seguro e comparação sem efeitos colaterais.
 
-Merge mais recente antes deste bloco: `efd77f969768b3ded20f0916dd08a509e006c71a`.
+## Bloco atual — conclusão da Fase 6
 
-## Bloco atual — validação comparativa da Fase 6
-
-Branch: `feature/source-first-phase6-shadow-validation`
+Branch: `feature/source-first-phase6-completion`
 
 Inclui:
-- `ShadowValidationSettings` com feature flag desligada por padrão;
-- amostragem percentual determinística por usuário e requisição;
-- execução candidata isolada, sem PostgreSQL, ferramentas, cobrança ou artefatos;
-- comparação segura entre resposta legada e candidata;
-- métricas de comprimento, similaridade, provedor e falha;
-- proibição de registrar o texto bruto das respostas;
-- falhas do candidato isoladas da resposta entregue ao usuário;
-- agendamento assíncrono em thread daemon para não bloquear o fluxo legado;
-- timeout próprio do candidato;
-- testes de configuração, amostragem, privacidade, sucesso e falha;
-- CI ampliada.
+- worker shadow desacoplado do worker legado;
+- execução somente quando a feature flag estiver ativa;
+- leitura de tarefas concluídas sem alterar a resposta entregue;
+- persistência PostgreSQL exclusiva de métricas seguras;
+- nenhum prompt ou resposta bruta armazenado;
+- painel administrativo protegido em `/api/admin/shadow-validation`;
+- critérios objetivos de aprovação: amostra mínima, sucesso, resposta não vazia e similaridade média;
+- rollback imediato ao desligar `DOMNAI_SHADOW_VALIDATION_ENABLED`;
+- CI cobrindo regressão e conclusão da fase.
 
-## Regras de segurança deste bloco
+## Critério formal de saída da Fase 6
 
-- shadow mode não executa por padrão;
-- habilitação exige `DOMNAI_SHADOW_VALIDATION_ENABLED=true`;
-- amostragem exige `DOMNAI_SHADOW_SAMPLE_PERCENT` entre 1 e 100;
-- a resposta legada continua sendo a única devolvida ao usuário;
-- o candidato não cobra créditos, não gera arquivos e não altera memória persistente;
-- qualquer falha do candidato é registrada e descartada sem afetar o usuário;
-- nenhum tráfego do frontend é redirecionado.
+- legado permanece como única resposta real;
+- candidato roda sem cobrança, artefatos, ferramentas ou memória persistente;
+- comparativos são persistidos sem conteúdo bruto;
+- falhas do candidato não afetam o usuário;
+- administrador consegue consultar métricas e decisão objetiva de aprovação;
+- o corte só pode ocorrer quando `approved=true` e após decisão explícita da Fase 7;
+- desligar a flag interrompe novas validações no próximo ciclo/reinício.
 
 ## Próximo passo exato
 
-1. Abrir o PR deste bloco.
-2. Executar toda a CI.
-3. Corrigir regressões comprovadas sem retirar cobertura.
-4. Integrar somente com CI verde.
-5. Em seguida concluir a Fase 6 com integração controlada ao worker legado, painel/relatório comparativo e critérios formais de equivalência.
-6. Não promover o novo núcleo para resposta real antes da Fase 7.
-7. Não remover o backend legado.
+1. Abrir PR e executar CI completa.
+2. Integrar somente com CI verde.
+3. Iniciar Fase 7 com roteamento percentual controlado, fallback automático e rollback.
+4. Não remover o legado até validação real pós-corte.
 
 ## Regra de retomada por outra janela
 
-A próxima janela deve ler este arquivo, o roadmap, confirmar PRs e CI atuais e retomar exatamente do próximo passo registrado.
+A próxima janela deve ler este arquivo, confirmar PR e CI atuais e retomar exatamente do próximo passo registrado.
