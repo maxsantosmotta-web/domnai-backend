@@ -40,6 +40,7 @@ jobs:
           python -c "from app.api.domnai_core_preview import router; print('preview route import ok')"
           python -c "from app.api.domnai_core_parallel import build_parallel_router; print('parallel route factory import ok')"
           python -c "from app.domnai_core.parallel_api_bootstrap import mount_parallel_api; print('parallel bootstrap import ok')"
+          python -c "from app.domnai_core.shadow_validation import ShadowValidator; print('shadow validation import ok')"
 
       - name: Run labor tests
         run: pytest -vv --tb=short tests/test_labor_termination.py
@@ -88,3 +89,6 @@ jobs:
 
       - name: Run phase 5 completion tests
         run: pytest -vv --tb=short tests/test_domnai_core_phase5_completion.py
+
+      - name: Run phase 6 shadow validation tests
+        run: pytest -vv --tb=short tests/test_domnai_core_phase6_shadow_validation.py
