@@ -42,6 +42,7 @@ jobs:
           python -c "from app.domnai_core.parallel_api_bootstrap import mount_parallel_api; print('parallel bootstrap import ok')"
           python -c "from app.domnai_core.shadow_validation import ShadowValidator; print('shadow validation import ok')"
           python -c "from app.domnai_core.shadow_results import evaluate_shadow_results; from app.services.shadow_validation_worker import start_shadow_validation_worker; print('shadow completion import ok')"
+          python -c "from app.domnai_core.cutover import ControlledCutoverRouter; print('controlled cutover import ok')"
 
       - name: Run labor tests
         run: pytest -vv --tb=short tests/test_labor_termination.py
@@ -96,3 +97,6 @@ jobs:
 
       - name: Run phase 6 completion tests
         run: pytest -vv --tb=short tests/test_domnai_core_phase6_completion.py
+
+      - name: Run phase 7 controlled cutover tests
+        run: pytest -vv --tb=short tests/test_domnai_core_phase7_controlled_cutover.py

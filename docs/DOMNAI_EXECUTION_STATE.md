@@ -11,11 +11,10 @@ Atualizado em: 2026-07-19
 
 ## Situação geral
 
-- Fases 0 a 5: concluídas.
-- Fase 6 de 8: concluída neste bloco, condicionada à CI verde e merge.
-- Próxima fase: Fase 7 — corte controlado de produção.
+- Fases 0 a 6: concluídas.
+- Fase 7 de 8: em execução.
 - Fluxo externo atual: backend legado.
-- Novo núcleo: validável em paralelo, sem substituir a resposta real.
+- Novo núcleo: preparado para corte percentual controlado, ainda sem integração ao worker real neste bloco.
 
 ## Concluído e integrado na main
 
@@ -24,39 +23,46 @@ Atualizado em: 2026-07-19
 - PR #39 e #40: memória contextual e conclusão da Fase 3.
 - PR #41 a #43: artefatos e conclusão da Fase 4.
 - PR #44 e #45: API paralela, Clerk, feature flag e conclusão da Fase 5.
-- PR #46: shadow mode seguro e comparação sem efeitos colaterais.
+- PR #46 e #47: shadow mode, persistência comparativa, painel e conclusão da Fase 6.
 
-## Bloco atual — conclusão da Fase 6
+Merge mais recente antes deste bloco: `2cf0b0b23ba4bbd0b7c5af22e64318e41b9c2710`.
 
-Branch: `feature/source-first-phase6-completion`
+## Bloco atual — fundação do corte controlado da Fase 7
+
+Branch: `feature/source-first-phase7-controlled-cutover`
 
 Inclui:
-- worker shadow desacoplado do worker legado;
-- execução somente quando a feature flag estiver ativa;
-- leitura de tarefas concluídas sem alterar a resposta entregue;
-- persistência PostgreSQL exclusiva de métricas seguras;
-- nenhum prompt ou resposta bruta armazenado;
-- painel administrativo protegido em `/api/admin/shadow-validation`;
-- critérios objetivos de aprovação: amostra mínima, sucesso, resposta não vazia e similaridade média;
-- rollback imediato ao desligar `DOMNAI_SHADOW_VALIDATION_ENABLED`;
-- CI cobrindo regressão e conclusão da fase.
+- configuração tipada `ControlledCutoverSettings`;
+- feature flag `DOMNAI_CUTOVER_ENABLED`, desligada por padrão;
+- percentual de tráfego determinístico por usuário e requisição;
+- exigência opcional de aprovação prévia do shadow mode;
+- bloqueio de anexos e follow-ups de artefato ainda não compatíveis;
+- adaptação da resposta do novo núcleo para o contrato de cobrança atual;
+- fallback automático ao legado em erro ou resposta vazia;
+- proibição de desativar fallback antes de 100% do tráfego;
+- propagação de usuário, conversa, memória e request_id;
+- testes de configuração, elegibilidade, seleção, resposta real e fallback;
+- CI ampliada.
 
-## Critério formal de saída da Fase 6
+## Regras de segurança deste bloco
 
-- legado permanece como única resposta real;
-- candidato roda sem cobrança, artefatos, ferramentas ou memória persistente;
-- comparativos são persistidos sem conteúdo bruto;
-- falhas do candidato não afetam o usuário;
-- administrador consegue consultar métricas e decisão objetiva de aprovação;
-- o corte só pode ocorrer quando `approved=true` e após decisão explícita da Fase 7;
-- desligar a flag interrompe novas validações no próximo ciclo/reinício.
+- nenhuma resposta real muda enquanto a integração ao worker não for aplicada;
+- corte permanece desligado por padrão;
+- tráfego parcial exige fallback ativo;
+- anexos e follow-ups de artefato continuam no legado;
+- sem aprovação shadow, o novo núcleo não pode ser selecionado quando a exigência estiver ativa;
+- erro ou resposta vazia do candidato volta ao legado;
+- desligar `DOMNAI_CUTOVER_ENABLED` restaura seleção exclusiva do legado.
 
 ## Próximo passo exato
 
 1. Abrir PR e executar CI completa.
 2. Integrar somente com CI verde.
-3. Iniciar Fase 7 com roteamento percentual controlado, fallback automático e rollback.
-4. Não remover o legado até validação real pós-corte.
+3. Acoplar o router ao ponto único de geração do worker legado.
+4. Persistir métricas de rota, fallback, latência e erro.
+5. Criar visão administrativa protegida de corte.
+6. Iniciar em 0% e só elevar por decisão explícita após validação real.
+7. Não remover o legado antes da Fase 8.
 
 ## Regra de retomada por outra janela
 
