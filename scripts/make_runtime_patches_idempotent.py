@@ -9,6 +9,32 @@ STRICT_LINES = (
     "    raise RuntimeError(f'{label}: trecho esperado não encontrado')",
 )
 FUNCTION_PATTERN = re.compile(r"def\s+replace_once\s*\(\s*([A-Za-z_][A-Za-z0-9_]*)")
+WORKER_PATH = Path('/app/app/services/chat_task_worker.py')
+WORKER_ANCHOR = '''        payload = json.loads(task.request_json)
+        payload["task_id"] = task_id
+'''
+WORKER_INITIALIZED = '''        payload = json.loads(task.request_json)
+        payload["task_id"] = task_id
+        operation = payload.get("operation")
+'''
+
+
+def _initialize_worker_operation() -> None:
+    if not WORKER_PATH.exists():
+        raise RuntimeError('chat_task_worker.py não encontrado no runtime.')
+
+    source = WORKER_PATH.read_text(encoding='utf-8')
+    if WORKER_INITIALIZED in source:
+        print('chat_task_worker: operation já inicializada antes dos desvios de fluxo.')
+        return
+    if WORKER_ANCHOR not in source:
+        raise RuntimeError('chat_task_worker: ponto seguro de inicialização de operation não encontrado.')
+
+    WORKER_PATH.write_text(
+        source.replace(WORKER_ANCHOR, WORKER_INITIALIZED, 1),
+        encoding='utf-8',
+    )
+    print('chat_task_worker: operation inicializada imediatamente após o payload.')
 
 
 def main() -> None:
@@ -38,6 +64,8 @@ def main() -> None:
         if updated != source:
             path.write_text(updated, encoding='utf-8')
             changed.append(path.name)
+
+    _initialize_worker_operation()
 
     print(f"Patches runtime inspecionados: {len(inspected)}.")
     print(f"Patches runtime tornados idempotentes: {len(changed)}.")
