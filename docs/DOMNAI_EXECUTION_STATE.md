@@ -12,9 +12,9 @@ Atualizado em: 2026-07-19
 ## Situação geral
 
 - Fases 0 a 6: concluídas.
-- Fase 7 de 8: em execução.
-- Fluxo externo atual: backend legado.
-- Novo núcleo: preparado para corte percentual controlado, ainda sem integração ao worker real neste bloco.
+- Fase 7 de 8: concluída tecnicamente neste bloco, condicionada à CI verde e merge.
+- Fluxo externo atual: backend legado, porque `DOMNAI_CUTOVER_ENABLED` permanece desligada e o percentual permanece em 0%.
+- Novo núcleo: integrado ao ponto único do worker, pronto para ativação percentual controlada.
 
 ## Concluído e integrado na main
 
@@ -24,46 +24,43 @@ Atualizado em: 2026-07-19
 - PR #41 a #43: artefatos e conclusão da Fase 4.
 - PR #44 e #45: API paralela, Clerk, feature flag e conclusão da Fase 5.
 - PR #46 e #47: shadow mode, persistência comparativa, painel e conclusão da Fase 6.
+- PR #48: fundação do corte percentual, seleção determinística e fallback.
 
-Merge mais recente antes deste bloco: `2cf0b0b23ba4bbd0b7c5af22e64318e41b9c2710`.
+## Bloco atual — conclusão da Fase 7
 
-## Bloco atual — fundação do corte controlado da Fase 7
-
-Branch: `feature/source-first-phase7-controlled-cutover`
+Branch: `feature/source-first-phase7-completion`
 
 Inclui:
-- configuração tipada `ControlledCutoverSettings`;
-- feature flag `DOMNAI_CUTOVER_ENABLED`, desligada por padrão;
-- percentual de tráfego determinístico por usuário e requisição;
-- exigência opcional de aprovação prévia do shadow mode;
-- bloqueio de anexos e follow-ups de artefato ainda não compatíveis;
-- adaptação da resposta do novo núcleo para o contrato de cobrança atual;
-- fallback automático ao legado em erro ou resposta vazia;
-- proibição de desativar fallback antes de 100% do tráfego;
-- propagação de usuário, conversa, memória e request_id;
-- testes de configuração, elegibilidade, seleção, resposta real e fallback;
-- CI ampliada.
+- integração do roteador no ponto único de geração do worker;
+- contexto seguro por thread com usuário, tarefa e follow-up de artefato;
+- releitura da configuração por tarefa para rollback imediato;
+- persistência PostgreSQL de rota, fallback, motivo e latência;
+- nenhuma persistência de prompt ou resposta bruta;
+- painel administrativo protegido em `/api/admin/cutover`;
+- readiness para corte integral baseado em aprovação shadow, amostra e fallback;
+- corte desligado por padrão e tráfego mantido em 0%;
+- testes de rollback, integração e preservação de métricas;
+- CI completa de todas as fases.
 
-## Regras de segurança deste bloco
+## Critério formal de saída da Fase 7
 
-- nenhuma resposta real muda enquanto a integração ao worker não for aplicada;
-- corte permanece desligado por padrão;
-- tráfego parcial exige fallback ativo;
-- anexos e follow-ups de artefato continuam no legado;
-- sem aprovação shadow, o novo núcleo não pode ser selecionado quando a exigência estiver ativa;
-- erro ou resposta vazia do candidato volta ao legado;
-- desligar `DOMNAI_CUTOVER_ENABLED` restaura seleção exclusiva do legado.
+- o worker real possui um único ponto de decisão entre legado e novo núcleo;
+- `DOMNAI_CUTOVER_ENABLED=false` mantém 100% no legado;
+- configuração inválida volta ao legado;
+- tráfego parcial sempre exige fallback;
+- anexos e artefatos incompatíveis permanecem no legado;
+- métricas administrativas não guardam conteúdo conversacional;
+- falha ou resposta vazia do novo núcleo retorna ao legado;
+- o legado permanece disponível para rollback até a Fase 8.
 
 ## Próximo passo exato
 
 1. Abrir PR e executar CI completa.
 2. Integrar somente com CI verde.
-3. Acoplar o router ao ponto único de geração do worker legado.
-4. Persistir métricas de rota, fallback, latência e erro.
-5. Criar visão administrativa protegida de corte.
-6. Iniciar em 0% e só elevar por decisão explícita após validação real.
-7. Não remover o legado antes da Fase 8.
+3. Manter corte em 0% até decisão explícita e configuração do Railway.
+4. Executar validação real gradual: 1%, 5%, 10%, 25%, 50% e 100%, observando o painel.
+5. Só após estabilidade real iniciar a Fase 8 para remoção do legado.
 
 ## Regra de retomada por outra janela
 
-A próxima janela deve ler este arquivo, confirmar PR e CI atuais e retomar exatamente do próximo passo registrado.
+A próxima janela deve confirmar PR, CI, flags reais do Railway e percentual atual antes de qualquer promoção de tráfego.

@@ -43,6 +43,7 @@ jobs:
           python -c "from app.domnai_core.shadow_validation import ShadowValidator; print('shadow validation import ok')"
           python -c "from app.domnai_core.shadow_results import evaluate_shadow_results; from app.services.shadow_validation_worker import start_shadow_validation_worker; print('shadow completion import ok')"
           python -c "from app.domnai_core.cutover import ControlledCutoverRouter; print('controlled cutover import ok')"
+          python -c "from app.domnai_core.cutover_runtime import route_brain_request; from app.services.cutover_worker_bootstrap import install_cutover_router; print('cutover completion import ok')"
 
       - name: Run labor tests
         run: pytest -vv --tb=short tests/test_labor_termination.py
@@ -100,3 +101,6 @@ jobs:
 
       - name: Run phase 7 controlled cutover tests
         run: pytest -vv --tb=short tests/test_domnai_core_phase7_controlled_cutover.py
+
+      - name: Run phase 7 completion tests
+        run: pytest -vv --tb=short tests/test_domnai_core_phase7_completion.py
