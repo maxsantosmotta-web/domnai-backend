@@ -30,6 +30,7 @@ def settings(**overrides):
         "enabled": True,
         "use_postgres": False,
         "ensure_schema": False,
+        "enable_builtin_tools": True,
         "model": "test-model",
         "timeout_seconds": 10.0,
         "max_tool_iterations": 2,
@@ -41,6 +42,7 @@ def settings(**overrides):
 def test_settings_are_loaded_and_validated_from_environment(monkeypatch):
     monkeypatch.setenv("DOMNAI_CORE_PREVIEW_ENABLED", "true")
     monkeypatch.setenv("DOMNAI_CORE_USE_POSTGRES", "false")
+    monkeypatch.setenv("DOMNAI_CORE_ENABLE_BUILTIN_TOOLS", "true")
     monkeypatch.setenv("DOMNAI_CORE_MODEL", "model-x")
     monkeypatch.setenv("DOMNAI_CORE_TIMEOUT_SECONDS", "12.5")
     monkeypatch.setenv("DOMNAI_CORE_MAX_TOOL_ITERATIONS", "4")
@@ -48,6 +50,7 @@ def test_settings_are_loaded_and_validated_from_environment(monkeypatch):
     loaded = DomnAICoreSettings.from_env()
 
     assert loaded.enabled is True
+    assert loaded.enable_builtin_tools is True
     assert loaded.model == "model-x"
     assert loaded.timeout_seconds == 12.5
     assert loaded.max_tool_iterations == 4
@@ -63,6 +66,12 @@ def test_runtime_uses_memory_backend_without_touching_database():
     runtime = build_domnai_core_runtime(settings())
     assert runtime.persistence_backend == "memory"
     assert runtime.settings.model == "test-model"
+    assert runtime.registered_tools == ("analyze_text", "calculate_expression")
+
+
+def test_runtime_can_disable_builtin_tools_explicitly():
+    runtime = build_domnai_core_runtime(settings(enable_builtin_tools=False))
+    assert runtime.registered_tools == ()
 
 
 def test_postgres_mode_requires_configured_database(monkeypatch):
@@ -95,6 +104,7 @@ def test_preview_status_uses_composed_runtime(monkeypatch):
         engine=ConversationEngine(StubProvider(), metrics=metrics),
         metrics=metrics,
         persistence_backend="memory",
+        registered_tools=("calculate_expression",),
     )
     monkeypatch.setattr(domnai_core_preview, "get_preview_runtime", lambda: runtime)
 
