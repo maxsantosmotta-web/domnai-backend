@@ -8,6 +8,8 @@ from app.domnai_core.attachments import (
     AttachmentValidationError,
     PreparedAttachment,
 )
+from app.domnai_core.composition import DomnAICoreRuntime, build_domnai_core_runtime
+from app.domnai_core.config import DomnAICoreSettings
 from app.domnai_core.contracts import (
     Attachment,
     ConversationRequest,
@@ -16,6 +18,12 @@ from app.domnai_core.contracts import (
 )
 from app.domnai_core.engine import ConversationEngine, ModelProvider
 from app.domnai_core.memory import InMemoryMemoryStore, MemoryStore, NullMemoryStore
+from app.domnai_core.observability import (
+    CoreMetricsSink,
+    CoreRequestMetric,
+    InMemoryCoreMetricsSink,
+    NullCoreMetricsSink,
+)
 from app.domnai_core.persistence import (
     ConversationRecord,
     ConversationRepository,
@@ -44,12 +52,18 @@ __all__ = [
     "ConversationRepository",
     "ConversationRequest",
     "ConversationResponse",
+    "CoreMetricsSink",
+    "CoreRequestMetric",
+    "DomnAICoreRuntime",
+    "DomnAICoreSettings",
     "HistoryMessage",
     "InMemoryConversationRepository",
+    "InMemoryCoreMetricsSink",
     "InMemoryMemoryStore",
     "MemoryStore",
     "ModelProvider",
     "NullConversationRepository",
+    "NullCoreMetricsSink",
     "NullMemoryStore",
     "OpenAIResponsesProvider",
     "PostgresConversationRepository",
@@ -62,4 +76,5 @@ __all__ = [
     "ToolExecutor",
     "ToolRegistry",
     "ToolResult",
+    "build_domnai_core_runtime",
 ]
