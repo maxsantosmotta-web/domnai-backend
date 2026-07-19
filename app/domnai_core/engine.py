@@ -6,6 +6,7 @@ from time import perf_counter
 from typing import Protocol
 from uuid import uuid4
 
+from app.domnai_core.context_memory import ContextMemoryManager, MemoryScope
 from app.domnai_core.contracts import ConversationRequest, ConversationResponse
 from app.domnai_core.memory import MemoryStore, NullMemoryStore
 from app.domnai_core.observability import CoreMetricsSink, CoreRequestMetric, NullCoreMetricsSink, RequestTimer
@@ -32,11 +33,17 @@ class ConversationEngine:
         max_tool_calls_per_turn: int = 8,
         allowed_tool_risks: tuple[str, ...] = ("low",),
         metrics: CoreMetricsSink | None = None,
+        long_context_threshold: int = 20,
+        long_context_summary_characters: int = 2500,
     ) -> None:
         if max_tool_iterations < 0:
             raise ValueError("max_tool_iterations não pode ser negativo.")
         if max_tool_calls_per_turn < 1:
             raise ValueError("max_tool_calls_per_turn deve ser maior que zero.")
+        if long_context_threshold < 2:
+            raise ValueError("long_context_threshold deve ser pelo menos 2.")
+        if long_context_summary_characters < 100:
+            raise ValueError("long_context_summary_characters deve ser pelo menos 100.")
         normalized_risks = tuple(dict.fromkeys(value.strip().lower() for value in allowed_tool_risks))
         if not normalized_risks:
             raise ValueError("allowed_tool_risks deve conter ao menos um nível.")
@@ -44,12 +51,15 @@ class ConversationEngine:
             raise ValueError("allowed_tool_risks contém nível inválido.")
         self._provider = provider
         self._memory_store = memory_store or NullMemoryStore()
+        self._context_memory = ContextMemoryManager(self._memory_store)
         self._repository = repository or NullConversationRepository()
         self._tools = tools or ToolRegistry()
         self._max_tool_iterations = max_tool_iterations
         self._max_tool_calls_per_turn = max_tool_calls_per_turn
         self._allowed_tool_risks = normalized_risks
         self._metrics = metrics or NullCoreMetricsSink()
+        self._long_context_threshold = long_context_threshold
+        self._long_context_summary_characters = long_context_summary_characters
 
     def respond(self, request: ConversationRequest) -> ConversationResponse:
         timer = RequestTimer()
@@ -75,10 +85,33 @@ class ConversationEngine:
         supplied_request_id = str(request.metadata.get("request_id") or "").strip()
         request_id = supplied_request_id or uuid4().hex
         conversation_id = str(request.metadata.get("conversation_id") or "").strip()
-        stored_memory = self._memory_store.load(conversation_id) if conversation_id else {}
+        user_id = str(request.metadata.get("user_id") or "").strip()
+        scoped_memory_enabled = bool(user_id or request.metadata.get("scoped_memory"))
+        scope = MemoryScope(user_id=user_id, conversation_id=conversation_id)
+
+        if scoped_memory_enabled:
+            stored_memory = self._context_memory.load(scope)
+        else:
+            stored_memory = self._memory_store.load(conversation_id) if conversation_id else {}
         effective_memory = {**stored_memory, **dict(request.memory)}
+
+        generated_summary = ""
+        if len(request.history) >= self._long_context_threshold:
+            generated_summary = ContextMemoryManager.summarize_history(
+                request.history,
+                max_characters=self._long_context_summary_characters,
+            )
+            effective_memory = {**effective_memory, "recent_context_summary": generated_summary}
+
         available_tools = self._tools.names()
-        if stored_memory or available_tools or supplied_request_id:
+        needs_enrichment = bool(
+            stored_memory
+            or available_tools
+            or supplied_request_id
+            or scoped_memory_enabled
+            or generated_summary
+        )
+        if needs_enrichment:
             effective_request = replace(
                 request,
                 memory=effective_memory,
@@ -87,6 +120,12 @@ class ConversationEngine:
                     "request_id": request_id,
                     "available_tools": available_tools,
                     "tool_definitions": self._tools.definitions(),
+                    "memory_scope": {
+                        "user_id": user_id,
+                        "conversation_id": conversation_id,
+                        "scoped": scoped_memory_enabled,
+                    },
+                    "context_summary_generated": bool(generated_summary),
                 },
             )
         else:
@@ -94,9 +133,12 @@ class ConversationEngine:
 
         response = self._run_provider_tool_loop(effective_request)
         response = replace(response, metadata={**dict(response.metadata), "request_id": request_id})
-        if conversation_id and response.memory_update is not None:
-            next_memory = {**dict(effective_request.memory), **dict(response.memory_update)}
-            self._memory_store.save(conversation_id, next_memory)
+        if response.memory_update is not None:
+            if scoped_memory_enabled:
+                self._context_memory.apply_update(scope, response.memory_update)
+            elif conversation_id:
+                next_memory = {**dict(effective_request.memory), **dict(response.memory_update)}
+                self._memory_store.save(conversation_id, next_memory)
         self._repository.append(
             ConversationRecord(conversation_id=conversation_id, request=effective_request, response=response)
         )

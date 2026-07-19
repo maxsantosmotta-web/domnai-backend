@@ -13,12 +13,12 @@ Atualizado em: 2026-07-19
 
 - Fase 0: concluída.
 - Fase 1 de 8: concluída.
-- Fase 2 de 8: concluída neste bloco, condicionada à CI verde e merge.
-- Próxima fase: Fase 3 — memória, contexto e identidade conversacional.
+- Fase 2 de 8: concluída.
+- Fase 3 de 8: em execução.
 - Fluxo externo atual: backend legado.
 - Novo núcleo: isolado, sem montagem na rota principal.
 
-## Concluído e integrado na main antes deste bloco
+## Concluído e integrado na main
 
 - PR #29: pacote isolado, contratos tipados e `ConversationEngine`.
 - PR #30: adaptador OpenAI Responses, portas de memória/persistência e rota interna preparada.
@@ -29,36 +29,40 @@ Atualizado em: 2026-07-19
 - PR #35: configuração, composição, observabilidade e rota interna executável ainda não montada.
 - PR #36: ferramentas reais locais e falhas recuperáveis.
 - PR #37: políticas de risco, timeout, limites e rastreio multi-etapas.
+- PR #38: catálogo seguro ampliado, correlação por solicitação e conclusão formal da Fase 2.
 
-Merge mais recente antes deste bloco: `feb29591ca282d684f42f0f807659a085eca75a5`.
+Merge mais recente antes deste bloco: `5c48a6cbc9293d6ad09a51486b1718fc1b97e6cd`.
 
-## Bloco atual — conclusão da Fase 2
+## Bloco atual — início da Fase 3
 
-Branch: `feature/source-first-phase2-completion`
+Branch: `feature/source-first-phase3-memory-context`
 
 Inclui:
-- ferramenta `normalize_text` para transformação determinística sem inventar conteúdo;
-- ferramenta `extract_keywords` para leitura por frequência sem fontes externas;
-- catálogo interno ampliado para quatro ferramentas seguras;
-- `request_id` gerado quando ausente e preservado quando fornecido;
-- correlação do `request_id` entre requisição, provedor, resultados e cada item do rastreio;
-- fluxo determinístico com duas ferramentas de leitura/transformação no mesmo turno;
-- testes de catálogo, normalização, palavras-chave, correlação e compatibilidade;
-- CI atualizada;
-- critério formal de saída da Fase 2 documentado.
+- `ContextMemoryManager` isolado do backend legado;
+- memória persistente separada por usuário e conversa;
+- composição de preferências duráveis com decisões específicas da conversa;
+- categorias explícitas: preferências, decisões, correções, restrições e fatos;
+- fatos aceitos somente quando a origem é o próprio usuário;
+- deduplicação e limites para impedir crescimento sem controle;
+- resumo determinístico e limitado de históricos longos;
+- carregamento automático do contexto estruturado no `ConversationEngine`;
+- persistência de atualizações estruturadas após a resposta;
+- compatibilidade com o comportamento anterior quando `user_id` não é informado;
+- testes de separação, atualização, proteção, resumo e regressão;
+- CI e roadmap atualizados.
 
 ## Próximo passo exato
 
-1. Abrir o PR do bloco de conclusão da Fase 2.
+1. Abrir o PR deste bloco.
 2. Executar toda a CI.
 3. Corrigir qualquer regressão comprovada sem retirar cobertura.
 4. Integrar somente com CI verde.
-5. Após o merge, iniciar a Fase 3 em bloco agrupado com:
-   - escopo de memória por usuário e conversa;
-   - modelo tipado para preferências, decisões, correções e restrições;
-   - resumo controlado de contexto longo;
-   - regras para evitar fatos inventados pela própria memória;
-   - testes de continuidade conversacional.
+5. Continuar a Fase 3 com:
+   - persistência automática do resumo de contexto entre turnos;
+   - expiração e substituição controlada de memória;
+   - prioridade de correções recentes sobre decisões antigas;
+   - instruções claras ao provedor para uso natural da memória;
+   - testes de continuidade em múltiplos turnos.
 6. Não montar a rota interna no `main.py` ainda.
 7. Não alterar frontend nem tráfego de produção.
 
@@ -67,9 +71,9 @@ Inclui:
 - não substituir a rota de produção;
 - não alterar frontend;
 - não ligar a nova memória ao chat externo;
-- não registrar ferramentas com efeitos externos sem autorização específica;
 - não remover o backend legado;
-- não alterar cobrança, Clerk, Stripe ou regras de créditos.
+- não alterar cobrança, Clerk, Stripe ou regras de créditos;
+- não persistir inferências do modelo como fatos do usuário.
 
 ## Regra de retomada por outra janela
 
