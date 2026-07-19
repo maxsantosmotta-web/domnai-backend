@@ -9,6 +9,7 @@ const EMPTY_DATA = {
   audit: {},
   feedbacks: {},
   health: {},
+  cutover: {},
 };
 
 function formatNumber(value) {
@@ -20,6 +21,13 @@ function formatMoney(cents) {
     style: 'currency',
     currency: 'BRL',
   });
+}
+
+function formatPercent(value) {
+  return `${(Number(value || 0) * 100).toLocaleString('pt-BR', {
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 2,
+  })}%`;
 }
 
 function formatDate(value) {
@@ -67,6 +75,7 @@ export default function AdminOverviewView() {
         ['errors', '/api/admin/errors?limit=2000', authorizedHeaders],
         ['audit', '/api/admin/audit?limit=100', authorizedHeaders],
         ['feedbacks', '/api/feedback/admin?limit=200', authorizedHeaders],
+        ['cutover', '/api/admin/cutover?limit=1000', authorizedHeaders],
         ['health', '/health', {}],
       ];
 
@@ -109,6 +118,7 @@ export default function AdminOverviewView() {
   const auditSummary = data.audit?.summary || {};
   const feedbackSummary = data.feedbacks?.summary || {};
   const healthDependencies = data.health?.dependencies || {};
+  const cutoverSummary = data.cutover?.summary || {};
 
   const totalAuditEvents = useMemo(() => [
     'planChanges',
@@ -212,6 +222,23 @@ export default function AdminOverviewView() {
         <article data-tone="gold"><span>Avaliação</span><strong>{Number(feedbackSummary.average || 0).toLocaleString('pt-BR', { minimumFractionDigits: 1, maximumFractionDigits: 1 })}</strong><small>{formatNumber(feedbackSummary.total)} feedbacks</small></article>
         <article data-tone="green"><span>Saúde geral</span><strong>{data.health?.statusLabel || 'Verificando'}</strong><small>{formatNumber(data.health?.serverCheckMs)} ms internos</small></article>
       </div>
+
+      <section aria-label="Migração do núcleo DomnAI">
+        <header className="domnai-admin-premium-heading">
+          <div>
+            <span className="domnai-premium-live"><i />Migração do núcleo</span>
+            <small>Corte gradual protegido com fallback automático para o chat legado.</small>
+          </div>
+        </header>
+        <div className="domnai-overview-metrics">
+          <article data-tone={data.cutover?.enabled ? 'green' : 'gold'}><span>Status</span><strong>{data.cutover?.enabled ? 'Ativa' : 'Protegida'}</strong><small>{data.cutover?.enabled ? 'corte percentual habilitado' : '100% no chat legado'}</small></article>
+          <article data-tone="cyan"><span>Tráfego novo núcleo</span><strong>{formatNumber(data.cutover?.trafficPercent)}%</strong><small>percentual configurado no Railway</small></article>
+          <article data-tone={data.cutover?.shadowApproved ? 'green' : 'gold'}><span>Validação shadow</span><strong>{data.cutover?.shadowApproved ? 'Aprovada' : 'Pendente'}</strong><small>{data.cutover?.requireShadowApproval ? 'aprovação obrigatória' : 'aprovação não exigida'}</small></article>
+          <article data-tone={Number(cutoverSummary.fallbackRate || 0) <= 0.02 ? 'green' : 'red'}><span>Fallback</span><strong>{formatPercent(cutoverSummary.fallbackRate)}</strong><small>{formatNumber(cutoverSummary.fallbackCount)} retornos ao legado</small></article>
+          <article data-tone="purple"><span>Amostras</span><strong>{formatNumber(cutoverSummary.sampleCount)}</strong><small>{formatNumber(cutoverSummary.newCoreResponses)} respostas do novo núcleo</small></article>
+          <article data-tone={data.cutover?.configurationError ? 'red' : 'green'}><span>Configuração</span><strong>{data.cutover?.configurationError ? 'Atenção' : 'Válida'}</strong><small>{data.cutover?.configurationError || (data.cutover?.readyForFullCutover ? 'pronta para corte integral' : 'monitoramento gradual')}</small></article>
+        </div>
+      </section>
 
       <div className="domnai-premium-chart-grid overview-grid">
         <InteractiveLineChart
