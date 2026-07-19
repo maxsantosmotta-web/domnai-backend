@@ -1,24 +1,16 @@
 from __future__ import annotations
 
-import os
+from functools import lru_cache
 
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, Field
 
-from app.domnai_core import ConversationEngine, ConversationRequest, HistoryMessage
-from app.domnai_core.memory import InMemoryMemoryStore
-from app.domnai_core.persistence import InMemoryConversationRepository
-from app.domnai_core.providers import OpenAIResponsesProvider
+from app.domnai_core.composition import DomnAICoreRuntime, build_domnai_core_runtime
+from app.domnai_core.config import DomnAICoreSettings
+from app.domnai_core.contracts import ConversationRequest, HistoryMessage
+from app.domnai_core.observability import InMemoryCoreMetricsSink
 
 router = APIRouter(prefix="/api/internal/domnai-core", tags=["domnai-core-preview"])
-
-_memory = InMemoryMemoryStore()
-_repository = InMemoryConversationRepository()
-_engine = ConversationEngine(
-    OpenAIResponsesProvider(),
-    memory_store=_memory,
-    repository=_repository,
-)
 
 
 class PreviewHistoryItem(BaseModel):
@@ -34,11 +26,35 @@ class PreviewRequest(BaseModel):
     memory: dict = Field(default_factory=dict)
 
 
+@lru_cache(maxsize=1)
+def get_preview_runtime() -> DomnAICoreRuntime:
+    settings = DomnAICoreSettings.from_env()
+    if not settings.enabled:
+        raise PermissionError("Rota não habilitada.")
+    return build_domnai_core_runtime(
+        settings,
+        metrics=InMemoryCoreMetricsSink(),
+    )
+
+
+@router.get("/status")
+def status():
+    runtime = _runtime_or_http_error()
+    metrics_count = 0
+    if isinstance(runtime.metrics, InMemoryCoreMetricsSink):
+        metrics_count = len(runtime.metrics.items())
+    return {
+        "enabled": True,
+        "persistence_backend": runtime.persistence_backend,
+        "model": runtime.settings.model,
+        "max_tool_iterations": runtime.settings.max_tool_iterations,
+        "metrics_count": metrics_count,
+    }
+
+
 @router.post("/respond")
 def respond(payload: PreviewRequest):
-    if os.getenv("DOMNAI_CORE_PREVIEW_ENABLED", "").strip().lower() not in {"1", "true", "yes"}:
-        raise HTTPException(status_code=404, detail="Rota não habilitada.")
-
+    runtime = _runtime_or_http_error()
     try:
         request = ConversationRequest(
             message=payload.message,
@@ -51,10 +67,10 @@ def respond(payload: PreviewRequest):
             memory=payload.memory,
             metadata={"conversation_id": payload.conversation_id or ""},
         )
-        response = _engine.respond(request)
+        response = runtime.engine.respond(request)
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
-    except RuntimeError as exc:
+    except (RuntimeError, KeyError, TypeError) as exc:
         raise HTTPException(status_code=503, detail=str(exc)) from exc
 
     return {
@@ -68,3 +84,12 @@ def respond(payload: PreviewRequest):
         },
         "metadata": response.metadata,
     }
+
+
+def _runtime_or_http_error() -> DomnAICoreRuntime:
+    try:
+        return get_preview_runtime()
+    except PermissionError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except (ValueError, RuntimeError) as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
