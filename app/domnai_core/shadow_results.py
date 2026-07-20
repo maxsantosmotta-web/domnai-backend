@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from collections import Counter
 from dataclasses import asdict, dataclass
 from threading import RLock
 from typing import Protocol
@@ -16,7 +17,6 @@ class ShadowApprovalCriteria:
     minimum_success_rate: float = 0.98
     minimum_non_empty_rate: float = 0.99
     minimum_behavior_adherence_rate: float = 1.0
-    # Mantido apenas para compatibilidade com consumidores antigos. Não participa da aprovação.
     minimum_average_similarity: float = 0.0
 
 
@@ -29,6 +29,8 @@ class ShadowApprovalReport:
     behavior_adherence_rate: float
     average_behavior_score: float
     behavior_evaluation_version: str
+    top_behavior_failure: str
+    behavior_failure_counts: dict[str, int]
     approved: bool
 
     def as_dict(self) -> dict:
@@ -130,6 +132,19 @@ class PersistingShadowComparisonSink:
         self._store.save(comparison)
 
 
+def _failure_counts(comparisons: tuple[ShadowComparison, ...]) -> Counter[str]:
+    counts: Counter[str] = Counter()
+    for item in comparisons:
+        raw = str(item.behavior_error or "")
+        if not raw.startswith("criteria:"):
+            continue
+        for criterion in raw.removeprefix("criteria:").split(","):
+            clean = criterion.strip()
+            if clean:
+                counts[clean] += 1
+    return counts
+
+
 def evaluate_shadow_results(
     comparisons: tuple[ShadowComparison, ...],
     *,
@@ -153,6 +168,8 @@ def evaluate_shadow_results(
             behavior_adherence_rate=0.0,
             average_behavior_score=0.0,
             behavior_evaluation_version=BEHAVIOR_EVALUATION_VERSION,
+            top_behavior_failure="",
+            behavior_failure_counts={},
             approved=False,
         )
 
@@ -164,6 +181,8 @@ def evaluate_shadow_results(
     success_rate = successes / total
     non_empty_rate = non_empty / total
     behavior_adherence_rate = behavior_passes / total
+    failures = _failure_counts(evaluated)
+    top_failure = failures.most_common(1)[0][0] if failures else ""
 
     approved = bool(
         total >= resolved.minimum_samples
@@ -179,5 +198,7 @@ def evaluate_shadow_results(
         behavior_adherence_rate=round(behavior_adherence_rate, 4),
         average_behavior_score=round(average_behavior_score, 4),
         behavior_evaluation_version=BEHAVIOR_EVALUATION_VERSION,
+        top_behavior_failure=top_failure,
+        behavior_failure_counts=dict(failures),
         approved=approved,
     )

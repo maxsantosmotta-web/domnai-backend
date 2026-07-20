@@ -59,8 +59,9 @@ replacements = [
         (
             "          <article data-tone={data.cutover?.shadowApproved ? 'green' : 'gold'}><span>Validação shadow</span><strong>{data.cutover?.shadowApproved ? 'Aprovada' : 'Pendente'}</strong><small>{data.cutover?.requireShadowApproval ? 'aprovação obrigatória' : 'aprovação não exigida'}</small></article>",
             "          <article data-tone={shadowSummary.approved ? 'green' : 'gold'}><span>Validação shadow</span><strong>{shadowSummary.approved ? 'Aprovada' : 'Pendente'}</strong><small>{formatPercent(shadowSummary.success_rate)} de sucesso</small></article>",
+            "          <article data-tone={shadowSummary.approved ? 'green' : 'gold'}><span>Validação comportamental</span><strong>{shadowSummary.approved ? 'Aprovada' : 'Pendente'}</strong><small>{formatPercent(shadowSummary.behavior_adherence_rate)} de aderência · meta 100%</small></article>",
         ),
-        "          <article data-tone={shadowSummary.approved ? 'green' : 'gold'}><span>Validação comportamental</span><strong>{shadowSummary.approved ? 'Aprovada' : 'Pendente'}</strong><small>{formatPercent(shadowSummary.behavior_adherence_rate)} de aderência · meta 100%</small></article>",
+        "          <article data-tone={shadowSummary.approved ? 'green' : 'gold'}><span>Validação comportamental</span><strong>{shadowSummary.approved ? 'Aprovada' : 'Pendente'}</strong><small>{formatPercent(shadowSummary.behavior_adherence_rate)} de aderência · meta 100%{shadowSummary.top_behavior_failure ? ` · falha: ${shadowSummary.top_behavior_failure}` : ''}</small></article>",
         'status comportamental',
     ),
     (
@@ -82,4 +83,4 @@ for old_options, new, label in replacements:
     overview = overview.replace(matched, new, 1)
 
 overview_target.write_text(overview, encoding='utf-8')
-print('Painel conectado à validação comportamental de 100%, sem usar similaridade legada para aprovação.')
+print('Painel conectado à validação comportamental v2 com identificação do critério mais recorrente.')

@@ -17,7 +17,7 @@ from app.domnai_core.contracts import ConversationRequest, HistoryMessage
 
 logger = logging.getLogger("domnai.shadow_validation")
 _TRUE_VALUES = {"1", "true", "yes", "on"}
-BEHAVIOR_EVALUATION_VERSION = "chatgpt-behavior-v1"
+BEHAVIOR_EVALUATION_VERSION = "chatgpt-behavior-v2"
 _BEHAVIOR_FIELDS = (
     "natural_conversation",
     "understands_intent",
@@ -113,11 +113,12 @@ class OpenAIBehaviorEvaluator:
         }
         instructions = (
             "Você é um avaliador rigoroso de qualidade conversacional. Não compare a resposta candidata "
-            "com nenhuma resposta legada e não avalie semelhança de palavras. Avalie somente se ela segue "
-            "o padrão comportamental de uma conversa excelente: naturalidade; entendimento da intenção; "
-            "manutenção do contexto; clareza e objetividade; utilidade e conclusão; honestidade sem invenção "
-            "ou promessas falsas; ausência de tom robótico e repetição. Marque true apenas quando o critério "
-            "estiver integralmente cumprido. Retorne somente o JSON solicitado."
+            "com nenhuma resposta legada e não avalie semelhança de palavras. Avalie somente: naturalidade; "
+            "entendimento da intenção; manutenção do contexto; clareza e objetividade; utilidade e conclusão; "
+            "honestidade sem invenção ou promessas falsas; ausência de tom robótico e repetição. Considere o "
+            "critério de contexto cumprido quando não houver contexto anterior necessário. Considere conclusão "
+            "cumprida quando a pergunta for apenas social ou não exigir ação. Marque false somente diante de "
+            "uma falha concreta observável. Retorne somente o JSON solicitado."
         )
         properties = {name: {"type": "boolean"} for name in _BEHAVIOR_FIELDS}
         payload = {
@@ -143,22 +144,21 @@ class OpenAIBehaviorEvaluator:
         request = Request(
             "https://api.openai.com/v1/responses",
             data=json.dumps(payload).encode("utf-8"),
-            headers={
-                "Authorization": f"Bearer {self._api_key}",
-                "Content-Type": "application/json",
-            },
+            headers={"Authorization": f"Bearer {self._api_key}", "Content-Type": "application/json"},
             method="POST",
         )
         try:
             with urlopen(request, timeout=self._timeout_seconds) as response:
                 data = json.loads(response.read().decode("utf-8"))
-            raw = self._extract_text(data)
-            result = json.loads(raw)
-            passed_items = sum(1 for field in _BEHAVIOR_FIELDS if result.get(field) is True)
+            result = json.loads(self._extract_text(data))
+            failed = tuple(field for field in _BEHAVIOR_FIELDS if result.get(field) is not True)
+            passed_items = len(_BEHAVIOR_FIELDS) - len(failed)
             score = passed_items / len(_BEHAVIOR_FIELDS)
+            diagnostic = f"criteria:{','.join(failed)}" if failed else ""
             return BehavioralEvaluation(
                 score=round(score, 4),
-                passed=passed_items == len(_BEHAVIOR_FIELDS),
+                passed=not failed,
+                error=diagnostic,
             )
         except HTTPError as exc:
             detail = exc.read().decode("utf-8", errors="replace")[:160]
