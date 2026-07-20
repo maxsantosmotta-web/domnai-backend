@@ -7,7 +7,7 @@ from typing import Protocol
 from sqlalchemy import text
 
 from app.database import session_scope
-from app.domnai_core.shadow_validation import ShadowComparison
+from app.domnai_core.shadow_validation import BEHAVIOR_EVALUATION_VERSION, ShadowComparison
 
 
 @dataclass(frozen=True, slots=True)
@@ -15,7 +15,9 @@ class ShadowApprovalCriteria:
     minimum_samples: int = 100
     minimum_success_rate: float = 0.98
     minimum_non_empty_rate: float = 0.99
-    minimum_average_similarity: float = 0.35
+    minimum_behavior_adherence_rate: float = 1.0
+    # Mantido apenas para compatibilidade com consumidores antigos. Não participa da aprovação.
+    minimum_average_similarity: float = 0.0
 
 
 @dataclass(frozen=True, slots=True)
@@ -24,6 +26,9 @@ class ShadowApprovalReport:
     success_rate: float
     non_empty_rate: float
     average_similarity: float
+    behavior_adherence_rate: float
+    average_behavior_score: float
+    behavior_evaluation_version: str
     approved: bool
 
     def as_dict(self) -> dict:
@@ -69,10 +74,22 @@ class PostgresShadowResultStore:
                     similarity_ratio DOUBLE PRECISION NOT NULL,
                     candidate_empty BOOLEAN NOT NULL,
                     candidate_error VARCHAR(200) NOT NULL DEFAULT '',
+                    behavior_score DOUBLE PRECISION,
+                    behavior_passed BOOLEAN,
+                    behavior_version VARCHAR(100),
+                    behavior_error VARCHAR(200) NOT NULL DEFAULT '',
                     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
                 )
             """))
+            db.execute(text(f"ALTER TABLE {self.TABLE} ADD COLUMN IF NOT EXISTS behavior_score DOUBLE PRECISION"))
+            db.execute(text(f"ALTER TABLE {self.TABLE} ADD COLUMN IF NOT EXISTS behavior_passed BOOLEAN"))
+            db.execute(text(f"ALTER TABLE {self.TABLE} ADD COLUMN IF NOT EXISTS behavior_version VARCHAR(100)"))
+            db.execute(text(f"ALTER TABLE {self.TABLE} ADD COLUMN IF NOT EXISTS behavior_error VARCHAR(200) NOT NULL DEFAULT ''"))
             db.execute(text(f"CREATE INDEX IF NOT EXISTS idx_{self.TABLE}_created ON {self.TABLE} (created_at DESC)"))
+            db.execute(text(
+                f"CREATE INDEX IF NOT EXISTS idx_{self.TABLE}_behavior_version "
+                f"ON {self.TABLE} (behavior_version, created_at DESC)"
+            ))
 
     def save(self, comparison: ShadowComparison) -> None:
         with session_scope() as db:
@@ -80,11 +97,13 @@ class PostgresShadowResultStore:
                 INSERT INTO {self.TABLE} (
                     request_id, legacy_provider, candidate_provider,
                     legacy_length, candidate_length, similarity_ratio,
-                    candidate_empty, candidate_error
+                    candidate_empty, candidate_error, behavior_score,
+                    behavior_passed, behavior_version, behavior_error
                 ) VALUES (
                     :request_id, :legacy_provider, :candidate_provider,
                     :legacy_length, :candidate_length, :similarity_ratio,
-                    :candidate_empty, :candidate_error
+                    :candidate_empty, :candidate_error, :behavior_score,
+                    :behavior_passed, :behavior_version, :behavior_error
                 )
             """), comparison.as_safe_dict())
 
@@ -94,7 +113,8 @@ class PostgresShadowResultStore:
             rows = db.execute(text(f"""
                 SELECT request_id, legacy_provider, candidate_provider,
                        legacy_length, candidate_length, similarity_ratio,
-                       candidate_empty, candidate_error
+                       candidate_empty, candidate_error, behavior_score,
+                       behavior_passed, behavior_version, behavior_error
                 FROM {self.TABLE}
                 ORDER BY created_at DESC
                 LIMIT :limit
@@ -116,24 +136,48 @@ def evaluate_shadow_results(
     criteria: ShadowApprovalCriteria | None = None,
 ) -> ShadowApprovalReport:
     resolved = criteria or ShadowApprovalCriteria()
-    total = len(comparisons)
+    evaluated = tuple(
+        item
+        for item in comparisons
+        if item.behavior_version == BEHAVIOR_EVALUATION_VERSION
+        and item.behavior_score is not None
+        and item.behavior_passed is not None
+    )
+    total = len(evaluated)
     if total == 0:
-        return ShadowApprovalReport(0, 0.0, 0.0, 0.0, False)
-    successes = sum(1 for item in comparisons if not item.candidate_error)
-    non_empty = sum(1 for item in comparisons if not item.candidate_empty)
-    average_similarity = sum(item.similarity_ratio for item in comparisons) / total
+        return ShadowApprovalReport(
+            sample_count=0,
+            success_rate=0.0,
+            non_empty_rate=0.0,
+            average_similarity=0.0,
+            behavior_adherence_rate=0.0,
+            average_behavior_score=0.0,
+            behavior_evaluation_version=BEHAVIOR_EVALUATION_VERSION,
+            approved=False,
+        )
+
+    successes = sum(1 for item in evaluated if not item.candidate_error)
+    non_empty = sum(1 for item in evaluated if not item.candidate_empty)
+    behavior_passes = sum(1 for item in evaluated if item.behavior_passed is True)
+    average_similarity = sum(item.similarity_ratio for item in evaluated) / total
+    average_behavior_score = sum(float(item.behavior_score or 0.0) for item in evaluated) / total
     success_rate = successes / total
     non_empty_rate = non_empty / total
+    behavior_adherence_rate = behavior_passes / total
+
     approved = bool(
         total >= resolved.minimum_samples
         and success_rate >= resolved.minimum_success_rate
         and non_empty_rate >= resolved.minimum_non_empty_rate
-        and average_similarity >= resolved.minimum_average_similarity
+        and behavior_adherence_rate >= resolved.minimum_behavior_adherence_rate
     )
     return ShadowApprovalReport(
         sample_count=total,
         success_rate=round(success_rate, 4),
         non_empty_rate=round(non_empty_rate, 4),
         average_similarity=round(average_similarity, 4),
+        behavior_adherence_rate=round(behavior_adherence_rate, 4),
+        average_behavior_score=round(average_behavior_score, 4),
+        behavior_evaluation_version=BEHAVIOR_EVALUATION_VERSION,
         approved=approved,
     )
