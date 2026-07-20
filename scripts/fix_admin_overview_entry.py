@@ -23,8 +23,8 @@ source, state_count = state_pattern.subn(
     source,
     count=1,
 )
-if state_count != 1:
-    raise SystemExit(f'Estado persistente do módulo: esperado 1 trecho, encontrado {state_count}.')
+if state_count != 1 and "const [activeSection, setActiveSection] = useState('Visão geral');" not in source:
+    raise SystemExit(f'Estado persistente do módulo: esperado trecho antigo ou final, encontrado {state_count}.')
 
 source = source.replace(
     "    sessionStorage.setItem('domnai:admin-section:v1', section);\n",
@@ -46,9 +46,10 @@ new_user_button = '''          <button
            >
              Painel Usuário
            </button>'''
-if source.count(old_user_button) != 1:
-    raise SystemExit(f'Botão Painel Usuário: esperado 1 trecho, encontrado {source.count(old_user_button)}.')
-source = source.replace(old_user_button, new_user_button, 1)
+if old_user_button in source:
+    source = source.replace(old_user_button, new_user_button, 1)
+elif new_user_button not in source:
+    raise SystemExit('Botão Painel Usuário: formato antigo e formato final não encontrados.')
 
 TARGET.write_text(source, encoding='utf-8')
 
