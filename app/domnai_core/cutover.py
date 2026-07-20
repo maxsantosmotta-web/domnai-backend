@@ -12,6 +12,30 @@ from app.services.metered_brain import MeteredBrainResult
 _TRUE_VALUES = {"1", "true", "yes", "on"}
 
 
+def _read_integer_env(name: str, default: int) -> int:
+    """Lê inteiro de ambiente e tolera somente atribuições equivalentes e seguras.
+
+    Railway normalmente entrega apenas o valor (por exemplo, ``1``), mas o runtime
+    de produção já registrou ``1=1`` apesar de o painel mostrar ``1``. Aceitamos
+    apenas formas inequivocamente equivalentes, como ``1=1`` ou ``NOME=1``.
+    Qualquer outro texto continua inválido e bloqueia o corte.
+    """
+    raw = os.getenv(name, str(default)).strip() or str(default)
+    parts = [part.strip() for part in raw.split("=")]
+    if len(parts) > 1:
+        candidate = parts[-1]
+        prefixes = parts[:-1]
+        if not candidate or not candidate.lstrip("+-").isdigit():
+            raise ValueError(f"{name} deve ser um número inteiro.")
+        if not all(prefix in {candidate, name} for prefix in prefixes):
+            raise ValueError(f"{name} contém uma atribuição inválida: {raw!r}.")
+        raw = candidate
+    try:
+        return int(raw)
+    except ValueError as exc:
+        raise ValueError(f"{name} deve ser um número inteiro.") from exc
+
+
 @dataclass(frozen=True, slots=True)
 class ControlledCutoverSettings:
     enabled: bool = False
@@ -23,12 +47,12 @@ class ControlledCutoverSettings:
     @classmethod
     def from_env(cls) -> "ControlledCutoverSettings":
         enabled = os.getenv("DOMNAI_CUTOVER_ENABLED", "false").strip().lower() in _TRUE_VALUES
-        traffic_percent = int(os.getenv("DOMNAI_CUTOVER_TRAFFIC_PERCENT", "0").strip() or "0")
+        traffic_percent = _read_integer_env("DOMNAI_CUTOVER_TRAFFIC_PERCENT", 0)
         require_shadow_approval = (
             os.getenv("DOMNAI_CUTOVER_REQUIRE_SHADOW_APPROVAL", "true").strip().lower() in _TRUE_VALUES
         )
         fallback_enabled = os.getenv("DOMNAI_CUTOVER_FALLBACK_ENABLED", "true").strip().lower() in _TRUE_VALUES
-        max_history_items = int(os.getenv("DOMNAI_CUTOVER_MAX_HISTORY_ITEMS", "100").strip() or "100")
+        max_history_items = _read_integer_env("DOMNAI_CUTOVER_MAX_HISTORY_ITEMS", 100)
         if not 0 <= traffic_percent <= 100:
             raise ValueError("DOMNAI_CUTOVER_TRAFFIC_PERCENT deve ficar entre 0 e 100.")
         if enabled and traffic_percent == 0:
