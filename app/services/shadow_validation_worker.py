@@ -10,7 +10,11 @@ from sqlalchemy import text
 
 from app.database import session_scope
 from app.domnai_core.shadow_results import PersistingShadowComparisonSink, PostgresShadowResultStore
-from app.domnai_core.shadow_validation import ShadowValidationSettings, ShadowValidator
+from app.domnai_core.shadow_validation import (
+    BEHAVIOR_EVALUATION_VERSION,
+    ShadowValidationSettings,
+    ShadowValidator,
+)
 
 logger = logging.getLogger("domnai.shadow_worker")
 _started = False
@@ -33,11 +37,14 @@ def _claim_completed_task() -> dict | None:
             WHERE t.status = 'completed'
               AND t.result_json IS NOT NULL
               AND NOT EXISTS (
-                  SELECT 1 FROM {store.TABLE} s WHERE s.request_id = t.id
+                  SELECT 1
+                  FROM {store.TABLE} s
+                  WHERE s.request_id = t.id
+                    AND s.behavior_version = :behavior_version
               )
             ORDER BY t.completed_at ASC NULLS LAST
             LIMIT 1
-        """)).mappings().first()
+        """), {"behavior_version": BEHAVIOR_EVALUATION_VERSION}).mappings().first()
     return dict(row) if row else None
 
 

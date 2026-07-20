@@ -1,10 +1,22 @@
 from app.domnai_core.contracts import ConversationResponse
 from app.domnai_core.shadow_validation import (
+    BEHAVIOR_EVALUATION_VERSION,
+    BehavioralEvaluation,
     InMemoryShadowComparisonSink,
     ShadowValidationSettings,
     ShadowValidator,
     compare_responses,
 )
+
+
+class ApprovedEvaluator:
+    def evaluate(self, **_kwargs):
+        return BehavioralEvaluation(score=1.0, passed=True)
+
+
+class PartialEvaluator:
+    def evaluate(self, **_kwargs):
+        return BehavioralEvaluation(score=0.8571, passed=False)
 
 
 def test_shadow_mode_is_disabled_by_default(monkeypatch):
@@ -40,14 +52,18 @@ def test_compare_responses_does_not_store_raw_text():
         candidate_text="Resposta diferente do candidato",
         legacy_provider="legacy",
         candidate_provider="core",
+        behavior=BehavioralEvaluation(score=1.0, passed=True),
     )
     safe = comparison.as_safe_dict()
     assert "Resposta secreta" not in str(safe)
     assert safe["legacy_length"] > 0
     assert 0 <= safe["similarity_ratio"] <= 1
+    assert safe["behavior_score"] == 1.0
+    assert safe["behavior_passed"] is True
+    assert safe["behavior_version"] == BEHAVIOR_EVALUATION_VERSION
 
 
-def test_shadow_validator_records_candidate_without_changing_legacy_result():
+def test_shadow_validator_records_approved_behavior_without_changing_legacy_result():
     sink = InMemoryShadowComparisonSink()
 
     def candidate(request):
@@ -58,6 +74,7 @@ def test_shadow_validator_records_candidate_without_changing_legacy_result():
         ShadowValidationSettings(enabled=True, sample_percent=100),
         sink=sink,
         candidate=candidate,
+        evaluator=ApprovedEvaluator(),
     )
     comparison = validator.run(
         request_id="req-2",
@@ -72,7 +89,40 @@ def test_shadow_validator_records_candidate_without_changing_legacy_result():
     assert comparison is not None
     assert comparison.legacy_provider == "legacy"
     assert comparison.candidate_provider == "core"
+    assert comparison.behavior_score == 1.0
+    assert comparison.behavior_passed is True
     assert sink.items() == (comparison,)
+
+
+def test_behavior_requires_all_criteria_instead_of_legacy_similarity():
+    sink = InMemoryShadowComparisonSink()
+
+    def candidate(_request):
+        return ConversationResponse(
+            text="Uma resposta propositalmente diferente do legado.",
+            provider="core",
+            model="stub",
+        )
+
+    validator = ShadowValidator(
+        ShadowValidationSettings(enabled=True, sample_percent=100),
+        sink=sink,
+        candidate=candidate,
+        evaluator=PartialEvaluator(),
+    )
+    comparison = validator.run(
+        request_id="req-behavior",
+        user_id="user-1",
+        conversation_id="conversation-1",
+        message="Converse naturalmente comigo",
+        operation=None,
+        history=[],
+        legacy_text="Texto totalmente diferente",
+        legacy_provider="legacy",
+    )
+    assert comparison is not None
+    assert comparison.behavior_score == 0.8571
+    assert comparison.behavior_passed is False
 
 
 def test_candidate_failure_is_isolated_and_recorded():
@@ -85,6 +135,7 @@ def test_candidate_failure_is_isolated_and_recorded():
         ShadowValidationSettings(enabled=True, sample_percent=100),
         sink=sink,
         candidate=candidate,
+        evaluator=ApprovedEvaluator(),
     )
     comparison = validator.run(
         request_id="req-3",
@@ -100,3 +151,4 @@ def test_candidate_failure_is_isolated_and_recorded():
     assert comparison.candidate_provider == "error"
     assert comparison.candidate_error == "RuntimeError"
     assert comparison.candidate_empty is True
+    assert comparison.behavior_passed is False

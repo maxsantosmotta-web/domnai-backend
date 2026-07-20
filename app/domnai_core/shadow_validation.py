@@ -8,6 +8,8 @@ import threading
 from dataclasses import dataclass, replace
 from difflib import SequenceMatcher
 from typing import Callable, Protocol
+from urllib.error import HTTPError, URLError
+from urllib.request import Request, urlopen
 
 from app.domnai_core.composition import build_domnai_core_runtime
 from app.domnai_core.config import DomnAICoreSettings
@@ -15,6 +17,16 @@ from app.domnai_core.contracts import ConversationRequest, HistoryMessage
 
 logger = logging.getLogger("domnai.shadow_validation")
 _TRUE_VALUES = {"1", "true", "yes", "on"}
+BEHAVIOR_EVALUATION_VERSION = "chatgpt-behavior-v1"
+_BEHAVIOR_FIELDS = (
+    "natural_conversation",
+    "understands_intent",
+    "maintains_context",
+    "clear_and_direct",
+    "useful_and_complete",
+    "honest_without_invention",
+    "non_robotic_without_repetition",
+)
 
 
 @dataclass(frozen=True, slots=True)
@@ -47,6 +59,127 @@ class ShadowValidationSettings:
 
 
 @dataclass(frozen=True, slots=True)
+class BehavioralEvaluation:
+    score: float
+    passed: bool
+    version: str = BEHAVIOR_EVALUATION_VERSION
+    error: str = ""
+
+
+class BehaviorEvaluator(Protocol):
+    def evaluate(
+        self,
+        *,
+        message: str,
+        operation: str | None,
+        history: list[dict],
+        candidate_text: str,
+    ) -> BehavioralEvaluation:
+        ...
+
+
+class OpenAIBehaviorEvaluator:
+    """Juiz isolado: avalia comportamento sem comparar a resposta com o legado."""
+
+    def __init__(self, *, timeout_seconds: float = 45.0) -> None:
+        self._api_key = os.getenv("OPENAI_API_KEY", "").strip()
+        self._model = os.getenv(
+            "DOMNAI_SHADOW_EVALUATOR_MODEL",
+            os.getenv("DOMNAI_CORE_MODEL", "gpt-4.1-mini"),
+        ).strip()
+        self._timeout_seconds = timeout_seconds
+
+    def evaluate(
+        self,
+        *,
+        message: str,
+        operation: str | None,
+        history: list[dict],
+        candidate_text: str,
+    ) -> BehavioralEvaluation:
+        if not self._api_key:
+            return BehavioralEvaluation(0.0, False, error="OPENAI_API_KEY ausente")
+
+        safe_history = [
+            {"role": str(item.get("role") or ""), "content": str(item.get("content") or "")[:1500]}
+            for item in history[-8:]
+            if str(item.get("role") or "") in {"user", "assistant", "system"}
+        ]
+        rubric = {
+            "user_message": message[:4000],
+            "optional_operation": str(operation or "")[:300],
+            "recent_history": safe_history,
+            "candidate_response": candidate_text[:8000],
+        }
+        instructions = (
+            "Você é um avaliador rigoroso de qualidade conversacional. Não compare a resposta candidata "
+            "com nenhuma resposta legada e não avalie semelhança de palavras. Avalie somente se ela segue "
+            "o padrão comportamental de uma conversa excelente: naturalidade; entendimento da intenção; "
+            "manutenção do contexto; clareza e objetividade; utilidade e conclusão; honestidade sem invenção "
+            "ou promessas falsas; ausência de tom robótico e repetição. Marque true apenas quando o critério "
+            "estiver integralmente cumprido. Retorne somente o JSON solicitado."
+        )
+        properties = {name: {"type": "boolean"} for name in _BEHAVIOR_FIELDS}
+        payload = {
+            "model": self._model,
+            "instructions": instructions,
+            "input": [{"role": "user", "content": json.dumps(rubric, ensure_ascii=False)}],
+            "temperature": 0,
+            "max_output_tokens": 300,
+            "text": {
+                "format": {
+                    "type": "json_schema",
+                    "name": "domnai_behavior_evaluation",
+                    "strict": True,
+                    "schema": {
+                        "type": "object",
+                        "properties": properties,
+                        "required": list(_BEHAVIOR_FIELDS),
+                        "additionalProperties": False,
+                    },
+                }
+            },
+        }
+        request = Request(
+            "https://api.openai.com/v1/responses",
+            data=json.dumps(payload).encode("utf-8"),
+            headers={
+                "Authorization": f"Bearer {self._api_key}",
+                "Content-Type": "application/json",
+            },
+            method="POST",
+        )
+        try:
+            with urlopen(request, timeout=self._timeout_seconds) as response:
+                data = json.loads(response.read().decode("utf-8"))
+            raw = self._extract_text(data)
+            result = json.loads(raw)
+            passed_items = sum(1 for field in _BEHAVIOR_FIELDS if result.get(field) is True)
+            score = passed_items / len(_BEHAVIOR_FIELDS)
+            return BehavioralEvaluation(
+                score=round(score, 4),
+                passed=passed_items == len(_BEHAVIOR_FIELDS),
+            )
+        except HTTPError as exc:
+            detail = exc.read().decode("utf-8", errors="replace")[:160]
+            return BehavioralEvaluation(0.0, False, error=f"HTTP {exc.code}: {detail}"[:200])
+        except (URLError, TimeoutError, json.JSONDecodeError, TypeError, ValueError) as exc:
+            return BehavioralEvaluation(0.0, False, error=type(exc).__name__)
+
+    @staticmethod
+    def _extract_text(data: dict) -> str:
+        direct = str(data.get("output_text") or "").strip()
+        if direct:
+            return direct
+        parts: list[str] = []
+        for output in data.get("output") or []:
+            for content in output.get("content") or []:
+                if content.get("type") == "output_text" and content.get("text"):
+                    parts.append(str(content["text"]).strip())
+        return "\n".join(parts).strip()
+
+
+@dataclass(frozen=True, slots=True)
 class ShadowComparison:
     request_id: str
     legacy_provider: str
@@ -56,6 +189,10 @@ class ShadowComparison:
     similarity_ratio: float
     candidate_empty: bool
     candidate_error: str = ""
+    behavior_score: float | None = None
+    behavior_passed: bool | None = None
+    behavior_version: str | None = None
+    behavior_error: str = ""
 
     def as_safe_dict(self) -> dict:
         return {
@@ -67,6 +204,10 @@ class ShadowComparison:
             "similarity_ratio": self.similarity_ratio,
             "candidate_empty": self.candidate_empty,
             "candidate_error": self.candidate_error,
+            "behavior_score": self.behavior_score,
+            "behavior_passed": self.behavior_passed,
+            "behavior_version": self.behavior_version,
+            "behavior_error": self.behavior_error[:200],
         }
 
 
@@ -102,6 +243,7 @@ def compare_responses(
     legacy_provider: str,
     candidate_provider: str,
     candidate_error: str = "",
+    behavior: BehavioralEvaluation | None = None,
 ) -> ShadowComparison:
     normalized_legacy = " ".join(legacy_text.split())
     normalized_candidate = " ".join(candidate_text.split())
@@ -115,6 +257,10 @@ def compare_responses(
         similarity_ratio=round(similarity, 4),
         candidate_empty=not bool(normalized_candidate),
         candidate_error=candidate_error[:200],
+        behavior_score=behavior.score if behavior else None,
+        behavior_passed=behavior.passed if behavior else None,
+        behavior_version=behavior.version if behavior else None,
+        behavior_error=behavior.error[:200] if behavior else "",
     )
 
 
@@ -125,10 +271,12 @@ class ShadowValidator:
         *,
         sink: ShadowComparisonSink | None = None,
         candidate: Callable[[ConversationRequest], object] | None = None,
+        evaluator: BehaviorEvaluator | None = None,
     ) -> None:
         self._settings = settings
         self._sink = sink or LoggingShadowComparisonSink()
         self._candidate = candidate or self._build_candidate()
+        self._evaluator = evaluator or OpenAIBehaviorEvaluator(timeout_seconds=settings.timeout_seconds)
 
     def should_run(self, *, user_id: str, request_id: str) -> bool:
         return self._settings.selects(f"{user_id}:{request_id}")
@@ -167,12 +315,19 @@ class ShadowValidator:
             response = self._candidate(request)
             candidate_text = str(getattr(response, "text", "") or "")
             candidate_provider = str(getattr(response, "provider", "") or "unknown")
+            behavior = self._evaluator.evaluate(
+                message=message,
+                operation=operation,
+                history=history,
+                candidate_text=candidate_text,
+            )
             comparison = compare_responses(
                 request_id=request_id,
                 legacy_text=legacy_text,
                 candidate_text=candidate_text,
                 legacy_provider=legacy_provider,
                 candidate_provider=candidate_provider,
+                behavior=behavior,
             )
         except Exception as exc:
             comparison = compare_responses(
@@ -182,6 +337,7 @@ class ShadowValidator:
                 legacy_provider=legacy_provider,
                 candidate_provider="error",
                 candidate_error=type(exc).__name__,
+                behavior=BehavioralEvaluation(0.0, False, error="candidato indisponível"),
             )
         self._sink.record(comparison)
         return comparison
@@ -211,7 +367,7 @@ def schedule_shadow_validation(
     legacy_text: str,
     legacy_provider: str,
 ) -> bool:
-    """Agenda comparação sem bloquear nem alterar a resposta entregue ao usuário."""
+    """Agenda validação sem bloquear nem alterar a resposta entregue ao usuário."""
     try:
         settings = ShadowValidationSettings.from_env()
     except Exception:

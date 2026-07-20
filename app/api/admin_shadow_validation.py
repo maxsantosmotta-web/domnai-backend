@@ -5,7 +5,7 @@ from fastapi import APIRouter, Depends, Query
 from app.api.admin import _has_persisted_admin_access
 from app.auth import require_authenticated_user
 from app.domnai_core.shadow_results import PostgresShadowResultStore, evaluate_shadow_results
-from app.domnai_core.shadow_validation import ShadowValidationSettings
+from app.domnai_core.shadow_validation import BEHAVIOR_EVALUATION_VERSION, ShadowValidationSettings
 
 router = APIRouter(prefix="/api/admin/shadow-validation", tags=["admin-shadow-validation"])
 
@@ -50,7 +50,9 @@ def shadow_validation_overview(
             "minimumSamples": 100,
             "minimumSuccessRate": 0.98,
             "minimumNonEmptyRate": 0.99,
-            "minimumAverageSimilarity": 0.35,
+            "minimumBehaviorAdherenceRate": 1.0,
+            "behaviorEvaluationVersion": BEHAVIOR_EVALUATION_VERSION,
+            "legacySimilarityUsedForApproval": False,
         },
         "items": [item.as_safe_dict() for item in comparisons],
         "privacy": {
