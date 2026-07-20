@@ -32,25 +32,9 @@ source = source.replace(
     1,
 )
 
-old_user_button = '''          <button type="button" className="domnai-admin-user-menu-entry" onClick={onUser}>
-             Painel Usuário
-           </button>'''
-new_user_button = '''          <button
-             type="button"
-             className="domnai-admin-user-menu-entry"
-             onClick={() => {
-               setActiveSection('Visão geral');
-               sessionStorage.removeItem('domnai:admin-section:v1');
-               onUser();
-             }}
-           >
-             Painel Usuário
-           </button>'''
-if old_user_button in source:
-    source = source.replace(old_user_button, new_user_button, 1)
-elif new_user_button not in source:
-    raise SystemExit('Botão Painel Usuário: formato antigo e formato final não encontrados.')
-
+# O botão de retorno ao Painel Usuário já é montado pelos patches anteriores do build.
+# Este script não deve depender do formato JSX desse botão, porque ele pode variar sem
+# afetar a responsabilidade deste ajuste: entrada da Visão geral e métricas shadow.
 TARGET.write_text(source, encoding='utf-8')
 
 overview_target = Path('/frontend/src/AdminOverviewView.jsx')
