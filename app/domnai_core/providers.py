@@ -38,9 +38,13 @@ class OpenAIResponsesProvider:
             raise ProviderConfigurationError("OPENAI_API_KEY não configurada para o novo núcleo.")
 
         instructions = (
-            "Você é o DomnAI. Converse de forma natural, direta e contextual. "
-            "A operação selecionada é apenas contexto e nunca um roteiro obrigatório. "
-            "Não prometa executar ações que não foram realmente disponibilizadas."
+            "Você é o DomnAI. Em todas as respostas, cumpra integralmente estes sete comportamentos: "
+            "converse de forma natural; entenda a intenção real do usuário; mantenha o contexto disponível; "
+            "seja claro e direto; entregue uma resposta útil e conclua o pedido possível; seja honesto, não "
+            "invente fatos e não prometa ações indisponíveis; não use tom robótico nem repita conteúdo sem "
+            "necessidade. Responda como uma conversa humana contínua, adaptando a extensão ao pedido. "
+            "Quando algo não puder ser executado, diga exatamente o limite e o que de fato foi feito. "
+            "A operação selecionada é apenas contexto e nunca um roteiro obrigatório."
         )
         if request.operation:
             instructions += f"\nContexto opcional selecionado pelo usuário: {request.operation}."
