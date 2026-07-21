@@ -1,7 +1,9 @@
 from __future__ import annotations
 
+import sys
 from pathlib import Path
 
+sys.path.insert(0, "/app")
 
 TERMINATION_PATH = Path('/app/app/services/labor_termination.py')
 PIPELINE_PATH = Path('/app/app/services/labor_pipeline.py')
