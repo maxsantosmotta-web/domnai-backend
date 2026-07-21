@@ -129,6 +129,7 @@ COPY scripts/finalize_natural_conversation_and_artifact_flow.py /tmp/finalize_na
 COPY scripts/make_runtime_patches_idempotent.py /tmp/make_runtime_patches_idempotent.py
 COPY scripts/fix_chat_worker_operation_scope.py /tmp/fix_chat_worker_operation_scope.py
 COPY scripts/expose_openai_429_cause.py /tmp/expose_openai_429_cause.py
+COPY scripts/validate_labor_final_response.py /tmp/validate_labor_final_response.py
 RUN python /tmp/make_runtime_patches_idempotent.py \
     && python -m py_compile /tmp/*.py \
     && python /tmp/connect_chat_sources_backend.py \
@@ -151,6 +152,7 @@ RUN python /tmp/make_runtime_patches_idempotent.py \
     && python /tmp/finalize_natural_conversation_and_artifact_flow.py \
     && python /tmp/fix_chat_worker_operation_scope.py \
     && python /tmp/expose_openai_429_cause.py \
+    && python /tmp/validate_labor_final_response.py \
     && python -m compileall -q app
 COPY --from=frontend-builder /frontend/dist ./frontend/dist
 EXPOSE 8080
