@@ -81,6 +81,81 @@ def _post_json(url: str, headers: dict[str, str], payload: dict, timeout: int = 
 '''
 
 
+LIGHT_CONVERSATION_HELPERS = '''def _normalized_casual_message(message: str) -> str:
+    return " ".join(
+        "".join(
+            char if char.isalnum() or char.isspace() else " "
+            for char in _normalized_text(message)
+        ).split()
+    )
+
+
+def _is_light_conversation(message: str, attachments: list[dict]) -> bool:
+    if attachments:
+        return False
+    normalized = _normalized_casual_message(message)
+    if not normalized or len(normalized) > 100:
+        return False
+    casual_messages = {
+        "oi", "ola", "bom dia", "boa tarde", "boa noite", "boa noite chat",
+        "e ai", "chat tudo bem", "tudo bem", "como voce esta", "como vai",
+        "obrigado", "obrigada", "muito obrigado", "muito obrigada", "valeu",
+        "tchau", "ate mais", "falamos depois", "ate logo",
+    }
+    return normalized in casual_messages
+
+
+def _light_conversation_response(
+    message: str,
+    history: list[dict],
+    diagnosis_state: dict | None,
+) -> MeteredBrainResult:
+    api_key = os.getenv("OPENAI_API_KEY", "").strip()
+    if not api_key:
+        return generate_metered_response(
+            message=message,
+            history=history,
+            operation=None,
+            attachments=[],
+            diagnosis_state=diagnosis_state,
+        )
+
+    model = os.getenv("DOMNAI_LIGHT_MODEL", os.getenv("DOMNAI_OPENAI_MODEL", "gpt-4.1-mini")).strip()
+    input_messages = _normalized_history(history, limit=6)
+    input_messages.append({"role": "user", "content": message})
+    text, usage = _openai_request(
+        api_key,
+        {
+            "model": model,
+            "instructions": (
+                "Você é o DomnAI. Converse como uma pessoa atenciosa, natural e direta em português do Brasil. "
+                "Responda ao que o usuário acabou de dizer considerando o histórico recente. "
+                "Não use frases padronizadas, não pareça atendimento automático, não cite a operação selecionada "
+                "e não transforme uma saudação em entrevista. Seja breve, mas humano."
+            ),
+            "input": input_messages,
+            "temperature": 0.8,
+            "max_output_tokens": 180,
+        },
+    )
+    return MeteredBrainResult(
+        text=text,
+        provider="openai-light-conversation",
+        model=model,
+        input_tokens=_usage_value(usage, "input_tokens"),
+        output_tokens=_usage_value(usage, "output_tokens"),
+        cached_input_tokens=_cached_value(usage),
+        diagnosis_state=diagnosis_state,
+        timings={"orchestrator_ms": 0, "generation_ms": 0},
+    )
+'''
+
+
+LIGHT_CONVERSATION_BLOCK = '''    if _is_light_conversation(message, safe_attachments):
+        return _light_conversation_response(message, history, diagnosis_state)
+'''
+
+
 def _fix_worker_scope() -> None:
     if not WORKER_PATH.exists():
         raise RuntimeError('chat_task_worker.py não encontrado no runtime.')
@@ -132,14 +207,25 @@ def _fix_simple_conversation() -> None:
     if not ORCHESTRATOR_PATH.exists():
         raise RuntimeError('orchestrated_brain.py não encontrado no runtime.')
     source = ORCHESTRATOR_PATH.read_text(encoding='utf-8')
-    old = '    normalized = " ".join(_normalized_text(message).replace("?", "").replace("!", "").split())\n'
-    new = '    normalized = " ".join("".join(char if char.isalnum() or char.isspace() else " " for char in _normalized_text(message)).split())\n'
-    if old in source:
-        source = source.replace(old, new, 1)
-    if '"boa noite chat"' not in source:
-        source = source.replace('"oi", "ola", "bom dia", "boa tarde", "boa noite", "e ai",', '"oi", "ola", "bom dia", "boa tarde", "boa noite", "boa noite chat", "e ai",', 1)
-    if new not in source or '"boa noite chat"' not in source:
-        raise RuntimeError('Saudação simples não foi protegida no runtime final.')
+
+    function_start = source.index('def _simple_conversation_response(')
+    function_end = source.index('\n\ndef _specialized_engine(', function_start)
+    source = source[:function_start] + LIGHT_CONVERSATION_HELPERS.rstrip() + source[function_end:]
+
+    old_block_start = source.index('    simple_reply = _simple_conversation_response(')
+    old_block_end = source.index('\n    if _specialized_engine({}, operation, message) is None:', old_block_start)
+    source = source[:old_block_start] + LIGHT_CONVERSATION_BLOCK.rstrip() + source[old_block_end:]
+
+    forbidden = (
+        'Tudo ótimo! E com você? Como posso ajudar hoje?',
+        'Por nada!',
+        'Até mais!',
+        'provider="domnai-local-conversation"',
+    )
+    if any(item in source for item in forbidden):
+        raise RuntimeError('Respostas automáticas fixas permaneceram no runtime final.')
+    if 'provider="openai-light-conversation"' not in source:
+        raise RuntimeError('Conversa leve real não foi instalada no runtime final.')
     ORCHESTRATOR_PATH.write_text(source, encoding='utf-8')
 
 
@@ -148,7 +234,7 @@ def main() -> None:
     _fix_artifact_decision_scope()
     _fix_openai_retry()
     _fix_simple_conversation()
-    print('Runtime final corrigido: escopos, retry 429, limite de concorrência e conversa simples.')
+    print('Runtime final corrigido: conversa leve real, sem respostas fixas e sem captura trabalhista.')
 
 
 if __name__ == '__main__':
