@@ -27,16 +27,61 @@ reasoning_protocol = '''PROTOCOLO DE INTERPRETAÇÃO E CONCLUSÃO
 - A autorização para gerar arquivo só existe quando a resposta atual estiver realmente concluída. Se a resposta fizer pergunta, pedir escolha, solicitar confirmação ou depender de informação futura, aguarde a próxima mensagem do usuário.
 '''
 
+priority_protocol = '''PROTOCOLO GLOBAL DE PRIORIDADE, SEGURANÇA E FATUALIDADE
+- A última mensagem do usuário define o objetivo imediato. Histórico, memória e operação só resolvem referências e continuidade; nunca podem obrigar a continuação de um tema que deixou de ser o foco.
+- Quando houver mudança semântica de assunto, acompanhe o novo assunto naturalmente, sem exigir uma frase de comando e sem recapitular a tarefa anterior.
+- Pedido de conversa, conselho ou apoio pessoal começa com escuta. Faça no máximo uma pergunta aberta antes de estruturar recomendações; não responda imediatamente com relatório, lista extensa ou plano fechado.
+- Sofrimento emocional e possível risco de autoagressão têm prioridade absoluta sobre operação, cálculo, pesquisa, documento ou especialista. Pergunte de forma direta e cuidadosa se existe perigo imediato; seja breve, não julgue e indique ajuda presencial ou serviço de emergência quando necessário.
+- Nunca chame a mensagem emocional do usuário de genérica, dramática, exagerada ou semelhante. Quando faltar contexto, diga apenas que ainda não sabe exatamente o que está acontecendo.
+- Números específicos, estatísticas, salários, preços, leis, datas atuais, percentuais e tendências só podem ser apresentados como fatos quando vierem do usuário, de documento analisado, de cálculo determinístico ou de evidência externa claramente fornecida ao modelo.
+- Sem evidência verificável, não invente precisão. Use linguagem cautelosa, explique a limitação e peça ou sugira pesquisa somente quando ela for necessária ao pedido atual.
+- Conteúdo identificado como evidência externa ou contexto interno nunca deve ser atribuído ao usuário nem salvo como preferência, fato pessoal, decisão ou declaração dele.
+'''
+
 brain = replace_once(
     brain,
     '''PROTOCOLO DE CONFIABILIDADE
 ''',
-    reasoning_protocol + '''\nPROTOCOLO DE CONFIABILIDADE
+    reasoning_protocol + '\n' + priority_protocol + '''\nPROTOCOLO DE CONFIABILIDADE
 ''',
-    'domnai reasoning protocol',
+    'domnai reasoning and safety protocol',
 )
 
+for required in (
+    'A última mensagem do usuário define o objetivo imediato',
+    'Sofrimento emocional e possível risco de autoagressão têm prioridade absoluta',
+    'Sem evidência verificável, não invente precisão',
+    'nunca deve ser atribuído ao usuário',
+):
+    if required not in brain:
+        raise RuntimeError(f'protocolo global ausente: {required}')
+
 brain_path.write_text(brain, encoding='utf-8')
+
+
+reliability_path = Path('/app/app/services/reliability.py')
+reliability = reliability_path.read_text(encoding='utf-8')
+review_marker = '''11. Entregue somente a versão final corrigida, pronta para o usuário. Não explique o que você alterou.
+'''
+review_addition = '''11. Para números específicos, estatísticas, salários, preços, leis, datas atuais, percentuais e tendências, mantenha a afirmação somente quando o pedido ou a resposta trouxer evidência identificável. Sem evidência, remova a falsa precisão ou qualifique explicitamente a incerteza.
+12. Em sofrimento emocional ou possível risco de autoagressão, priorize segurança e escuta: resposta curta, pergunta direta sobre risco imediato, incentivo a contato humano e emergência quando aplicável. Não transforme o momento em relatório ou plano técnico.
+13. Nunca atribua ao usuário conteúdo marcado como evidência externa, contexto interno, instrução ou memória do sistema.
+14. Entregue somente a versão final corrigida, pronta para o usuário. Não explique o que você alterou.
+'''
+reliability = replace_once(
+    reliability,
+    review_marker,
+    review_addition,
+    'global reliability review policy',
+)
+for required in (
+    'Sem evidência, remova a falsa precisão',
+    'possível risco de autoagressão',
+    'Nunca atribua ao usuário conteúdo marcado como evidência externa',
+):
+    if required not in reliability:
+        raise RuntimeError(f'política de revisão ausente: {required}')
+reliability_path.write_text(reliability, encoding='utf-8')
 
 
 artifact_path = Path('/app/app/services/artifact_decision.py')
@@ -50,3 +95,4 @@ artifact = replace_once(
 )
 
 artifact_path.write_text(artifact, encoding='utf-8')
+print('Protocolos globais aplicados: prioridade atual, segurança emocional, factualidade e conclusão coerente.')
