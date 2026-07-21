@@ -20,6 +20,53 @@ def replace_once(text: str, old: str, new: str, label: str) -> str:
 termination = TERMINATION_PATH.read_text(encoding='utf-8')
 termination = replace_once(
     termination,
+    '''  "monthly_salary":"número decimal ou null",
+''',
+    '''  "monthly_salary":"número decimal ou null",
+  "monthly_salary_basis":"gross|net|not_informed|null",
+''',
+    'campo de natureza do salário',
+)
+termination = replace_once(
+    termination,
+    '''- Só registre 0 quando o usuário afirmar claramente zero, ausência ou que não recebeu.
+- notice_days_explicit registra apenas prazo claramente informado; o backend aplicará o prazo legal proporcional quando cabível.
+''',
+    '''- Só registre 0 quando o usuário afirmar claramente zero, ausência ou que não recebeu.
+- monthly_salary_basis=gross somente quando o usuário confirmar salário bruto, base mensal sem descontos ou valor registrado no contracheque antes dos descontos.
+- monthly_salary_basis=net quando o usuário disser salário líquido, limpo, valor recebido em conta, depois dos descontos ou equivalente.
+- Nunca transforme salário líquido em bruto e nunca use valor líquido como base de cálculo.
+- notice_days_explicit registra apenas prazo claramente informado; o backend aplicará o prazo legal proporcional quando cabível.
+''',
+    'regras de salário bruto e líquido',
+)
+termination = replace_once(
+    termination,
+    '''    salary = _decimal(data.get("monthly_salary"))
+    reason = str(data.get("termination_reason") or "").strip()
+''',
+    '''    salary = _decimal(data.get("monthly_salary"))
+    salary_basis = str(data.get("monthly_salary_basis") or "").strip()
+    reason = str(data.get("termination_reason") or "").strip()
+''',
+    'leitura da natureza do salário',
+)
+termination = replace_once(
+    termination,
+    '''    if salary is None or salary <= 0:
+        missing_fields.append("monthly_salary")
+    if not reason:
+''',
+    '''    if salary is None or salary <= 0:
+        missing_fields.append("monthly_salary")
+    elif salary_basis != "gross":
+        missing_fields.append("gross_monthly_salary")
+    if not reason:
+''',
+    'bloqueio de salário não bruto',
+)
+termination = replace_once(
+    termination,
     '''    if not notice_type:
         missing_fields.append("notice_type")
 ''',
@@ -30,7 +77,6 @@ termination = replace_once(
 ''',
     'bloqueio de aviso não confirmado',
 )
-
 termination = replace_once(
     termination,
     '''    elif termination is not None and notice_type == "indemnified" and employer_termination:
@@ -54,19 +100,19 @@ termination = replace_once(
 ''',
     'bloqueio de histórico de férias ausente',
 )
-
 termination = replace_once(
     termination,
     '''Faça no máximo duas perguntas curtas e contextualizadas.
 Dados complementares que não impedem uma estimativa inicial não devem bloquear a conversa.
 ''',
     '''Faça no máximo duas perguntas curtas e contextualizadas.
+- Se missing_fields contiver gross_monthly_salary, explique que valor líquido recebido em conta não pode ser usado e peça somente o salário bruto mensal antes dos descontos.
 - Se missing_fields contiver notice_type, pergunte claramente se o aviso-prévio foi trabalhado, indenizado ou dispensado.
 - Se missing_fields contiver vacation_history, pergunte se houve férias integrais já gozadas ou pagas e quantos períodos; aceite "nenhuma" como zero confirmado.
-- Quando os dois estiverem ausentes, pergunte os dois no mesmo turno, em duas perguntas curtas.
-Dados complementares que não impedem uma estimativa inicial não devem bloquear a conversa, mas aviso e histórico de férias são indispensáveis quando alteram diretamente as verbas.
+- Agrupe no mesmo turno os campos indispensáveis ainda ausentes, sem repetir o que já foi confirmado.
+Dados complementares que não impedem uma estimativa inicial não devem bloquear a conversa, mas salário bruto, aviso e histórico de férias são indispensáveis quando alteram diretamente as verbas.
 ''',
-    'perguntas obrigatórias de aviso e férias',
+    'perguntas obrigatórias de salário, aviso e férias',
 )
 TERMINATION_PATH.write_text(termination, encoding='utf-8')
 
@@ -156,8 +202,6 @@ pipeline = pipeline[:start] + validator.rstrip() + pipeline[end:]
 PIPELINE_PATH.write_text(pipeline, encoding='utf-8')
 
 
-# Teste executável do caso que falhou em produção. Não é busca por marcador:
-# importa o runtime final e executa cálculo + renderização determinística.
 from app.services.labor_termination import calculate
 from app.services.labor_pipeline import _deterministic_labor_answer
 
@@ -168,16 +212,27 @@ minimal_case = {
     'termination_reason': 'employer_without_cause',
 }
 
-unknown_notice = calculate({**minimal_case, 'notice_type': 'not_informed'})
+net_salary = calculate({
+    **minimal_case,
+    'monthly_salary_basis': 'net',
+    'notice_type': 'indemnified',
+    'vacation_periods_already_paid': 0,
+    'vacation_periods_already_taken': 0,
+})
+if net_salary.ready or 'gross_monthly_salary' not in net_salary.missing_fields:
+    raise RuntimeError('salário líquido ainda permitiu cálculo trabalhista')
+
+unknown_notice = calculate({**minimal_case, 'monthly_salary_basis': 'gross', 'notice_type': 'not_informed'})
 if unknown_notice.ready or 'notice_type' not in unknown_notice.missing_fields:
     raise RuntimeError('aviso não informado ainda permitiu cálculo trabalhista')
 
-unknown_vacation = calculate({**minimal_case, 'notice_type': 'indemnified'})
+unknown_vacation = calculate({**minimal_case, 'monthly_salary_basis': 'gross', 'notice_type': 'indemnified'})
 if unknown_vacation.ready or 'vacation_history' not in unknown_vacation.missing_fields:
     raise RuntimeError('histórico de férias ausente ainda permitiu cálculo trabalhista')
 
 base_case = {
     **minimal_case,
+    'monthly_salary_basis': 'gross',
     'vacation_periods_already_paid': 0,
     'vacation_periods_already_taken': 0,
 }
@@ -200,4 +255,4 @@ if 'Aviso-prévio trabalhado (33 dias): sem indenização separada' not in worke
 if 'Aviso-prévio indenizado' in worked_text:
     raise RuntimeError('aviso trabalhado ainda foi apresentado como indenizado')
 
-print('Aviso e histórico de férias validados por execução real antes do cálculo.')
+print('Salário bruto, aviso e histórico de férias validados antes do cálculo.')
