@@ -28,6 +28,44 @@ termination = replace_once(
 ''',
     'bloqueio de aviso não confirmado',
 )
+
+termination = replace_once(
+    termination,
+    '''    elif termination is not None and notice_type == "indemnified" and employer_termination:
+        notice_amount = _money(base / Decimal("30") * Decimal(notice_days))
+
+    balance_days_raw = _int_or_none(data.get("salary_balance_days"))
+''',
+    '''    elif termination is not None and notice_type == "indemnified" and employer_termination:
+        notice_amount = _money(base / Decimal("30") * Decimal(notice_days))
+
+    # Quando já existe período aquisitivo completo, não é seguro presumir que
+    # nenhuma férias foi gozada ou paga. Esse histórico altera diretamente a
+    # existência de férias integrais e vencidas.
+    completed_periods_preview, _, _ = vacation_position(admission, projected_end)
+    if completed_periods_preview > 0 and (
+        paid_periods_raw is None or taken_periods_raw is None
+    ):
+        return LaborCalculationResult(False, ["vacation_history"])
+
+    balance_days_raw = _int_or_none(data.get("salary_balance_days"))
+''',
+    'bloqueio de histórico de férias ausente',
+)
+
+termination = replace_once(
+    termination,
+    '''Faça no máximo duas perguntas curtas e contextualizadas.
+Dados complementares que não impedem uma estimativa inicial não devem bloquear a conversa.
+''',
+    '''Faça no máximo duas perguntas curtas e contextualizadas.
+- Se missing_fields contiver notice_type, pergunte claramente se o aviso-prévio foi trabalhado, indenizado ou dispensado.
+- Se missing_fields contiver vacation_history, pergunte se houve férias integrais já gozadas ou pagas e quantos períodos; aceite "nenhuma" como zero confirmado.
+- Quando os dois estiverem ausentes, pergunte os dois no mesmo turno, em duas perguntas curtas.
+Dados complementares que não impedem uma estimativa inicial não devem bloquear a conversa, mas aviso e histórico de férias são indispensáveis quando alteram diretamente as verbas.
+''',
+    'perguntas obrigatórias de aviso e férias',
+)
 TERMINATION_PATH.write_text(termination, encoding='utf-8')
 
 
@@ -121,18 +159,26 @@ PIPELINE_PATH.write_text(pipeline, encoding='utf-8')
 from app.services.labor_termination import calculate
 from app.services.labor_pipeline import _deterministic_labor_answer
 
-base_case = {
+minimal_case = {
     'admission_date': '2025-04-01',
     'termination_date': '2026-05-17',
     'monthly_salary': '2134',
     'termination_reason': 'employer_without_cause',
+}
+
+unknown_notice = calculate({**minimal_case, 'notice_type': 'not_informed'})
+if unknown_notice.ready or 'notice_type' not in unknown_notice.missing_fields:
+    raise RuntimeError('aviso não informado ainda permitiu cálculo trabalhista')
+
+unknown_vacation = calculate({**minimal_case, 'notice_type': 'indemnified'})
+if unknown_vacation.ready or 'vacation_history' not in unknown_vacation.missing_fields:
+    raise RuntimeError('histórico de férias ausente ainda permitiu cálculo trabalhista')
+
+base_case = {
+    **minimal_case,
     'vacation_periods_already_paid': 0,
     'vacation_periods_already_taken': 0,
 }
-
-unknown = calculate({**base_case, 'notice_type': 'not_informed'})
-if unknown.ready or 'notice_type' not in unknown.missing_fields:
-    raise RuntimeError('aviso não informado ainda permitiu cálculo trabalhista')
 
 indemnified = calculate({**base_case, 'notice_type': 'indemnified'})
 if not indemnified.ready or not indemnified.report:
@@ -152,4 +198,4 @@ if 'Aviso-prévio trabalhado (33 dias): sem indenização separada' not in worke
 if 'Aviso-prévio indenizado' in worked_text:
     raise RuntimeError('aviso trabalhado ainda foi apresentado como indenizado')
 
-print('Integridade do aviso-prévio validada por execução real do cálculo e da resposta.')
+print('Aviso e histórico de férias validados por execução real antes do cálculo.')
