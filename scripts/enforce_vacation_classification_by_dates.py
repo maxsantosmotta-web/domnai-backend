@@ -122,4 +122,54 @@ strict_validator = '''def _labor_response_matches_report(text: str, report: dict
 pipeline = pipeline[:start] + strict_validator.rstrip() + pipeline[end:]
 pipeline_path.write_text(pipeline, encoding='utf-8')
 
-print('Classificação de férias aplicada por datas e validador final reforçado.')
+
+orchestrator_path = Path('/app/app/services/orchestrated_brain.py')
+orchestrator = orchestrator_path.read_text(encoding='utf-8')
+helper = '''\n\ndef _is_explicit_topic_switch(message: str) -> bool:\n    normalized = " ".join(\n        "".join(\n            char if char.isalnum() or char.isspace() else " "\n            for char in _normalized_text(message)\n        ).split()\n    )\n    markers = (\n        "vamos mudar de assunto",\n        "vou mudar de assunto",\n        "mudando de assunto",\n        "quero mudar de assunto",\n        "quero falar de outra coisa",\n        "vamos falar de outra coisa",\n        "agora outro assunto",\n        "encerra esse assunto",\n        "deixa esse assunto",\n        "nao quero mais falar disso",\n        "vou mudar de ramo de atividades",\n    )\n    return any(marker in normalized for marker in markers)\n'''
+anchor = '\n\ndef _specialized_engine('
+if '_is_explicit_topic_switch' not in orchestrator:
+    if anchor not in orchestrator:
+        raise RuntimeError('specialized engine anchor not found')
+    orchestrator = orchestrator.replace(anchor, helper + anchor, 1)
+
+old_route = '''    if _specialized_engine({}, operation, message) is None:
+        base_result = generate_metered_response(
+            message=message,
+            history=history,
+            operation=operation,
+            attachments=safe_attachments,
+            diagnosis_state=diagnosis_state,
+        )
+'''
+new_route = '''    if _is_explicit_topic_switch(message):
+        base_result = generate_metered_response(
+            message=message,
+            history=[],
+            operation=None,
+            attachments=safe_attachments,
+            diagnosis_state=None,
+        )
+        return MeteredBrainResult(
+            text=base_result.text,
+            provider=f"topic-switch:{base_result.provider}",
+            model=base_result.model,
+            input_tokens=base_result.input_tokens,
+            output_tokens=base_result.output_tokens,
+            cached_input_tokens=base_result.cached_input_tokens,
+            diagnosis_state=base_result.diagnosis_state,
+            timings={"orchestrator_ms": 0, **(base_result.timings or {})},
+        )
+
+    if _specialized_engine({}, operation, message) is None:
+        base_result = generate_metered_response(
+            message=message,
+            history=history,
+            operation=operation,
+            attachments=safe_attachments,
+            diagnosis_state=diagnosis_state,
+        )
+'''
+orchestrator = replace_once(orchestrator, old_route, new_route, 'explicit topic switch routing')
+orchestrator_path.write_text(orchestrator, encoding='utf-8')
+
+print('Classificação de férias e troca explícita de assunto aplicadas no runtime final.')
