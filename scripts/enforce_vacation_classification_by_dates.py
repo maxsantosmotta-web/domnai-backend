@@ -208,4 +208,80 @@ for required in (
         raise RuntimeError(f'regra message-first ausente: {required}')
 
 orchestrator_path.write_text(orchestrator, encoding='utf-8')
-print('Regras finais aplicadas: férias por datas e roteamento absoluto orientado pela mensagem atual.')
+
+
+# O planejador não pode transformar a seleção visual em intenção atual.
+planner_path = Path('/app/app/services/intelligence_orchestrator.py')
+planner = planner_path.read_text(encoding='utf-8')
+planner = replace_once(
+    planner,
+    '- Se a operação ativa ou a intenção real for cálculo de rescisão trabalhista, use exatamente specialized_engine="labor_termination".',
+    '- A operação ativa é apenas uma preferência visual e nunca basta para escolher motor. Use specialized_engine="labor_termination" somente quando a mensagem atual, interpretada com o histórico recente, mostrar que o usuário quer tratar de rescisão trabalhista agora.',
+    'planner operation authority',
+)
+planner = replace_once(
+    planner,
+    '- Entenda intenção, não apenas palavras isoladas ou o nome enviado pelo frontend.',
+    '''- Entenda a intenção atual, não apenas palavras isoladas, memória antiga ou o nome enviado pelo frontend.
+- A mensagem atual tem prioridade sobre histórico, memória e operação; esses elementos só ajudam a resolver referências e continuidade.
+- Sofrimento emocional e possível risco à vida têm prioridade absoluta sobre qualquer operação, relatório, cálculo ou especialista.
+- Quando o usuário pedir conversa, conselho ou apoio pessoal, primeiro escute e faça no máximo uma pergunta aberta; não entregue relatório, plano ou lista antes de entender.
+- Não trate uma mudança semântica de assunto como continuação automática da tarefa anterior.
+- Para números, estatísticas, leis, preços ou fatos atuais, planeje pesquisa verificável ou exija linguagem explicitamente cautelosa; nunca aceite precisão sem evidência.''',
+    'planner global priority policy',
+)
+for required in (
+    'A operação ativa é apenas uma preferência visual',
+    'A mensagem atual tem prioridade sobre histórico, memória e operação',
+    'Sofrimento emocional e possível risco à vida têm prioridade absoluta',
+    'nunca aceite precisão sem evidência',
+):
+    if required not in planner:
+        raise RuntimeError(f'política global ausente no planejador: {required}')
+planner_path.write_text(planner, encoding='utf-8')
+
+
+# A memória semântica não pode transformar a operação visual em estado factual.
+memory_path = Path('/app/app/services/diagnosis_memory.py')
+memory = memory_path.read_text(encoding='utf-8')
+memory = replace_once(
+    memory,
+    '        "operation": _clean_text(operation or source.get("operation"), 180) or None,',
+    '        "operation": None,',
+    'memory operation neutrality',
+)
+memory = replace_once(
+    memory,
+    '''    # A operação muda o foco, mas não apaga a memória do mesmo problema.
+    state = sanitize_diagnosis_state(payload, operation)
+    if operation:
+        state["operation"] = operation
+    return state
+''',
+    '''    # A operação visual não altera nem reclassifica a memória semântica.
+    return sanitize_diagnosis_state(payload)
+''',
+    'memory load neutrality',
+)
+memory = replace_once(
+    memory,
+    '        + "\nREGRAS: respeite correções mais recentes, não repita perguntas registradas como respondidas e trate a operação apenas como foco atual."',
+    '        + "\nREGRAS: respeite correções mais recentes, não repita perguntas registradas como respondidas e use esta memória apenas para continuidade; ela nunca decide a intenção da mensagem atual."',
+    'memory context authority',
+)
+memory = replace_once(
+    memory,
+    '- Preserve contexto útil ao mudar de operação; a operação muda o foco, não reinicia automaticamente o problema.',
+    '- Preserve apenas contexto semanticamente compatível com a mensagem atual. Mudança real de assunto interrompe o foco anterior, mesmo que a operação visual permaneça selecionada.',
+    'memory topic transition policy',
+)
+for required in (
+    '"operation": None,',
+    'ela nunca decide a intenção da mensagem atual',
+    'Mudança real de assunto interrompe o foco anterior',
+):
+    if required not in memory:
+        raise RuntimeError(f'neutralidade de memória ausente: {required}')
+memory_path.write_text(memory, encoding='utf-8')
+
+print('Regras finais aplicadas: férias por datas, mensagem atual soberana, operação neutra e memória não roteadora.')
