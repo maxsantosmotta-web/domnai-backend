@@ -156,6 +156,66 @@ LIGHT_CONVERSATION_BLOCK = '''    if _is_light_conversation(message, safe_attach
 '''
 
 
+SERIAL_CLAIM_FUNCTION = '''def _claim_next_task() -> str | None:
+    with session_scope() as db:
+        earlier = aliased(ChatTask)
+        earlier_for_same_user = select(earlier.id).where(
+            earlier.user_id == ChatTask.user_id,
+            earlier.status.in_(("queued", "processing")),
+            (
+                (earlier.created_at < ChatTask.created_at)
+                | (
+                    (earlier.created_at == ChatTask.created_at)
+                    & (earlier.id < ChatTask.id)
+                )
+            ),
+        )
+        task = db.scalar(
+            select(ChatTask)
+            .where(
+                ChatTask.status == "queued",
+                ~earlier_for_same_user.exists(),
+            )
+            .order_by(ChatTask.created_at.asc(), ChatTask.id.asc())
+            .with_for_update(skip_locked=True)
+            .limit(1)
+        )
+        if task is None:
+            return None
+        task.status = "processing"
+        task.updated_at = _now()
+        return task.id
+'''
+
+
+BRAIN_PREPARATION = '''        sources: list[dict] = []
+        brain_history = list(history)
+        if user_name and operation and not history:
+            brain_history.append({
+                "role": "assistant",
+                "content": (
+                    "CONTEXTO INTERNO DE PERSONALIZAÇÃO — não atribua isto ao usuário: "
+                    f"o primeiro nome autenticado é {user_name}. Use-o naturalmente apenas se fizer sentido; "
+                    "não explique este contexto."
+                ),
+            })
+        message_for_brain = original_message
+        if not payload.get("local_artifact_followup") and should_research_web(original_message, operation):
+            research_started_at = time.perf_counter()
+            research = research_web(original_message)
+            timings["research_ms"] = _elapsed_ms(research_started_at)
+            sources = research.sources
+            brain_history.append({
+                "role": "assistant",
+                "content": (
+                    "EVIDÊNCIA EXTERNA VERIFICADA — não atribua este texto ao usuário e não o grave como fato pessoal:\n"
+                    f"{research.text}\n\n"
+                    "Use somente afirmações sustentadas por esta evidência. Não invente fontes, URLs, números ou datas."
+                ),
+            })
+'''
+
+
 def _fix_worker_scope() -> None:
     if not WORKER_PATH.exists():
         raise RuntimeError('chat_task_worker.py não encontrado no runtime.')
@@ -170,6 +230,39 @@ def _fix_worker_scope() -> None:
     conditional_index = source.index('    if existing_result is None:')
     if operation_index > conditional_index:
         raise RuntimeError('operation continuou inicializada depois do ramo condicional.')
+    WORKER_PATH.write_text(source, encoding='utf-8')
+
+
+def _serialize_user_conversations() -> None:
+    source = WORKER_PATH.read_text(encoding='utf-8')
+    if 'from sqlalchemy.orm import aliased\n' not in source:
+        source = source.replace('from sqlalchemy import select, update\n', 'from sqlalchemy import select, update\nfrom sqlalchemy.orm import aliased\n', 1)
+    start = source.index('def _claim_next_task() -> str | None:')
+    end = source.index('\n\ndef _load_attachments(', start)
+    source = source[:start] + SERIAL_CLAIM_FUNCTION.rstrip() + source[end:]
+    if '~earlier_for_same_user.exists()' not in source:
+        raise RuntimeError('serialização por usuário não foi instalada no worker.')
+    WORKER_PATH.write_text(source, encoding='utf-8')
+
+
+def _separate_message_and_evidence() -> None:
+    source = WORKER_PATH.read_text(encoding='utf-8')
+    start = source.index('        sources: list[dict] = []')
+    end = source.index('        intelligence_started_at = time.perf_counter()', start)
+    source = source[:start] + BRAIN_PREPARATION.rstrip() + '\n' + source[end:]
+    call_start = source.index('        result = generate_orchestrated_response(', end)
+    call_end = source.index('        )\n', call_start) + len('        )\n')
+    call = source[call_start:call_end]
+    call = call.replace('            history=history,\n', '            history=brain_history,\n', 1)
+    source = source[:call_start] + call + source[call_end:]
+    for required in (
+        'message_for_brain = original_message',
+        'history=brain_history,',
+        'EVIDÊNCIA EXTERNA VERIFICADA',
+        'não o grave como fato pessoal',
+    ):
+        if required not in source:
+            raise RuntimeError(f'separação de evidência ausente no worker: {required}')
     WORKER_PATH.write_text(source, encoding='utf-8')
 
 
@@ -231,10 +324,12 @@ def _fix_simple_conversation() -> None:
 
 def main() -> None:
     _fix_worker_scope()
+    _serialize_user_conversations()
+    _separate_message_and_evidence()
     _fix_artifact_decision_scope()
     _fix_openai_retry()
     _fix_simple_conversation()
-    print('Runtime final corrigido: conversa leve real, sem respostas fixas e sem captura trabalhista.')
+    print('Runtime final corrigido: tarefas em ordem, evidência separada, conversa livre e operação sem captura.')
 
 
 if __name__ == '__main__':
