@@ -131,6 +131,7 @@ COPY scripts/fix_chat_worker_operation_scope.py /tmp/fix_chat_worker_operation_s
 COPY scripts/expose_openai_429_cause.py /tmp/expose_openai_429_cause.py
 COPY scripts/validate_labor_final_response.py /tmp/validate_labor_final_response.py
 COPY scripts/enforce_vacation_classification_by_dates.py /tmp/enforce_vacation_classification_by_dates.py
+COPY scripts/finalize_conversation_integrity.py /tmp/finalize_conversation_integrity.py
 RUN python /tmp/make_runtime_patches_idempotent.py \
     && python -m py_compile /tmp/*.py \
     && python /tmp/connect_chat_sources_backend.py \
@@ -155,6 +156,7 @@ RUN python /tmp/make_runtime_patches_idempotent.py \
     && python /tmp/expose_openai_429_cause.py \
     && python /tmp/validate_labor_final_response.py \
     && python /tmp/enforce_vacation_classification_by_dates.py \
+    && python /tmp/finalize_conversation_integrity.py \
     && python -m compileall -q app
 COPY --from=frontend-builder /frontend/dist ./frontend/dist
 EXPOSE 8080
