@@ -50,18 +50,25 @@ def _fix_artifact_decision_scope() -> None:
         raise RuntimeError('artifact_decision.py não encontrado no runtime.')
 
     source = ARTIFACT_DECISION_PATH.read_text(encoding='utf-8')
-    unsafe = '    del operation, answer\n'
-    safe = '    del answer\n'
 
-    if unsafe in source:
-        source = source.replace(unsafe, safe, 1)
+    # operation e answer são parâmetros usados por regras adicionadas durante o Docker build.
+    # Nenhum deles pode ser apagado antes do término de _requires_artifact_decision.
+    for unsafe in (
+        '    del operation, answer\n',
+        '    del answer, operation\n',
+        '    del operation\n',
+        '    del answer\n',
+    ):
+        source = source.replace(unsafe, '')
 
     function_start = source.index('def _requires_artifact_decision(')
     function_end = source.index('\n\ndef decide_artifact(', function_start)
     function_source = source[function_start:function_end]
 
-    if 'del operation' in function_source:
-        raise RuntimeError('artifact_decision ainda remove operation antes de terminar a função.')
+    if 'del operation' in function_source or 'del answer' in function_source:
+        raise RuntimeError('artifact_decision ainda apaga parâmetros usados pela decisão final.')
+    if 'answer' not in function_source or 'operation' not in function_source:
+        raise RuntimeError('artifact_decision perdeu os parâmetros exigidos pela decisão final.')
 
     ARTIFACT_DECISION_PATH.write_text(source, encoding='utf-8')
 
@@ -69,7 +76,7 @@ def _fix_artifact_decision_scope() -> None:
 def main() -> None:
     _fix_worker_scope()
     _fix_artifact_decision_scope()
-    print('Escopos finais corrigidos: worker e decisão de artefatos preservam operation.')
+    print('Escopos finais corrigidos: worker e decisão de artefatos preservam operation e answer.')
 
 
 if __name__ == '__main__':
