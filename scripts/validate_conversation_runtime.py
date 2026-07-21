@@ -14,18 +14,36 @@ def read(name: str) -> str:
     return text
 
 
+def function_keywords(tree: ast.AST, function_name: str) -> set[str]:
+    for node in ast.walk(tree):
+        if isinstance(node, ast.FunctionDef) and node.name == function_name:
+            return {arg.arg for arg in node.args.args + node.args.kwonlyargs}
+    raise RuntimeError(f'função ausente: {function_name}')
+
+
+def call_keywords(tree: ast.AST, function_name: str) -> list[set[str]]:
+    found = []
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Call) and isinstance(node.func, ast.Name) and node.func.id == function_name:
+            found.append({item.arg for item in node.keywords if item.arg})
+    return found
+
+
 worker = read('chat_task_worker.py')
 orchestrator = read('orchestrated_brain.py')
 planner = read('intelligence_orchestrator.py')
 memory = read('diagnosis_memory.py')
 research = read('web_research.py')
+worker_tree = ast.parse(worker)
+orchestrator_tree = ast.parse(orchestrator)
 
 required_worker = (
     'processing_for_same_user',
     'should_research_web(original_message)',
     'message=original_message',
-    'external_context=external_context',
+    'history=contextual_history',
     'EVIDÊNCIA EXTERNA VERIFICADA (não é fala do usuário)',
+    'CONTEXTO INTERNO SEPARADO DA MENSAGEM DO USUÁRIO',
 )
 for marker in required_worker:
     if marker not in worker:
@@ -34,16 +52,22 @@ for marker in required_worker:
 for forbidden in (
     'should_research_web(original_message, operation)',
     'message=message_for_brain',
+    'external_context=external_context',
     'PESQUISA WEB VERIFICADA:\n{research.text}',
 ):
     if forbidden in worker:
         raise RuntimeError(f'worker ainda contém comportamento antigo: {forbidden}')
 
+accepted = function_keywords(orchestrator_tree, 'generate_orchestrated_response')
+calls = call_keywords(worker_tree, 'generate_orchestrated_response')
+if not calls:
+    raise RuntimeError('worker não chama generate_orchestrated_response')
+for keywords in calls:
+    unexpected = keywords - accepted
+    if unexpected:
+        raise RuntimeError(f'chamada incompatível com generate_orchestrated_response: {sorted(unexpected)}')
+
 required_orchestrator = (
-    'external_context: str = ""',
-    'contextual_history = list(history)',
-    'history=_normalized_history(contextual_history)',
-    'history=contextual_history',
     'operation=None,',
     'del operation',
 )
@@ -81,4 +105,4 @@ for marker in required_memory:
 if 'text = f"{operation or \'\'} {message or \'\'}".casefold()' in research:
     raise RuntimeError('pesquisa web ainda depende da operação visual')
 
-print('Regressão do runtime conversacional validada com sucesso.')
+print('Regressão do runtime e compatibilidade de assinatura validadas com sucesso.')
