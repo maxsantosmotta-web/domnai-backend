@@ -14,20 +14,20 @@ class WebResearchResult:
 
 
 def should_research_web(message: str, operation: str | None = None) -> bool:
-    text = f"{operation or ''} {message or ''}".casefold()
+    # A operação visual não pode disparar pesquisa por conta própria. Pesquisa é
+    # uma ferramenta da intenção atual e só entra quando a mensagem pedir dados
+    # externos, atuais, comparativos ou verificáveis.
+    del operation
+    text = str(message or "").casefold()
     explicit = (
         "pesquise", "pesquisa", "procure na internet", "busque na internet",
         "fontes", "referências", "referencias", "links oficiais", "notícias",
         "noticias", "atualizado", "atualizada", "hoje", "agora", "mais recente",
         "preço atual", "preco atual", "cotação", "cotacao", "concorrência",
         "concorrencia", "mercado atual", "lei atual", "regra atual",
+        "tendências atuais", "tendencias atuais", "dados atuais",
     )
-    operations = (
-        "pesquisa de mercado", "concorrência", "concorrencia",
-        "pesquisa e comparação", "cotação", "cotacao", "fornecedores",
-        "tendências", "tendencias", "veículos", "veiculos", "viagens",
-    )
-    return any(marker in text for marker in explicit) or any(marker in text for marker in operations)
+    return any(marker in text for marker in explicit)
 
 
 def _post(payload: dict) -> dict:
