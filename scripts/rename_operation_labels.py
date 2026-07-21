@@ -18,7 +18,12 @@ for old, new in replacements.items():
     elif new not in source:
         raise RuntimeError(f'Operação não encontrada para renomear: {old}')
 
-# Estes dois nomes foram explicitamente mantidos pelo usuário.
+labor_operation = "  { id: 'rescisao', name: 'Cálculo de Rescisão Trabalhista' },\n"
+if labor_operation in source:
+    source = source.replace(labor_operation, '', 1)
+elif "id: 'rescisao'" in source or 'Cálculo de Rescisão Trabalhista' in source:
+    raise RuntimeError('A operação trabalhista existe em formato inesperado e não foi removida.')
+
 for preserved in (
     "{ id: 'validacao-ideia', name: 'Validação de Ideias e Oportunidades' }",
     "{ id: 'estrutura-negocio', name: 'Estruturação e Organização Empresarial' }",
@@ -26,5 +31,9 @@ for preserved in (
     if preserved not in source:
         raise RuntimeError(f'Nome que deveria ser preservado foi alterado: {preserved}')
 
+for removed in ("id: 'rescisao'", 'Cálculo de Rescisão Trabalhista'):
+    if removed in source:
+        raise RuntimeError(f'Operação trabalhista ainda presente: {removed}')
+
 path.write_text(source, encoding='utf-8')
-print('Rótulos aprovados renomeados; nomes marcados como mantém foram preservados.')
+print('Operação trabalhista removida e rótulos aprovados aplicados.')
