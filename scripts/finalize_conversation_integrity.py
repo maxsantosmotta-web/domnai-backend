@@ -84,12 +84,12 @@ def patch_worker() -> None:
             timings["research_ms"] = _elapsed_ms(research_started_at)
             sources = research.sources
             context_blocks.append(
-                "EVIDÊNCIA EXTERNA VERIFICADA (não é fala do usuário):\n"
+                "EVIDÊNCIA EXTERNA VERIFICADA (não é fala do usuário):\\n"
                 + research.text
-                + "\nUse somente fatos sustentados por esta evidência e nunca invente fontes ou URLs."
+                + "\\nUse somente fatos sustentados por esta evidência e nunca invente fontes ou URLs."
             )
 
-        external_context = "\n\n".join(context_blocks)
+        external_context = "\\n\\n".join(context_blocks)
 '''
     source = source[:block_start] + context_block + source[block_end:]
 
@@ -128,7 +128,7 @@ def patch_worker() -> None:
     forbidden = (
         "should_research_web(original_message, operation)",
         "message=message_for_brain",
-        "PESQUISA WEB VERIFICADA:\n{research.text}",
+        "PESQUISA WEB VERIFICADA:\\n{research.text}",
     )
     for marker in forbidden:
         if marker in source:
@@ -170,7 +170,7 @@ def patch_orchestrator() -> None:
         contextual_history.append({
             "role": "assistant",
             "content": (
-                "CONTEXTO INTERNO SEPARADO DA MENSAGEM DO USUÁRIO:\n"
+                "CONTEXTO INTERNO SEPARADO DA MENSAGEM DO USUÁRIO:\\n"
                 + safe_external_context
             ),
         })
