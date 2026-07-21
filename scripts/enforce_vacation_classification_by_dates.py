@@ -125,51 +125,87 @@ pipeline_path.write_text(pipeline, encoding='utf-8')
 
 orchestrator_path = Path('/app/app/services/orchestrated_brain.py')
 orchestrator = orchestrator_path.read_text(encoding='utf-8')
-helper = '''\n\ndef _is_explicit_topic_switch(message: str) -> bool:\n    normalized = " ".join(\n        "".join(\n            char if char.isalnum() or char.isspace() else " "\n            for char in _normalized_text(message)\n        ).split()\n    )\n    markers = (\n        "vamos mudar de assunto",\n        "vou mudar de assunto",\n        "mudando de assunto",\n        "quero mudar de assunto",\n        "quero falar de outra coisa",\n        "vamos falar de outra coisa",\n        "agora outro assunto",\n        "encerra esse assunto",\n        "deixa esse assunto",\n        "nao quero mais falar disso",\n        "vou mudar de ramo de atividades",\n    )\n    return any(marker in normalized for marker in markers)\n'''
-anchor = '\n\ndef _specialized_engine('
-if '_is_explicit_topic_switch' not in orchestrator:
-    if anchor not in orchestrator:
-        raise RuntimeError('specialized engine anchor not found')
-    orchestrator = orchestrator.replace(anchor, helper + anchor, 1)
 
-old_route = '''    if _specialized_engine({}, operation, message) is None:
-        base_result = generate_metered_response(
-            message=message,
-            history=history,
-            operation=operation,
-            attachments=safe_attachments,
-            diagnosis_state=diagnosis_state,
-        )
-'''
-new_route = '''    if _is_explicit_topic_switch(message):
-        base_result = generate_metered_response(
-            message=message,
-            history=[],
-            operation=None,
-            attachments=safe_attachments,
-            diagnosis_state=None,
-        )
-        return MeteredBrainResult(
-            text=base_result.text,
-            provider=f"topic-switch:{base_result.provider}",
-            model=base_result.model,
-            input_tokens=base_result.input_tokens,
-            output_tokens=base_result.output_tokens,
-            cached_input_tokens=base_result.cached_input_tokens,
-            diagnosis_state=base_result.diagnosis_state,
-            timings={"orchestrator_ms": 0, **(base_result.timings or {})},
-        )
+# REGRA ABSOLUTA DE ROTEAMENTO:
+# - a mensagem atual e o plano semântico decidem;
+# - a operação selecionada é apenas contexto para o planejador;
+# - a operação isolada nunca força um especialista;
+# - conversa geral nunca recebe o rótulo da operação na geração final.
+engine_start = orchestrator.index('def _specialized_engine(')
+engine_end = orchestrator.index('\n\ndef generate_orchestrated_response(', engine_start)
+message_first_engine = '''def _specialized_engine(plan: dict, operation: str | None, message: str) -> str | None:
+    del operation
+    engine_text = _normalized_text(plan.get("specialized_engine"))
+    message_text = _normalized_text(message)
 
-    if _specialized_engine({}, operation, message) is None:
-        base_result = generate_metered_response(
-            message=message,
-            history=history,
-            operation=operation,
-            attachments=safe_attachments,
-            diagnosis_state=diagnosis_state,
-        )
+    if any(marker in engine_text for marker in ("labor_termination", "rescisao", "trabalhista", "labor")):
+        return "labor_termination"
+
+    explicit_labor_requests = (
+        "calcular minha rescisao",
+        "calculo de rescisao",
+        "recalcular minha rescisao",
+        "revisar calculo trabalhista",
+        "verbas rescisorias",
+        "demissao sem justa causa",
+        "pedido de demissao",
+        "aviso previo proporcional",
+        "ferias proporcionais na rescisao",
+        "decimo terceiro proporcional na rescisao",
+    )
+    if any(marker in message_text for marker in explicit_labor_requests):
+        return "labor_termination"
+
+    return None
 '''
-orchestrator = replace_once(orchestrator, old_route, new_route, 'explicit topic switch routing')
+orchestrator = orchestrator[:engine_start] + message_first_engine.rstrip() + orchestrator[engine_end:]
+
+generate_start = orchestrator.index('def generate_orchestrated_response(')
+api_key_anchor = orchestrator.index('    api_key = os.getenv("OPENAI_API_KEY", "").strip()', generate_start)
+light_anchor = orchestrator.rfind('    if _is_light_conversation(message, safe_attachments):', generate_start, api_key_anchor)
+if light_anchor < 0:
+    raise RuntimeError('bloco de conversa leve não encontrado')
+light_return = orchestrator.index('        return _light_conversation_response(', light_anchor)
+light_return_end = orchestrator.index('\n', light_return) + 1
+orchestrator = orchestrator[:light_return_end] + '\n' + orchestrator[api_key_anchor:]
+
+old_general = '''    base_result = generate_metered_response(
+        message=message,
+        history=history,
+        operation=operation,
+        attachments=safe_attachments,
+        diagnosis_state=diagnosis_state,
+    )
+'''
+new_general = '''    base_result = generate_metered_response(
+        message=message,
+        history=history,
+        operation=None,
+        attachments=safe_attachments,
+        diagnosis_state=diagnosis_state,
+    )
+'''
+last_general = orchestrator.rfind(old_general)
+if last_general >= 0:
+    orchestrator = orchestrator[:last_general] + new_general + orchestrator[last_general + len(old_general):]
+elif new_general not in orchestrator:
+    raise RuntimeError('rota geral final não encontrada')
+
+for forbidden in (
+    'if operation_text == labor_operation:',
+    'if _is_explicit_topic_switch(message):',
+    'if _specialized_engine({}, operation, message) is None:',
+):
+    if forbidden in orchestrator:
+        raise RuntimeError(f'regra antiga permaneceu no runtime: {forbidden}')
+
+for required in (
+    'del operation',
+    'engine = _specialized_engine(plan, operation, message)',
+    'operation=None,',
+):
+    if required not in orchestrator:
+        raise RuntimeError(f'regra message-first ausente: {required}')
+
 orchestrator_path.write_text(orchestrator, encoding='utf-8')
-
-print('Classificação de férias e troca explícita de assunto aplicadas no runtime final.')
+print('Regras finais aplicadas: férias por datas e roteamento absoluto orientado pela mensagem atual.')
