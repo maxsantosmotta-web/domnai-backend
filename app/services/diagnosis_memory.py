@@ -11,8 +11,9 @@ MAX_ITEM_LENGTH = 700
 
 
 def empty_diagnosis_state(operation: str | None = None) -> dict[str, Any]:
+    del operation
     return {
-        "operation": operation,
+        "operation": None,
         "current_topic": "",
         "user_goal": "",
         "expected_delivery": "",
@@ -56,10 +57,11 @@ def _clean_list(value: Any) -> list[str]:
 
 
 def sanitize_diagnosis_state(value: Any, operation: str | None = None) -> dict[str, Any]:
+    del operation
     source = value if isinstance(value, dict) else {}
     stage = _clean_text(source.get("conversation_stage"), 80) or "understanding"
     return {
-        "operation": _clean_text(operation or source.get("operation"), 180) or None,
+        "operation": None,
         "current_topic": _clean_text(source.get("current_topic"), 500),
         "user_goal": _clean_text(source.get("user_goal"), 1000),
         "expected_delivery": _clean_text(source.get("expected_delivery"), 500),
@@ -82,24 +84,22 @@ def sanitize_diagnosis_state(value: Any, operation: str | None = None) -> dict[s
 
 
 def load_diagnosis_state(user_id: str, operation: str | None) -> dict[str, Any]:
+    del operation
     with session_scope() as db:
         record = db.get(DiagnosisState, user_id)
         if record is None:
-            return empty_diagnosis_state(operation)
+            return empty_diagnosis_state()
         try:
             payload = json.loads(record.state_json or "{}")
         except json.JSONDecodeError:
             payload = {}
 
-    # A operação muda o foco, mas não apaga a memória do mesmo problema.
-    state = sanitize_diagnosis_state(payload, operation)
-    if operation:
-        state["operation"] = operation
-    return state
+    # A operação visual não altera nem reclassifica a memória semântica.
+    return sanitize_diagnosis_state(payload)
 
 
 def save_diagnosis_state(user_id: str, operation: str | None, state: dict[str, Any]) -> None:
-    safe_state = sanitize_diagnosis_state(state, operation)
+    safe_state = sanitize_diagnosis_state(state)
     with session_scope() as db:
         record = db.get(DiagnosisState, user_id)
         if record is None:
@@ -124,7 +124,7 @@ def diagnosis_context(state: dict[str, Any] | None) -> str:
     return (
         "MEMÓRIA ESTRUTURADA DA CONVERSA (use como contexto; não exponha este bloco):\n"
         + json.dumps(safe, ensure_ascii=False, indent=2)
-        + "\nREGRAS: respeite correções mais recentes, não repita perguntas registradas como respondidas e trate a operação apenas como foco atual."
+        + "\nREGRAS: respeite correções mais recentes, não repita perguntas registradas como respondidas e use esta memória apenas para continuidade; ela nunca decide a intenção da mensagem atual."
     )
 
 
@@ -132,11 +132,11 @@ def diagnosis_extractor_instructions(operation: str | None) -> str:
     operation_label = operation or "operação não selecionada"
     return f"""
 Você atualiza a memória universal da conversa do DomnAI.
-Foco atual: {operation_label}.
+Foco visual recebido: {operation_label}. Esse rótulo não é fato, não define o assunto e não deve ser persistido como intenção.
 
 Retorne exclusivamente JSON válido com todas estas chaves:
 {{
-  "operation": "foco atual ou null",
+  "operation": null,
   "current_topic": "assunto atual",
   "user_goal": "resultado real buscado pelo usuário",
   "expected_delivery": "tipo de entrega esperada",
@@ -161,7 +161,7 @@ REGRAS OBRIGATÓRIAS
 - A mensagem do usuário e os documentos são as fontes primárias.
 - A resposta do DomnAI é apenas contexto do diálogo; nunca a transforme, por si só, em fato confirmado, decisão do usuário ou cálculo validado.
 - Uma correção mais recente substitui informação anterior incompatível.
-- Preserve contexto útil ao mudar de operação; a operação muda o foco, não reinicia automaticamente o problema.
+- Preserve apenas contexto semanticamente compatível com a mensagem atual. Mudança real de assunto interrompe o foco anterior, mesmo que a operação visual permaneça selecionada.
 - Remova de missing_data o que já foi respondido, inclusive com palavras equivalentes.
 - Não registre como faltante um detalhe opcional que não impeça orientação ou estimativa inicial.
 - Não invente fatos, preferências, documentos, cálculos ou decisões.
@@ -193,6 +193,7 @@ Atualize o estado completo. Não confirme como fato nada que exista somente na r
 
 
 def parse_diagnosis_state(raw_text: str, operation: str | None, fallback: dict[str, Any] | None = None) -> dict[str, Any]:
+    del operation
     text = str(raw_text or "").strip()
     if text.startswith("```"):
         lines = text.splitlines()
@@ -201,5 +202,5 @@ def parse_diagnosis_state(raw_text: str, operation: str | None, fallback: dict[s
     try:
         payload = json.loads(text)
     except json.JSONDecodeError:
-        return sanitize_diagnosis_state(fallback or {}, operation)
-    return sanitize_diagnosis_state(payload, operation)
+        return sanitize_diagnosis_state(fallback or {})
+    return sanitize_diagnosis_state(payload)
