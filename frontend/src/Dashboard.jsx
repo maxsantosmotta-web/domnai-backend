@@ -21,6 +21,7 @@ const operations = [
   { id: 'dividas', name: 'Análise de Dívidas e Renegociação' },
   { id: 'investimentos', name: 'Análise de Investimentos' },
   { id: 'contrato', name: 'Análise Contratual' },
+  { id: 'rescisao', name: 'Cálculo de Rescisão Trabalhista' },
   { id: 'veiculos', name: 'Pesquisa e Comparação de Veículos' },
   { id: 'imoveis', name: 'Análise Imobiliária' },
 ];
@@ -344,6 +345,49 @@ export default function Dashboard() {
         }];
       });
       setSection('chat');
+      setPlusOpen(false);
+    } catch (error) {
+      window.alert(error.message);
+    }
+  }
+
+  function launchBlob(blob, name, type) {
+    const url = URL.createObjectURL(blob);
+    const anchor = document.createElement('a');
+    anchor.href = url;
+    anchor.rel = 'noopener';
+    if (type === 'image' || type === 'pdf') {
+      anchor.target = '_blank';
+    } else {
+      anchor.download = name;
+    }
+    document.body.appendChild(anchor);
+    anchor.click();
+    anchor.remove();
+    window.setTimeout(() => URL.revokeObjectURL(url), 60000);
+  }
+
+  async function openAttachment(item, basePath = null) {
+    try {
+      const type = item.type || attachmentType(item.mimeType, item.name);
+      if (item.previewUrl) {
+        const response = await fetch(item.previewUrl);
+        launchBlob(await response.blob(), item.name, type);
+        return;
+      }
+      if (!basePath) return;
+      const response = await authorizedFetch(`${basePath}/${item.id}/content`);
+      if (!response.ok) throw new Error('Não foi possível abrir o arquivo.');
+      launchBlob(await response.blob(), item.name, type);
+    } catch (error) {
+      window.alert(error.message || 'Não foi possível abrir o arquivo.');
+    }
+  }
+
+  async function deleteLibraryItem(item) {
+    try {
+      await moveLibraryAssetToTrash(item.id);
+      removeLibraryReferences(item.id);
     } catch (error) {
       window.alert(error.message);
     }
@@ -356,30 +400,31 @@ export default function Dashboard() {
         const payload = await response.json().catch(() => ({}));
         throw new Error(payload.detail || 'Não foi possível restaurar o arquivo.');
       }
+      const restored = await response.json();
       setTrash((current) => current.filter((entry) => entry.id !== item.id));
       setTrashPreviews((current) => {
         const next = { ...current };
         delete next[item.id];
         return next;
       });
-      await loadLibrary();
+      setLibrary((current) => [restored, ...current]);
+      if (attachmentType(restored.mimeType, restored.name) === 'image') {
+        const preview = await buildImagePreviewMap([restored], '/api/library');
+        setLibraryPreviews((current) => ({ ...current, ...preview }));
+      }
     } catch (error) {
       window.alert(error.message);
     }
   }
 
-  async function deleteTrashItem(item) {
-    if (!window.confirm(`Excluir definitivamente ${item.name}?`)) return;
+  async function permanentlyDeleteTrashItem(itemId) {
     try {
-      const response = await authorizedFetch(`/api/trash/${item.id}`, { method: 'DELETE' });
-      if (!response.ok) {
-        const payload = await response.json().catch(() => ({}));
-        throw new Error(payload.detail || 'Não foi possível excluir o arquivo definitivamente.');
-      }
-      setTrash((current) => current.filter((entry) => entry.id !== item.id));
+      const response = await authorizedFetch(`/api/trash/${itemId}`, { method: 'DELETE' });
+      if (!response.ok && response.status !== 204) throw new Error('Não foi possível excluir o arquivo definitivamente.');
+      setTrash((current) => current.filter((entry) => entry.id !== itemId));
       setTrashPreviews((current) => {
         const next = { ...current };
-        delete next[item.id];
+        delete next[itemId];
         return next;
       });
     } catch (error) {
@@ -388,13 +433,9 @@ export default function Dashboard() {
   }
 
   async function emptyTrash() {
-    if (!window.confirm('Esvaziar a lixeira e excluir todos os arquivos definitivamente?')) return;
     try {
       const response = await authorizedFetch('/api/trash', { method: 'DELETE' });
-      if (!response.ok) {
-        const payload = await response.json().catch(() => ({}));
-        throw new Error(payload.detail || 'Não foi possível esvaziar a lixeira.');
-      }
+      if (!response.ok && response.status !== 204) throw new Error('Não foi possível esvaziar a lixeira.');
       setTrash([]);
       setTrashPreviews({});
     } catch (error) {
@@ -402,65 +443,66 @@ export default function Dashboard() {
     }
   }
 
+  function renderNativeFile(item, onOpen, compact = false) {
+    const type = item.type || attachmentType(item.mimeType, item.name);
+    return (
+      <button type="button" className={`native-file-card ${type}${compact ? ' compact' : ''}`} onClick={onOpen}>
+        <span className="native-file-badge">{fileTypeLabel(type)}</span>
+        <span className="native-file-copy">
+          <strong>{item.name}</strong>
+          <small>{formatFileSize(item.size ?? item.sizeBytes)}</small>
+        </span>
+        <span className="native-file-action">Abrir arquivo</span>
+      </button>
+    );
+  }
+
   return (
-    <main className="dashboard-shell">
-      <button className={`mobile-menu-button ${sidebarOpen ? 'is-open' : ''}`} type="button" onClick={() => setSidebarOpen((current) => !current)} aria-label="Abrir menu">☰</button>
-      <aside className={`sidebar ${sidebarOpen ? 'open' : ''}`}>
-        <button className="brand" type="button" onClick={openDashboard} aria-label="Ir para o início">
-          <img src={DOMNAI_LOGO} alt="DomnAI" />
-        </button>
-        <nav className="operations-list" aria-label="Operações">
-          {operations.map((item) => <button className={activeOperation === item.id ? 'active' : ''} key={item.id} type="button" onClick={() => selectOperation(item)}>{item.name}</button>)}
+    <main className="domnai-app-shell">
+      <input ref={cameraInputRef} className="hidden-file-input" type="file" accept="image/*" capture="environment" onChange={(event) => handleFiles(event.target.files)} />
+      <input ref={imageInputRef} className="hidden-file-input" type="file" accept="image/*" multiple onChange={(event) => handleFiles(event.target.files)} />
+      <input ref={fileInputRef} className="hidden-file-input" type="file" accept=".pdf,.doc,.docx,.xls,.xlsx,.ods,.csv,.ppt,.pptx,.txt,.rtf,.zip,.rar,.7z" multiple onChange={(event) => handleFiles(event.target.files)} />
+
+      <button type="button" className="mobile-menu-button" aria-label="Abrir dashboard" onClick={() => setSidebarOpen(true)}>☰</button>
+      <button type="button" className="options-menu-button" aria-label="Abrir opções da conversa" onClick={() => setOptionsOpen((current) => !current)}>⋮</button>
+      {showExitButton ? <button type="button" className="global-exit-button" onClick={openDashboard}><span>←</span>Sair</button> : null}
+
+      {sidebarOpen ? <button className="sidebar-backdrop" type="button" aria-label="Fechar menu" onClick={() => setSidebarOpen(false)} /> : null}
+      {optionsOpen ? <button className="options-backdrop" type="button" aria-label="Fechar opções" onClick={() => setOptionsOpen(false)} /> : null}
+
+      <aside className={`domnai-sidebar${sidebarOpen ? ' is-open' : ''}`}>
+        <div className="sidebar-brand"><img src={DOMNAI_LOGO} alt="DomnAI" /><button type="button" className="sidebar-close" onClick={() => setSidebarOpen(false)} aria-label="Fechar menu">×</button></div>
+        <nav className="sidebar-navigation" aria-label="Dashboard do DomnAI">
+          <button className={section === 'chat' && !activeOperation ? 'is-active' : ''} type="button" onClick={openDashboard}><span>▣</span> Dashboard</button>
+          <div className="sidebar-group operations-only"><p>Operações</p>{operations.map((item) => <button className={activeOperation === item.id && section === 'chat' ? 'is-active' : ''} type="button" key={item.id} onClick={() => selectOperation(item)}><span>›</span> {item.name}</button>)}</div>
+          <div className="sidebar-group sidebar-system-group"><p>Sistema</p><button className={section === 'library' ? 'is-active' : ''} type="button" onClick={() => openSection('library')}><span>▤</span> Biblioteca</button><button className={section === 'trash' ? 'is-active' : ''} type="button" onClick={() => openSection('trash')}><span>⌫</span> Lixeira</button><button className={section === 'billing' ? 'is-active' : ''} type="button" onClick={() => openSection('billing')}><span>◈</span> Faturamento</button><button className={section === 'settings' ? 'is-active' : ''} type="button" onClick={() => openSection('settings')}><span>⚙</span> Configurações</button></div>
         </nav>
-        <nav className="system-menu" aria-label="Sistema">
-          <button className={section === 'library' ? 'active' : ''} type="button" onClick={() => openSection('library')}>Biblioteca</button>
-          <button className={section === 'trash' ? 'active' : ''} type="button" onClick={() => openSection('trash')}>Lixeira</button>
-          <button className={section === 'billing' ? 'active' : ''} type="button" onClick={() => openSection('billing')}>Faturamento</button>
-        </nav>
-        <div className="sidebar-user"><UserButton showName /></div>
+        <div className="sidebar-profile"><UserButton afterSignOutUrl="/" /><div><strong>Minha conta</strong><small>Perfil e acesso</small></div></div>
       </aside>
 
-      <section className="workspace">
-        {showExitButton ? <button className="exit-button" type="button" onClick={openDashboard}>×</button> : null}
+      {optionsOpen ? <aside className="conversation-options-menu" aria-label="Opções da conversa"><button type="button" onClick={refreshConversation}><span>↻</span> Atualizar conversa</button><button type="button" onClick={() => { setSearchOpen(true); setOptionsOpen(false); }}><span>⌕</span> Buscar na conversa</button><button type="button" className="danger-option" onClick={deleteConversation}><span>♲</span> Excluir conversa</button></aside> : null}
 
-        {section === 'chat' ? <section className="chat-room">
-          <header className="chat-toolbar">
-            <div>
-              <span className="eyebrow">DomnAI</span>
-              <h1>{activeOperation ? operations.find((item) => item.id === activeOperation)?.name : 'Painel Inteligente'}</h1>
+      <section className="domnai-main-area">
+        {section === 'chat' ? (
+          <div className="chat-workspace"><section className="chat-column">
+            {searchOpen ? <label className="inline-chat-search"><span>⌕</span><input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Pesquisar por palavra-chave" autoFocus /><button type="button" onClick={() => { setSearchOpen(false); setSearch(''); }}>×</button></label> : null}
+            <div className="chat-messages clean-chat-area">
+              {visibleMessages.map((message) => <article className={`chat-message ${message.role}`} key={message.id}><span className="message-author">{message.role === 'assistant' ? 'DomnAI' : 'Você'}</span>{message.text ? <p>{message.text}</p> : null}{(message.attachments || []).length ? <div className="message-attachments">{message.attachments.map((item) => item.type === 'image' && item.previewUrl ? <figure className="chat-image-native" key={item.id}><img src={item.previewUrl} alt={item.name} /><figcaption><span>{item.name}</span><div><button type="button" onClick={() => openAttachment(item)}>Abrir imagem</button><button type="button" className="danger" onClick={() => deleteAttachment(item)}>Excluir</button></div></figcaption></figure> : <div className="chat-native-file" key={item.id}>{renderNativeFile(item, () => openAttachment(item))}<button type="button" className="native-delete-button" onClick={() => deleteAttachment(item)}>Excluir</button></div>)}</div> : null}</article>)}
             </div>
-            <div className="chat-toolbar-actions">
-              <button type="button" onClick={() => setSearchOpen((current) => !current)}>⌕</button>
-              <button type="button" onClick={() => setOptionsOpen((current) => !current)}>⋮</button>
-            </div>
-            {searchOpen ? <input className="chat-search" value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Buscar na conversa" /> : null}
-            {optionsOpen ? <div className="chat-options"><button type="button" onClick={refreshConversation}>Atualizar conversa</button><button type="button" onClick={deleteConversation}>Excluir conversa</button></div> : null}
-          </header>
+            <form className="chat-composer simplified-composer composer-with-plus" onSubmit={sendMessage}>
+              {plusOpen ? <div className="composer-plus-menu"><button type="button" onClick={() => cameraInputRef.current?.click()}><span>◉</span> Câmera</button><button type="button" onClick={() => imageInputRef.current?.click()}><span>▧</span> Fotos</button><button type="button" onClick={() => fileInputRef.current?.click()}><span>⌑</span> Arquivos e PDF</button><button type="button" onClick={() => openSection('library')}><span>▤</span> Biblioteca</button><button type="button" onClick={addLink}><span>↗</span> Inserir link</button></div> : null}
+              {attachments.length ? <div className="attachment-preview">{attachments.map((item) => item.type === 'image' && item.previewUrl ? <div className="composer-visual-preview image" key={item.id}><img className="asset-preview-image compact" src={item.previewUrl} alt={item.name} /><button type="button" onClick={() => deleteAttachment(item)}>×</button></div> : <div className="composer-native-file" key={item.id}>{renderNativeFile(item, () => openAttachment(item), true)}<button type="button" onClick={() => deleteAttachment(item)}>×</button></div>)}</div> : null}
+              <button type="button" className="composer-plus-button" aria-label="Adicionar arquivo" onClick={() => setPlusOpen((current) => !current)}>+</button><textarea value={draft} onChange={(event) => setDraft(event.target.value)} placeholder={uploading ? 'Salvando na biblioteca...' : 'Digite sua mensagem...'} rows="3" disabled={uploading} /><button type="submit" className="send-message-button" aria-label="Enviar mensagem" disabled={uploading}>➤</button>
+            </form>
+          </section></div>
+        ) : null}
 
-          <div className="messages-area">
-            {visibleMessages.length === 0 ? <div className="empty-chat"><img src={DOMNAI_LOGO} alt="" /><p>Selecione uma operação ou envie uma mensagem para começar.</p></div> : null}
-            {visibleMessages.map((message) => <article className={`message ${message.role}`} key={message.id}><p>{message.text}</p>{message.attachments?.length ? <div className="message-attachments">{message.attachments.map((item) => <div className="attachment-card" key={item.id}><span>{fileTypeLabel(item.type)}</span><strong>{item.name}</strong><small>{item.type === 'link' ? item.name : formatFileSize(item.size)}</small>{item.previewUrl && item.type === 'image' ? <img src={item.previewUrl} alt={item.name} /> : null}<button type="button" onClick={() => deleteAttachment(item)}>Excluir</button></div>)}</div> : null}</article>)}
-          </div>
+        {section === 'library' ? <section className="internal-section"><header><div><span>Biblioteca</span><h1>Seus arquivos</h1><p>PDFs, imagens, documentos e planilhas enviados ficam disponíveis aqui.</p></div></header>{libraryLoading ? <div className="internal-empty-state">Carregando...</div> : null}{libraryError ? <div className="internal-empty-state">{libraryError}</div> : null}{!libraryLoading && !libraryError && library.length ? <div className="visual-asset-grid">{library.map((item) => { const type = attachmentType(item.mimeType, item.name); return <article className="visual-asset-card" key={item.id}><div className="visual-asset-stage">{type === 'image' && libraryPreviews[item.id] ? <img className="asset-preview-image" src={libraryPreviews[item.id]} alt={item.name} /> : renderNativeFile({ ...item, type }, () => openAttachment({ ...item, type }, '/api/library'))}</div><div className="visual-asset-info"><strong>{item.name}</strong><small>{formatFileSize(item.sizeBytes)} · {new Date(item.createdAt).toLocaleString('pt-BR')}</small></div><div className="visual-asset-actions"><button type="button" onClick={() => openAttachment({ ...item, type }, '/api/library')}>Abrir arquivo</button><button type="button" className="primary" onClick={() => attachLibraryItem(item)}>Anexar ao chat</button><button type="button" className="danger" onClick={() => deleteLibraryItem(item)}>Excluir</button></div></article>; })}</div> : null}{!libraryLoading && !libraryError && !library.length ? <div className="internal-empty-state">A biblioteca está vazia.</div> : null}</section> : null}
 
-          <form className="composer" onSubmit={sendMessage}>
-            {attachments.length ? <div className="composer-attachments">{attachments.map((item) => <div className="attachment-card" key={item.id}><span>{fileTypeLabel(item.type)}</span><strong>{item.name}</strong><small>{item.type === 'link' ? item.name : formatFileSize(item.size)}</small>{item.previewUrl && item.type === 'image' ? <img src={item.previewUrl} alt={item.name} /> : null}<button type="button" onClick={() => deleteAttachment(item)}>Excluir</button></div>)}</div> : null}
-            <div className="composer-row">
-              <div className="plus-menu-wrap">
-                <button className="plus-button" type="button" onClick={() => setPlusOpen((current) => !current)}>+</button>
-                {plusOpen ? <div className="plus-menu"><button type="button" onClick={() => cameraInputRef.current?.click()}>Câmera</button><button type="button" onClick={() => imageInputRef.current?.click()}>Fotos</button><button type="button" onClick={() => fileInputRef.current?.click()}>Arquivos</button><button type="button" onClick={addLink}>Adicionar link</button></div> : null}
-              </div>
-              <textarea value={draft} onChange={(event) => setDraft(event.target.value)} placeholder="Digite sua mensagem..." rows="1" />
-              <button className="send-button" type="submit" disabled={uploading}>➤</button>
-            </div>
-            <input ref={cameraInputRef} className="hidden-input" type="file" accept="image/*" capture="environment" onChange={(event) => handleFiles(event.target.files)} />
-            <input ref={imageInputRef} className="hidden-input" type="file" accept="image/*" multiple onChange={(event) => handleFiles(event.target.files)} />
-            <input ref={fileInputRef} className="hidden-input" type="file" multiple onChange={(event) => handleFiles(event.target.files)} />
-          </form>
-        </section> : null}
+        {section === 'trash' ? <section className="internal-section"><header><div><span>Lixeira</span><h1>Arquivos excluídos</h1><p>Ao restaurar, o arquivo volta somente para a Biblioteca.</p></div>{trash.length ? <button type="button" className="premium-empty-trash" onClick={emptyTrash}>Esvaziar lixeira</button> : null}</header>{trashLoading ? <div className="internal-empty-state">Carregando...</div> : null}{trashError ? <div className="internal-empty-state">{trashError}</div> : null}{!trashLoading && !trashError && trash.length ? <div className="visual-asset-grid trash-visual-grid">{trash.map((item) => { const type = attachmentType(item.mimeType, item.name); return <article className="visual-asset-card trash-card" key={item.id}><div className="visual-asset-stage">{type === 'image' && trashPreviews[item.id] ? <img className="asset-preview-image" src={trashPreviews[item.id]} alt={item.name} /> : renderNativeFile({ ...item, type }, () => openAttachment({ ...item, type }, '/api/trash'))}</div><div className="visual-asset-info"><strong>{item.name}</strong><small>{formatFileSize(item.sizeBytes)} · Excluído em {new Date(item.deletedAt).toLocaleString('pt-BR')}</small></div><div className="visual-asset-actions"><button type="button" onClick={() => openAttachment({ ...item, type }, '/api/trash')}>Abrir arquivo</button><button type="button" className="primary" onClick={() => restoreTrashItem(item)}>Restaurar</button><button type="button" className="danger" onClick={() => permanentlyDeleteTrashItem(item.id)}>Excluir definitivamente</button></div></article>; })}</div> : null}{!trashLoading && !trashError && !trash.length ? <div className="internal-empty-state">A lixeira está vazia.</div> : null}</section> : null}
 
-        {section === 'library' ? <section className="internal-section"><h1>Biblioteca</h1><p>Arquivos salvos no DomnAI.</p>{libraryLoading ? <p>Carregando...</p> : null}{libraryError ? <p>{libraryError}</p> : null}<div className="asset-grid">{library.map((item) => <article className="asset-card" key={item.id}>{libraryPreviews[item.id] ? <img src={libraryPreviews[item.id]} alt={item.name} /> : null}<strong>{item.name}</strong><small>{fileTypeLabel(attachmentType(item.mimeType, item.name))} • {formatFileSize(item.sizeBytes)}</small><div><button type="button" onClick={() => attachLibraryItem(item)}>Usar no chat</button><button type="button" onClick={() => moveLibraryAssetToTrash(item.id).then(() => removeLibraryReferences(item.id))}>Mover para lixeira</button></div></article>)}</div></section> : null}
-        {section === 'trash' ? <section className="internal-section"><h1>Lixeira</h1><p>Arquivos removidos ficam aqui até a exclusão definitiva.</p>{trashLoading ? <p>Carregando...</p> : null}{trashError ? <p>{trashError}</p> : null}{trash.length ? <button type="button" onClick={emptyTrash}>Esvaziar lixeira</button> : null}<div className="asset-grid">{trash.map((item) => <article className="asset-card" key={item.id}>{trashPreviews[item.id] ? <img src={trashPreviews[item.id]} alt={item.name} /> : null}<strong>{item.name}</strong><small>{fileTypeLabel(attachmentType(item.mimeType, item.name))} • {formatFileSize(item.sizeBytes)}</small><div><button type="button" onClick={() => restoreTrashItem(item)}>Restaurar</button><button type="button" onClick={() => deleteTrashItem(item)}>Excluir definitivamente</button></div></article>)}</div></section> : null}
-        {section === 'billing' ? <section className="internal-section"><h1>Faturamento</h1><p>Área reservada para consumo, plano e histórico financeiro.</p></section> : null}
+        {section === 'billing' ? <section className="internal-section"><header><div><span>Faturamento</span><h1>Créditos avulsos</h1><p>Compra de pacotes avulsos de créditos.</p></div></header><div className="billing-card"><strong>Pacotes de créditos</strong><button type="button" disabled>Comprar créditos</button></div></section> : null}
+        {section === 'settings' ? <section className="internal-section"><header><div><span>Configurações</span><h1>Preferências da plataforma</h1></div></header><div className="internal-empty-state">Nenhuma configuração disponível nesta etapa.</div></section> : null}
       </section>
     </main>
   );
