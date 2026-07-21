@@ -1,0 +1,57 @@
+.operation-groups {
+  display: grid;
+  gap: 8px;
+}
+
+.operation-group {
+  border: 1px solid rgba(216, 170, 52, 0.13);
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.012);
+  overflow: hidden;
+}
+
+.operation-group > summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  min-height: 38px;
+  padding: 8px 10px;
+  color: rgba(255, 255, 255, 0.8);
+  font-size: 0.72rem;
+  font-weight: 700;
+  cursor: pointer;
+  list-style: none;
+}
+
+.operation-group > summary::-webkit-details-marker {
+  display: none;
+}
+
+.operation-group > summary::after {
+  content: '⌄';
+  color: #c89e36;
+  transition: transform 150ms ease;
+}
+
+.operation-group[open] > summary::after {
+  transform: rotate(180deg);
+}
+
+.operation-group-count {
+  margin-left: auto;
+  padding: 2px 6px;
+  border-radius: 999px;
+  background: rgba(216, 170, 52, 0.1);
+  color: #d9b653;
+  font-size: 0.65rem;
+}
+
+.operation-group-items {
+  display: grid;
+  padding: 2px 6px 8px;
+}
+
+.operation-group-items button {
+  width: 100%;
+}
