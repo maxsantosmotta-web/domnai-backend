@@ -52,10 +52,19 @@ source = malformed_log.sub(
     source,
 )
 
+# O limite precisa ficar antes da criação do dicionário. Inserir uma atribuição
+# entre as chaves de existing_result quebra a sintaxe do worker transformado.
+artifact_limit = '        artifacts = artifacts[:1]\n'
+result_anchor = '        existing_result = {\n'
+if artifact_limit not in source:
+    if result_anchor not in source:
+        raise RuntimeError('Ponto seguro anterior ao resultado de artefatos não localizado.')
+    source = source.replace(result_anchor, artifact_limit + result_anchor, 1)
+
 compile(source, str(worker_path), 'exec')
 worker_path.write_text(source, encoding='utf-8')
 
 # A entrega final deve permanecer em uma única mensagem. Este estágio não cria
 # mensagens provisórias, cartões extras nem aviso separado; a persistência
 # canônica é aplicada por finalize_new_core_only.py ao final da cadeia.
-print('Entrega progressiva preservada sem mensagens extras; log de falha compilável e finalização única mantida.')
+print('Entrega progressiva preservada sem mensagens extras; limite de artefato posicionado fora do dicionário final.')
