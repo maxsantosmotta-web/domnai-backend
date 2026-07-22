@@ -16,19 +16,28 @@ def stabilize_frontend() -> None:
         return
 
     source = path.read_text(encoding='utf-8')
-    body_marker = "body: JSON.stringify({"
-    body_start = source.find(body_marker)
-    if body_start < 0:
-        raise RuntimeError('Payload JSON do chat não localizado no Dashboard final.')
+    request_marker = "authorizedFetch('/api/chat/respond', {"
+    request_start = source.find(request_marker)
+    if request_start < 0:
+        raise RuntimeError('Envio /api/chat/respond não localizado no Dashboard final.')
 
-    body_end = source.find("        }),", body_start)
+    body_marker = "body: JSON.stringify({"
+    body_start = source.find(body_marker, request_start)
+    if body_start < 0:
+        raise RuntimeError('Payload JSON de /api/chat/respond não localizado no Dashboard final.')
+
+    request_end = source.find("      });", body_start)
+    if request_end < 0:
+        raise RuntimeError('Fim da chamada /api/chat/respond não localizado.')
+
+    body_end = source.find("        }),", body_start, request_end)
     if body_end < 0:
-        raise RuntimeError('Fim do payload JSON do chat não localizado.')
+        raise RuntimeError('Fim do payload JSON de /api/chat/respond não localizado.')
 
     payload = source[body_start:body_end]
     matches = list(ATTACHMENT_FIELD.finditer(payload))
     if not matches:
-        raise RuntimeError('Campo de anexos do payload final do chat não localizado.')
+        raise RuntimeError('Campo de anexos do payload final de /api/chat/respond não localizado.')
 
     removed = 0
     for match in reversed(matches[1:]):
@@ -37,16 +46,17 @@ def stabilize_frontend() -> None:
         source = source[:absolute_start] + source[absolute_end:]
         removed += 1
 
-    body_end = source.find("        }),", body_start)
+    request_end = source.find("      });", body_start)
+    body_end = source.find("        }),", body_start, request_end)
     final_payload = source[body_start:body_end]
     final_matches = list(ATTACHMENT_FIELD.finditer(final_payload))
     if len(final_matches) != 1:
         raise RuntimeError(
-            f'O payload final do chat deve conter exatamente um campo de anexos; encontrado(s): {len(final_matches)}.'
+            f'O payload final de /api/chat/respond deve conter exatamente um campo de anexos; encontrado(s): {len(final_matches)}.'
         )
 
     path.write_text(source, encoding='utf-8')
-    print(f'Frontend estabilizado: {removed} campo(s) duplicado(s) de anexos removido(s) do payload do chat.')
+    print(f'Frontend estabilizado: {removed} campo(s) duplicado(s) de anexos removido(s) do payload de /api/chat/respond.')
 
 
 def stabilize_runtime_patch() -> None:
