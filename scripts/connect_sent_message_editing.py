@@ -93,30 +93,23 @@ if 'ref={composerInputRef}' not in source:
     if count != 1:
         raise RuntimeError('Campo de mensagem não localizado no Dashboard final.')
 
-required = (
+for marker in (
     'const composerInputRef = useRef(null);',
     'function editSentMessage(messageId)',
     'className="edit-sent-message-button"',
     'ref={composerInputRef}',
     "tabIndex={message.role === 'user' ? 0 : undefined}",
     'setMessages(messages.slice(0, messageIndex));',
-)
-for marker in required:
+):
     if marker not in source:
         raise RuntimeError(f'Edição de mensagem incompleta: {marker}')
 
 DASHBOARD.write_text(source, encoding='utf-8')
 
 styles = STYLES.read_text(encoding='utf-8')
-styles = re.sub(
-    r'\n\.message-heading \{.*?(?=\n(?:@media|\.[A-Za-z_-]|#|$))',
-    '\n',
-    styles,
-    count=1,
-    flags=re.S,
-)
 css = '''
 
+/* sent-message-editing-final */
 .message-heading {
   display: flex;
   align-items: center;
@@ -165,7 +158,8 @@ css = '''
   outline: none;
 }
 '''
-styles = styles.rstrip() + css + '\n'
+if '/* sent-message-editing-final */' not in styles:
+    styles = styles.rstrip() + css + '\n'
 STYLES.write_text(styles, encoding='utf-8')
 
-print('Edição contextual corrigida: ação removida do layout normal e exibida somente após hover ou foco/toque na mensagem.')
+print('Edição contextual aplicada com override final seguro: invisível por padrão e visível apenas após interação.')
