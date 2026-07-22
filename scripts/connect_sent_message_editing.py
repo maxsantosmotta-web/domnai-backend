@@ -66,6 +66,23 @@ if 'className="edit-sent-message-button"' not in source:
     if count != 1:
         raise RuntimeError('Cabeçalho das mensagens não localizado no Dashboard final.')
 
+if 'tabIndex={message.role === \'user\' ? 0 : undefined}' not in source:
+    source, count = re.subn(
+        r'(<article className=\{`chat-message \$\{message\.role\}\$\{message\.isError \? \' error\' : \'\'\}`\} key=\{message\.id\})>',
+        r"\1 tabIndex={message.role === 'user' ? 0 : undefined}>",
+        source,
+        count=1,
+    )
+    if count != 1:
+        source, count = re.subn(
+            r'(<article className=\{`chat-message \$\{message\.role\}`\} key=\{message\.id\})>',
+            r"\1 tabIndex={message.role === 'user' ? 0 : undefined}>",
+            source,
+            count=1,
+        )
+    if count != 1:
+        raise RuntimeError('Cartão de mensagem não localizado para interação contextual.')
+
 if 'ref={composerInputRef}' not in source:
     source, count = re.subn(
         r'<textarea\s+value=\{draft\}',
@@ -81,6 +98,7 @@ required = (
     'function editSentMessage(messageId)',
     'className="edit-sent-message-button"',
     'ref={composerInputRef}',
+    "tabIndex={message.role === 'user' ? 0 : undefined}",
     'setMessages(messages.slice(0, messageIndex));',
 )
 for marker in required:
@@ -105,26 +123,49 @@ css = '''
   color: inherit;
   font: inherit;
   font-size: 0.78rem;
-  opacity: 0.68;
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
   padding: 4px 6px;
   cursor: pointer;
   border-radius: 6px;
+  transition: opacity 120ms ease, background 120ms ease;
+}
+
+.chat-message.user:hover .edit-sent-message-button,
+.chat-message.user:focus-within .edit-sent-message-button,
+.chat-message.user:focus .edit-sent-message-button {
+  opacity: 0.82;
+  visibility: visible;
+  pointer-events: auto;
 }
 
 .edit-sent-message-button:hover,
 .edit-sent-message-button:focus-visible {
-  opacity: 1;
+  opacity: 1 !important;
   background: rgba(127, 127, 127, 0.14);
   outline: none;
 }
 
 .edit-sent-message-button:disabled {
   cursor: not-allowed;
-  opacity: 0.35;
+  opacity: 0.35 !important;
+}
+
+.chat-message.user:focus {
+  outline: none;
 }
 '''
-if '.edit-sent-message-button {' not in styles:
+start = styles.find('\n.message-heading {')
+if start >= 0:
+    end_marker = "\n.edit-sent-message-button:disabled {\n  cursor: not-allowed;\n  opacity: 0.35;\n}\n"
+    end = styles.find(end_marker, start)
+    if end >= 0:
+        styles = styles[:start] + css + styles[end + len(end_marker):]
+    elif '.chat-message.user:hover .edit-sent-message-button' not in styles:
+        styles = styles.rstrip() + css + '\n'
+else:
     styles = styles.rstrip() + css + '\n'
 STYLES.write_text(styles, encoding='utf-8')
 
-print('Edição de mensagens enviadas conectada ao chat: restaura texto/anexos e remove a ramificação posterior para novo envio.')
+print('Edição contextual conectada: oculta normalmente, aparece no hover do computador ou ao tocar/focar a mensagem no celular.')
