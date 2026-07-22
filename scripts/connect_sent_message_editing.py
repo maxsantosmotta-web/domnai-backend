@@ -1,5 +1,4 @@
 from pathlib import Path
-import re
 
 DASHBOARD = Path('/frontend/src/Dashboard.jsx')
 STYLES = Path('/frontend/src/dashboard-adjustments.css')
@@ -24,17 +23,18 @@ if 'const [editingActionMessageId, setEditingActionMessageId]' not in source:
 
 if 'function toggleEditingAction(message)' not in source:
     marker = '  async function sendMessage(event) {'
+    if marker not in source:
+        raise RuntimeError('Função de envio não localizada no Dashboard final.')
     toggle = '''  function toggleEditingAction(message) {
     if (message.role !== 'user' || message.processing || responding) return;
     setEditingActionMessageId((current) => current === message.id ? null : message.id);
   }
 
 '''
-    if marker not in source:
-        raise RuntimeError('Função de envio não localizada no Dashboard final.')
     source = source.replace(marker, toggle + marker, 1)
 
 if 'function editSentMessage(messageId)' not in source:
+    marker = '  async function sendMessage(event) {'
     handler = '''  function editSentMessage(messageId) {
     if (responding) return;
 
@@ -61,29 +61,25 @@ if 'function editSentMessage(messageId)' not in source:
   }
 
 '''
-    marker = '  async function sendMessage(event) {'
     source = source.replace(marker, handler + marker, 1)
 
-# Rebuild the final message-card opening after every previous frontend patch.
-article_pattern = re.compile(r'<article\b.*?\bkey=\{message\.id\}.*?>', re.S)
-article_replacement = '''<article
-                  className={`chat-message ${message.role}${message.isError ? ' error' : ''}`}
-                  key={message.id}
-                  style={{ WebkitTouchCallout: 'default', userSelect: 'none' }}
-                  onClick={(event) => {
-                    if (!event.target.closest('button, a')) toggleEditingAction(message);
-                  }}
-                  onPointerDown={(event) => startLongPress(() => confirmDeleteMessage(message.id), event)}
-                  onPointerUp={finishLongPress}
-                  onPointerCancel={cancelLongPress}
-                  onPointerMove={moveLongPress}
-                  onContextMenu={(event) => {
-                    if (!event.target.closest('.message-text-selectable')) event.preventDefault();
-                  }}
-                >'''
-source, article_count = article_pattern.subn(article_replacement, source, count=1)
-if article_count != 1:
-    raise RuntimeError('Cartão final de mensagem não localizado para reconstrução segura.')
+# Do not alter the message-card opening. The deletion patch owns that markup.
+# Attach the mobile interaction only to the already selectable message text.
+selectable_old = '''<span className="message-text-selectable" style={{ WebkitTouchCallout: 'default', userSelect: 'text' }}>{message.text}</span>'''
+selectable_new = '''<span
+                        className="message-text-selectable"
+                        style={{ WebkitTouchCallout: 'default', userSelect: 'text' }}
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          toggleEditingAction(message);
+                        }}
+                      >
+                        {message.text}
+                      </span>'''
+if 'toggleEditingAction(message);' not in source.split('message-text-selectable', 1)[-1]:
+    if selectable_old not in source:
+        raise RuntimeError('Texto selecionável final da mensagem não localizado.')
+    source = source.replace(selectable_old, selectable_new, 1)
 
 if 'className="edit-sent-message-button"' not in source:
     author = '<span className="message-author">{message.role === \'assistant\' ? \'DomnAI\' : \'Você\'}</span>'
@@ -110,14 +106,10 @@ if 'className="edit-sent-message-button"' not in source:
     source = source.replace(author, replacement, 1)
 
 if 'ref={composerInputRef}' not in source:
-    source, count = re.subn(
-        r'<textarea\s+value=\{draft\}',
-        '<textarea ref={composerInputRef} value={draft}',
-        source,
-        count=1,
-    )
-    if count != 1:
+    textarea = '<textarea value={draft}'
+    if textarea not in source:
         raise RuntimeError('Campo de mensagem não localizado no Dashboard final.')
+    source = source.replace(textarea, '<textarea ref={composerInputRef} value={draft}', 1)
 
 for marker in (
     'const composerInputRef = useRef(null);',
@@ -126,13 +118,21 @@ for marker in (
     'function editSentMessage(messageId)',
     'className="edit-sent-message-button"',
     'editing-action-open',
-    'event.stopPropagation();',
     'ref={composerInputRef}',
     'setMessages(messages.slice(0, messageIndex));',
-    'onPointerDown={(event) => startLongPress(() => confirmDeleteMessage(message.id), event)}',
+    'className="message-text-selectable"',
 ):
     if marker not in source:
         raise RuntimeError(f'Edição de mensagem incompleta: {marker}')
+
+# Explicit guard against the corruption seen in production.
+for forbidden in (
+    'startLongPress(() => confirmDeleteMessage(message.id), event)} onPointerUp=',
+    'onPointerUp=onPointerCancel=',
+    'onPointerMove=onContextMenu=',
+):
+    if forbidden in source:
+        raise RuntimeError(f'Markup do cartão de mensagem corrompido: {forbidden}')
 
 DASHBOARD.write_text(source, encoding='utf-8')
 
@@ -187,4 +187,4 @@ if start >= 0:
 styles = styles.rstrip() + css + '\n'
 STYLES.write_text(styles, encoding='utf-8')
 
-print('Cartão final reconstruído: exclusão por pressão longa preservada e edição contextual ligada à mensagem inteira sem sobreposição.')
+print('Edição contextual isolada: cartão original preservado; toque no texto revela Editar sem interferir em copiar ou apagar.')
