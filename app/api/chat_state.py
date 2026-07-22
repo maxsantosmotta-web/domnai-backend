@@ -35,6 +35,52 @@ def _normalize_text(value: object) -> str:
     return "\n".join(line.strip() for line in str(value or "").strip().splitlines())
 
 
+def _task_message_key(item: dict) -> tuple[str, str] | None:
+    task_id = str(item.get("taskId") or "").strip()
+    role = str(item.get("role") or "").strip().lower()
+    if not task_id or role not in {"user", "assistant"}:
+        return None
+    return task_id, role
+
+
+def _message_quality(item: dict) -> tuple[int, int, int]:
+    attachments = item.get("attachments") or []
+    text = str(item.get("text") or "").strip()
+    return (
+        0 if item.get("processing") else 1,
+        1 if attachments else 0,
+        len(text),
+    )
+
+
+def _deduplicate_task_messages(items: list[dict]) -> list[dict]:
+    """Keep at most one user and one assistant message for each taskId."""
+    deduplicated: list[dict] = []
+    positions: dict[tuple[str, str], int] = {}
+
+    for item in items:
+        if not isinstance(item, dict):
+            deduplicated.append(item)
+            continue
+
+        key = _task_message_key(item)
+        if key is None:
+            deduplicated.append(item)
+            continue
+
+        position = positions.get(key)
+        if position is None:
+            positions[key] = len(deduplicated)
+            deduplicated.append(item)
+            continue
+
+        current = deduplicated[position]
+        if _message_quality(item) >= _message_quality(current):
+            deduplicated[position] = item
+
+    return deduplicated[-2000:]
+
+
 def _remove_stale_orphans(items: list[dict]) -> list[dict]:
     cleaned: list[dict] = []
     for item in items:
@@ -48,7 +94,7 @@ def _remove_stale_orphans(items: list[dict]) -> list[dict]:
         )
         if not is_target:
             cleaned.append(item)
-    return cleaned[-2000:]
+    return _deduplicate_task_messages(cleaned)
 
 
 def _safe_messages(items: list[dict]) -> list[dict]:
@@ -77,7 +123,18 @@ def _safe_messages(items: list[dict]) -> list[dict]:
             continue
 
         attachments = []
+        seen_attachments = set()
         for attachment in (item.get("attachments") or [])[:20]:
+            attachment_key = str(
+                attachment.get("libraryId")
+                or attachment.get("id")
+                or attachment.get("name")
+                or ""
+            )
+            if attachment_key and attachment_key in seen_attachments:
+                continue
+            if attachment_key:
+                seen_attachments.add(attachment_key)
             attachments.append({
                 "id": str(attachment.get("id") or "")[:180],
                 "libraryId": str(attachment.get("libraryId") or "")[:180] or None,
@@ -107,7 +164,7 @@ def _safe_messages(items: list[dict]) -> list[dict]:
             "taskId": task_id,
             "processing": processing if role == "assistant" else False,
         })
-    return safe
+    return _deduplicate_task_messages(safe)
 
 
 def _load_messages(state: ActiveChatState | None) -> list[dict]:
@@ -133,11 +190,7 @@ def _has_completed_response(messages: list[dict]) -> bool:
 
 
 def _task_key(item: dict) -> tuple[str, str] | None:
-    task_id = str(item.get("taskId") or "").strip()
-    role = str(item.get("role") or "").strip()
-    if not task_id or role not in {"user", "assistant"}:
-        return None
-    return task_id, role
+    return _task_message_key(item)
 
 
 def _completed_assistant(task: ChatTask, fallback: dict | None) -> dict | None:
@@ -151,7 +204,7 @@ def _completed_assistant(task: ChatTask, fallback: dict | None) -> dict | None:
         "id": (fallback or {}).get("id") or f"assistant-{task.id}",
         "role": "assistant",
         "text": str(result.get("reply") or ""),
-        "attachments": result.get("artifacts") or [],
+        "attachments": (result.get("artifacts") or [])[:1],
         "sources": result.get("sources") or [],
         "isError": False,
         "taskId": task.id,
@@ -160,6 +213,8 @@ def _completed_assistant(task: ChatTask, fallback: dict | None) -> dict | None:
 
 
 def _merge_server_task_messages(db, user_id: str, incoming: list[dict], existing: list[dict]) -> list[dict]:
+    incoming = _deduplicate_task_messages(incoming)
+    existing = _deduplicate_task_messages(existing)
     incoming_by_key = {key: item for item in incoming if (key := _task_key(item))}
     existing_by_key = {key: item for item in existing if (key := _task_key(item))}
     task_ids = {task_id for task_id, _role in set(incoming_by_key) | set(existing_by_key)}
