@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import ast
+import re
 from pathlib import Path
 
 
@@ -12,16 +13,29 @@ FINAL_NOTICE = (
 
 
 def simplify_document_disclaimer() -> None:
+    spreadsheet_path = ROOT / 'spreadsheet_artifact.py'
+    spreadsheet = spreadsheet_path.read_text(encoding='utf-8')
+    spreadsheet, count = re.subn(
+        r"DOCUMENT_DISCLAIMER = \(.*?\)\n\n",
+        "DOCUMENT_DISCLAIMER = (\n"
+        "    'Este documento organiza informações para apoio à decisão e não substitui '\n"
+        "    'a avaliação de um profissional habilitado.'\n"
+        ")\n\n",
+        spreadsheet,
+        count=1,
+        flags=re.S,
+    )
+    if count != 1:
+        raise RuntimeError('Aviso da planilha não localizado.')
+    spreadsheet_path.write_text(spreadsheet, encoding='utf-8')
+
     replacements = (
         (
-            'Este documento organiza informações para apoio à decisão e não substitui a avaliação '
-            'de profissional habilitado quando o tema exigir análise jurídica, contábil, médica, '
-            'financeira ou técnica especializada.',
+            'Este documento organiza informações para apoio à decisão e não substitui a avaliação de profissional habilitado quando o tema exigir análise jurídica, contábil, médica, financeira ou técnica especializada.',
             FINAL_NOTICE,
         ),
         (
-            'Este relatório organiza as informações fornecidas e não substitui avaliação profissional '
-            'quando o tema exigir análise jurídica, contábil, médica, financeira ou técnica especializada.',
+            'Este relatório organiza as informações fornecidas e não substitui avaliação profissional quando o tema exigir análise jurídica, contábil, médica, financeira ou técnica especializada.',
             FINAL_NOTICE,
         ),
         (
@@ -31,7 +45,6 @@ def simplify_document_disclaimer() -> None:
     )
     paths = (
         ROOT / 'pdf_report.py',
-        ROOT / 'spreadsheet_artifact.py',
         Path('/app/app/api/chat.py'),
         ROOT / 'chat_task_worker.py',
     )
@@ -41,10 +54,16 @@ def simplify_document_disclaimer() -> None:
             source = source.replace(old, new)
         path.write_text(source, encoding='utf-8')
 
-    for path in paths:
+    checked = (spreadsheet_path, *paths)
+    forbidden_notices = (
+        'jurídica, contábil, médica, financeira ou técnica especializada',
+        'Este documento não substitui a avaliação de um profissional habilitado quando o tema exigir.',
+    )
+    for path in checked:
         source = path.read_text(encoding='utf-8')
-        if 'jurídica, contábil, médica' in source or 'quando o tema exigir' in source:
-            raise RuntimeError(f'Aviso antigo permaneceu em {path}.')
+        for forbidden in forbidden_notices:
+            if forbidden in source:
+                raise RuntimeError(f'Aviso antigo permaneceu em {path}.')
 
 
 def read(name: str) -> str:
