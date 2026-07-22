@@ -53,6 +53,7 @@ COPY scripts/rename_operation_labels.py /tmp/rename_operation_labels.py
 COPY scripts/finalize_operation_groups.py /tmp/finalize_operation_groups.py
 COPY scripts/apply_final_operation_catalog.py /tmp/apply_final_operation_catalog.py
 COPY scripts/connect_sent_message_editing.py /tmp/connect_sent_message_editing.py
+COPY scripts/stabilize_artifact_build.py /tmp/stabilize_artifact_build.py
 COPY scripts/validate_frontend_dist.py /tmp/validate_frontend_dist.py
 RUN apk add --no-cache python3 \
     && python3 /tmp/connect_domnai_chat.py \
@@ -104,6 +105,7 @@ RUN apk add --no-cache python3 \
     && python3 /tmp/finalize_operation_groups.py \
     && python3 /tmp/apply_final_operation_catalog.py \
     && python3 /tmp/connect_sent_message_editing.py \
+    && python3 /tmp/stabilize_artifact_build.py \
     && npm run build \
     && python3 /tmp/validate_frontend_dist.py
 
@@ -143,6 +145,7 @@ COPY scripts/enforce_labor_notice_integrity.py /tmp/enforce_labor_notice_integri
 COPY scripts/finalize_conversation_integrity.py /tmp/finalize_conversation_integrity.py
 COPY scripts/retire_legacy_chat_memory.py /tmp/retire_legacy_chat_memory.py
 COPY scripts/finalize_new_core_only.py /tmp/finalize_new_core_only.py
+COPY scripts/stabilize_artifact_build.py /tmp/stabilize_artifact_build.py
 RUN python /tmp/make_runtime_patches_idempotent.py \
     && python -m py_compile /tmp/*.py \
     && python /tmp/connect_chat_sources_backend.py \
@@ -170,6 +173,7 @@ RUN python /tmp/make_runtime_patches_idempotent.py \
     && python /tmp/enforce_labor_notice_integrity.py \
     && python /tmp/finalize_conversation_integrity.py \
     && python /tmp/retire_legacy_chat_memory.py \
+    && python /tmp/stabilize_artifact_build.py \
     && python /tmp/finalize_new_core_only.py \
     && python -m compileall -q app
 COPY --from=frontend-builder /frontend/dist ./frontend/dist
