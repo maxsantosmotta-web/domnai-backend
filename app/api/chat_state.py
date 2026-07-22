@@ -20,7 +20,7 @@ _STALE_ORPHAN_TEXTS = {
 
 
 class ChatStatePayload(BaseModel):
-    messages: list[dict] = Field(default_factory=list, max_length=300)
+    messages: list[dict] = Field(default_factory=list, max_length=2000)
     active_operation: str | None = Field(default=None, max_length=120)
 
 
@@ -48,12 +48,12 @@ def _remove_stale_orphans(items: list[dict]) -> list[dict]:
         )
         if not is_target:
             cleaned.append(item)
-    return cleaned[-300:]
+    return cleaned[-2000:]
 
 
 def _safe_messages(items: list[dict]) -> list[dict]:
     safe = []
-    for item in _remove_stale_orphans(items[-300:]):
+    for item in _remove_stale_orphans(items[-2000:]):
         role = str(item.get("role") or "").strip().lower()
         text = str(item.get("text") or "")
         if role not in {"user", "assistant", "operation"}:
