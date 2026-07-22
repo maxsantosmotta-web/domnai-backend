@@ -12,6 +12,16 @@ if 'const composerInputRef = useRef(null);' not in source:
         raise RuntimeError('Referência do campo de arquivos não localizada no Dashboard.')
     source = source.replace(anchor, anchor + '  const composerInputRef = useRef(null);\n', 1)
 
+if 'const [editingActionMessageId, setEditingActionMessageId]' not in source:
+    anchor = '  const [responding, setResponding] = useState(false);\n'
+    if anchor not in source:
+        raise RuntimeError('Estado responding não localizado no Dashboard final.')
+    source = source.replace(
+        anchor,
+        anchor + '  const [editingActionMessageId, setEditingActionMessageId] = useState(null);\n',
+        1,
+    )
+
 if 'function editSentMessage(messageId)' not in source:
     handler = '''  function editSentMessage(messageId) {
     if (responding) return;
@@ -25,6 +35,7 @@ if 'function editSentMessage(messageId)' not in source:
     setDraft(String(message.text || ''));
     setAttachments([...(message.attachments || [])]);
     setMessages(messages.slice(0, messageIndex));
+    setEditingActionMessageId(null);
     setSearch('');
     setSearchOpen(false);
     setOptionsOpen(false);
@@ -46,15 +57,22 @@ if 'function editSentMessage(messageId)' not in source:
 if 'className="edit-sent-message-button"' not in source:
     author = '<span className="message-author">{message.role === \'assistant\' ? \'DomnAI\' : \'Você\'}</span>'
     replacement = '''<div
-                    className="message-heading"
-                    tabIndex={message.role === 'user' ? 0 : undefined}
+                    className={`message-heading${editingActionMessageId === message.id ? ' editing-action-open' : ''}`}
+                    onClick={() => {
+                      if (message.role === 'user' && !message.processing && !responding) {
+                        setEditingActionMessageId((current) => current === message.id ? null : message.id);
+                      }
+                    }}
                   >
                     <span className="message-author">{message.role === 'assistant' ? 'DomnAI' : 'Você'}</span>
                     {message.role === 'user' && !message.processing ? (
                       <button
                         type="button"
                         className="edit-sent-message-button"
-                        onClick={() => editSentMessage(message.id)}
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          editSentMessage(message.id);
+                        }}
                         disabled={responding}
                         aria-label="Editar mensagem enviada"
                         title="Editar mensagem"
@@ -79,10 +97,12 @@ if 'ref={composerInputRef}' not in source:
 
 for marker in (
     'const composerInputRef = useRef(null);',
+    'editingActionMessageId',
     'function editSentMessage(messageId)',
     'className="edit-sent-message-button"',
+    'editing-action-open',
+    'event.stopPropagation();',
     'ref={composerInputRef}',
-    "tabIndex={message.role === 'user' ? 0 : undefined}",
     'setMessages(messages.slice(0, messageIndex));',
 ):
     if marker not in source:
@@ -99,7 +119,6 @@ css = '''
   align-items: center;
   justify-content: space-between;
   gap: 12px;
-  outline: none;
 }
 
 .edit-sent-message-button {
@@ -115,17 +134,13 @@ css = '''
 }
 
 @media (hover: hover) and (pointer: fine) {
-  .chat-message.user:hover .edit-sent-message-button,
-  .message-heading:focus-within .edit-sent-message-button {
+  .chat-message.user:hover .edit-sent-message-button {
     display: inline-flex !important;
   }
 }
 
-@media (hover: none), (pointer: coarse) {
-  .message-heading:focus .edit-sent-message-button,
-  .message-heading:focus-within .edit-sent-message-button {
-    display: inline-flex !important;
-  }
+.message-heading.editing-action-open .edit-sent-message-button {
+  display: inline-flex !important;
 }
 
 .edit-sent-message-button:hover,
@@ -145,4 +160,4 @@ if start >= 0:
 styles = styles.rstrip() + css + '\n'
 STYLES.write_text(styles, encoding='utf-8')
 
-print('Edição contextual aplicada diretamente ao cabeçalho gerado da mensagem.')
+print('Edição contextual corrigida: toque alterna a ação no celular e hover exibe no desktop.')
