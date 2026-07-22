@@ -5,6 +5,46 @@ from pathlib import Path
 
 
 ROOT = Path('/app/app/services')
+FINAL_NOTICE = (
+    'Este documento organiza informações para apoio à decisão e não substitui '
+    'a avaliação de um profissional habilitado.'
+)
+
+
+def simplify_document_disclaimer() -> None:
+    replacements = (
+        (
+            'Este documento organiza informações para apoio à decisão e não substitui a avaliação '
+            'de profissional habilitado quando o tema exigir análise jurídica, contábil, médica, '
+            'financeira ou técnica especializada.',
+            FINAL_NOTICE,
+        ),
+        (
+            'Este relatório organiza as informações fornecidas e não substitui avaliação profissional '
+            'quando o tema exigir análise jurídica, contábil, médica, financeira ou técnica especializada.',
+            FINAL_NOTICE,
+        ),
+        (
+            'Este documento não substitui a avaliação de um profissional habilitado quando o tema exigir.',
+            FINAL_NOTICE,
+        ),
+    )
+    paths = (
+        ROOT / 'pdf_report.py',
+        ROOT / 'spreadsheet_artifact.py',
+        Path('/app/app/api/chat.py'),
+        ROOT / 'chat_task_worker.py',
+    )
+    for path in paths:
+        source = path.read_text(encoding='utf-8')
+        for old, new in replacements:
+            source = source.replace(old, new)
+        path.write_text(source, encoding='utf-8')
+
+    for path in paths:
+        source = path.read_text(encoding='utf-8')
+        if 'jurídica, contábil, médica' in source or 'quando o tema exigir' in source:
+            raise RuntimeError(f'Aviso antigo permaneceu em {path}.')
 
 
 def read(name: str) -> str:
@@ -28,6 +68,8 @@ def call_keywords(tree: ast.AST, function_name: str) -> list[set[str]]:
             found.append({item.arg for item in node.keywords if item.arg})
     return found
 
+
+simplify_document_disclaimer()
 
 worker = read('chat_task_worker.py')
 orchestrator = read('orchestrated_brain.py')
@@ -105,4 +147,4 @@ for marker in required_memory:
 if 'text = f"{operation or \'\'} {message or \'\'}".casefold()' in research:
     raise RuntimeError('pesquisa web ainda depende da operação visual')
 
-print('Regressão do runtime e compatibilidade de assinatura validadas com sucesso.')
+print('Aviso simplificado e regressão do runtime validados com sucesso.')
