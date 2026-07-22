@@ -14,6 +14,11 @@ from app.services.diagnosis_memory import clear_diagnosis_state
 router = APIRouter(prefix="/api/chat-state", tags=["chat-state"])
 
 
+_STALE_ORPHAN_TEXTS = {
+    "10,90\n35%\nNão existe\nVenda direta ao consumidor",
+}
+
+
 class ChatStatePayload(BaseModel):
     messages: list[dict] = Field(default_factory=list, max_length=300)
     active_operation: str | None = Field(default=None, max_length=120)
@@ -26,9 +31,29 @@ def _user_id(session: dict) -> str:
     return value
 
 
+def _normalize_text(value: object) -> str:
+    return "\n".join(line.strip() for line in str(value or "").strip().splitlines())
+
+
+def _remove_stale_orphans(items: list[dict]) -> list[dict]:
+    cleaned: list[dict] = []
+    for item in items:
+        if not isinstance(item, dict):
+            cleaned.append(item)
+            continue
+        is_target = (
+            str(item.get("role") or "").strip().lower() == "user"
+            and not str(item.get("taskId") or "").strip()
+            and _normalize_text(item.get("text")) in _STALE_ORPHAN_TEXTS
+        )
+        if not is_target:
+            cleaned.append(item)
+    return cleaned[-300:]
+
+
 def _safe_messages(items: list[dict]) -> list[dict]:
     safe = []
-    for item in items[-300:]:
+    for item in _remove_stale_orphans(items[-300:]):
         role = str(item.get("role") or "").strip().lower()
         text = str(item.get("text") or "")
         if role not in {"user", "assistant", "operation"}:
@@ -92,7 +117,7 @@ def _load_messages(state: ActiveChatState | None) -> list[dict]:
         messages = json.loads(state.messages_json or "[]")
     except json.JSONDecodeError:
         return []
-    return messages if isinstance(messages, list) else []
+    return _remove_stale_orphans(messages) if isinstance(messages, list) else []
 
 
 def _has_completed_response(messages: list[dict]) -> bool:
@@ -139,7 +164,7 @@ def _merge_server_task_messages(db, user_id: str, incoming: list[dict], existing
     existing_by_key = {key: item for item in existing if (key := _task_key(item))}
     task_ids = {task_id for task_id, _role in set(incoming_by_key) | set(existing_by_key)}
     if not task_ids:
-        return incoming
+        return _remove_stale_orphans(incoming)
 
     tasks = db.scalars(
         select(ChatTask).where(ChatTask.user_id == user_id, ChatTask.id.in_(task_ids))
@@ -174,7 +199,7 @@ def _merge_server_task_messages(db, user_id: str, incoming: list[dict], existing
             positions[key] = len(merged)
             merged.append(authoritative)
 
-    return merged[-300:]
+    return _remove_stale_orphans(merged)
 
 
 @router.get("")
@@ -185,6 +210,10 @@ def get_chat_state(session: dict = Depends(require_authenticated_user)):
         if state is None:
             return {"messages": [], "activeOperation": None}
         messages = _load_messages(state)
+        serialized = json.dumps(messages, ensure_ascii=False)
+        if serialized != (state.messages_json or "[]"):
+            state.messages_json = serialized
+            db.flush()
         return {
             "messages": messages,
             "activeOperation": state.active_operation,
