@@ -2,26 +2,51 @@ from pathlib import Path
 import re
 
 
+ATTACHMENT_FIELD = re.compile(
+    r'(?P<indent>[ \t]*)attachments:\s*sentAttachments\s*\n'
+    r'(?P=indent)\s*\.filter\(\(item\) => item\.libraryId\)\s*\n'
+    r'(?P=indent)\s*\.map\(\(item\) => \(\{ library_id: item\.libraryId \}\)\),?\s*\n',
+    flags=re.M,
+)
+
+
 def stabilize_frontend() -> None:
     path = Path('/frontend/src/Dashboard.jsx')
     if not path.exists():
         return
 
     source = path.read_text(encoding='utf-8')
-    duplicate_attachments = re.compile(
-        r'(?P<first>[ \t]*attachments:\s*sentAttachments\s*\n'
-        r'[ \t]*\.filter\(\(item\) => item\.libraryId\)\s*\n'
-        r'[ \t]*\.map\(\(item\) => \(\{ library_id: item\.libraryId \}\)\),\s*\n)'
-        r'(?P=first)',
-        flags=re.M,
-    )
-    source, count = duplicate_attachments.subn(r'\g<first>', source)
+    body_marker = "body: JSON.stringify({"
+    body_start = source.find(body_marker)
+    if body_start < 0:
+        raise RuntimeError('Payload JSON do chat não localizado no Dashboard final.')
 
-    if source.count('attachments: sentAttachments') > 1:
-        raise RuntimeError('Mais de um campo de anexos permaneceu no payload final do chat.')
+    body_end = source.find("        }),", body_start)
+    if body_end < 0:
+        raise RuntimeError('Fim do payload JSON do chat não localizado.')
+
+    payload = source[body_start:body_end]
+    matches = list(ATTACHMENT_FIELD.finditer(payload))
+    if not matches:
+        raise RuntimeError('Campo de anexos do payload final do chat não localizado.')
+
+    removed = 0
+    for match in reversed(matches[1:]):
+        absolute_start = body_start + match.start()
+        absolute_end = body_start + match.end()
+        source = source[:absolute_start] + source[absolute_end:]
+        removed += 1
+
+    body_end = source.find("        }),", body_start)
+    final_payload = source[body_start:body_end]
+    final_matches = list(ATTACHMENT_FIELD.finditer(final_payload))
+    if len(final_matches) != 1:
+        raise RuntimeError(
+            f'O payload final do chat deve conter exatamente um campo de anexos; encontrado(s): {len(final_matches)}.'
+        )
 
     path.write_text(source, encoding='utf-8')
-    print(f'Frontend estabilizado: {count} bloco(s) duplicado(s) de anexos removido(s).')
+    print(f'Frontend estabilizado: {removed} campo(s) duplicado(s) de anexos removido(s) do payload do chat.')
 
 
 def stabilize_runtime_patch() -> None:
