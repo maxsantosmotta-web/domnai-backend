@@ -69,6 +69,45 @@ def patch_main() -> None:
     path.write_text(source, encoding='utf-8')
 
 
+def patch_persistent_chat() -> None:
+    path = Path('/app/app/api/chat_persistent.py')
+    source = path.read_text(encoding='utf-8')
+
+    resolution_pattern = re.compile(
+        r'    history = \[item\.model_dump\(\) for item in payload\.history\]\n'
+        r'(?:    .*\n){1,8}?'
+        r'    if not local_artifact_followup:\n'
+        r'        ensure_minimum_credit\(user_id\)\n',
+        flags=re.M,
+    )
+    canonical_resolution = '''    history = [item.model_dump() for item in payload.history]
+    pending_artifact = resolve_local_artifact_request(message, history)
+    local_artifact_followup = isinstance(pending_artifact, dict) and pending_artifact.get("action") == "create"
+    artifact_delivery_state = "pending" if local_artifact_followup else None
+    if not local_artifact_followup:
+        ensure_minimum_credit(user_id)
+'''
+    if canonical_resolution not in source:
+        source, count = resolution_pattern.subn(canonical_resolution, source, count=1)
+        if count != 1:
+            raise RuntimeError('Resolução final de artefato no chat persistente não localizada.')
+
+    payload_anchor = '                "attachment_ids": attachment_ids,\n'
+    if payload_anchor not in source:
+        raise RuntimeError('Payload final da tarefa não localizado no chat persistente.')
+    for field_line in (
+        '                "local_artifact_followup": local_artifact_followup,\n',
+        '                "artifact_delivery_state": artifact_delivery_state,\n',
+        '                "pending_artifact": pending_artifact,\n',
+    ):
+        if field_line not in source:
+            source = source.replace(payload_anchor, payload_anchor + field_line, 1)
+            payload_anchor += field_line
+
+    compile(source, str(path), 'exec')
+    path.write_text(source, encoding='utf-8')
+
+
 def _canonical_append_completed_response() -> str:
     return '''def _append_completed_response(
     user_id: str,
@@ -187,6 +226,7 @@ def patch_worker() -> None:
         source,
         count=1,
     )
+
     old_call_pattern = re.compile(
         r'result = generate_orchestrated_response\(\n'
         r'\s*message=(?:message_for_brain|original_message),\n'
@@ -206,8 +246,9 @@ def patch_worker() -> None:
             task_id=task_id,
         )'''
     source, count = old_call_pattern.subn(replacement, source, count=1)
-    if count != 1:
-        raise RuntimeError('Chamada antiga do cérebro não localizada no worker final.')
+    if count != 1 and 'result = generate_new_core_response(' not in source:
+        raise RuntimeError('Chamada final do novo cérebro não localizada no worker.')
+
     source = source.replace(
         '                from app.api.chat import _create_artifact\n                artifact = _create_artifact(',
         '                from app.domnai_core.artifact_delivery import create_artifact\n                artifact = create_artifact(',
@@ -216,6 +257,66 @@ def patch_worker() -> None:
         '            from app.api.chat import _artifact_offer\n            offer = _artifact_offer(decision.get("artifact_type"))',
         '            from app.domnai_core.artifact_delivery import artifact_offer\n            offer = artifact_offer(decision.get("artifact_type"))',
     )
+
+    # Pedido de arquivo pendente nunca volta ao cérebro e nunca recalcula o conteúdo.
+    direct_marker = '        intelligence_started_at = time.perf_counter()\n'
+    if 'provider="local-artifact"' not in source:
+        direct_block = '''        pending_artifact = payload.get("pending_artifact")
+        pending_source = (
+            str(pending_artifact.get("source_answer") or "").strip()
+            if isinstance(pending_artifact, dict)
+            else ""
+        )
+        if payload.get("artifact_delivery_state") == "pending" and len(pending_source) >= 1:
+            from app.services.metered_brain import MeteredBrainResult
+            result = MeteredBrainResult(
+                text=pending_source,
+                provider="local-artifact",
+                model="local-artifact",
+                input_tokens=0,
+                output_tokens=0,
+                cached_input_tokens=0,
+                diagnosis_state=None,
+            )
+            timings["intelligence_ms"] = 0
+        else:
+'''
+        marker_position = source.find(direct_marker)
+        if marker_position < 0:
+            raise RuntimeError('Ponto final da inteligência não localizado no worker.')
+        block_end_marker = '        timings.update(getattr(result, "timings", None) or {})\n'
+        block_end = source.find(block_end_marker, marker_position)
+        if block_end < 0:
+            raise RuntimeError('Fim da inteligência não localizado no worker.')
+        block_end += len(block_end_marker)
+        original_block = source[marker_position:block_end]
+        indented_block = ''.join('    ' + line if line.strip() else line for line in original_block.splitlines(keepends=True))
+        source = source[:marker_position] + direct_block + indented_block + source[block_end:]
+
+    decision_block = '''        pending_artifact = payload.get("pending_artifact")
+        if payload.get("artifact_delivery_state") == "pending" and isinstance(pending_artifact, dict):
+            decision = dict(pending_artifact)
+'''
+    if decision_block not in source:
+        decision_anchor = re.compile(
+            r'(        decision = decide_artifact\(\n.*?        \)\n)',
+            re.S,
+        )
+        source, decision_count = decision_anchor.subn(r'\1' + decision_block, source, count=1)
+        if decision_count != 1:
+            raise RuntimeError('Decisão final de artefato não localizada no worker.')
+
+    # Não esconder a causa real nem persistir mensagens automáticas de falha como resposta válida.
+    source = re.sub(
+        r'            except Exception(?: as \w+)?:\n'
+        r'                reply = (?:"|\')?.*?(?:"|\')?\n',
+        '            except Exception:\n'
+        '                print(f"artifact_delivery failure task_id={task_id}\\n{traceback.format_exc()}", flush=True)\n'
+        '                raise\n',
+        source,
+        count=1,
+    )
+
     source = re.sub(
         r'\n\s*if existing_result\.get\("diagnosis_state"\) is not None:.*?\n\s*persistence_started_at =',
         '\n\n    persistence_started_at =',
@@ -236,6 +337,23 @@ def patch_worker() -> None:
         if position < 0:
             raise RuntimeError('Resultado de artefatos não localizado no worker final.')
         source = source[:position] + '        artifacts = artifacts[:1]\n' + source[position:]
+
+    # Entrega local mostra apenas a confirmação final e o cartão do arquivo.
+    source = re.sub(
+        r'\s*clean_reply = _clean_artifact_contradictions\(reply\)\n'
+        r'\s*completion = _artifact_completion_message\(decision\.get\("artifact_type"\)\)\n'
+        r'\s*reply = .*?\n',
+        '                completion = _artifact_completion_message(decision.get("artifact_type"))\n'
+        '                reply = completion\n',
+        source,
+        count=1,
+    )
+
+    for phrase in (
+        'A análise foi concluída, mas não foi possível gerar o arquivo nesta tentativa.',
+        'Não foi possível gerar o arquivo nesta tentativa.',
+    ):
+        source = source.replace(phrase, '')
 
     for old_disclaimer in (
         'Importante: Este documento tem finalidade informativa e foi elaborado com base nas informações fornecidas durante esta conversa. Para decisões definitivas, recomenda-se sempre a validação por um profissional habilitado.',
@@ -280,7 +398,7 @@ def patch_document_disclaimer() -> None:
     pdf_path = Path('/app/app/services/pdf_report.py')
     source = pdf_path.read_text(encoding='utf-8')
     disclaimer_pattern = re.compile(
-        r'("Este (?:relatório|documento)[^"]*(?:habilitado|especializada)\.?")',
+        r'("Este (?:relatório|documento)[^"]*(?:habilitado|especializada)\.?"|\'Este (?:relatório|documento)[^\']*(?:habilitado|especializada)\.?\')',
         flags=re.I,
     )
     source, count = disclaimer_pattern.subn(repr(DISCLAIMER), source)
@@ -293,7 +411,8 @@ def patch_document_disclaimer() -> None:
 
 
 patch_main()
+patch_persistent_chat()
 patch_worker()
 patch_artifact_delivery()
 patch_document_disclaimer()
-print('Runtime finalizado no novo núcleo: entrega única de artefato, PDF sem duplicação e aviso oficial único.')
+print('Runtime finalizado no novo núcleo: pedido natural gera um único arquivo, uma única mensagem e nenhum recálculo.')
