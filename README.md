@@ -132,6 +132,8 @@ O status pode ser `ok` ou `degraded`.
 
 O Railway usa o `Dockerfile` da raiz. O build compila o frontend, instala as dependências do backend, executa as migrações e inicia o FastAPI na porta fornecida pelo ambiente.
 
+Commits enviados para a branch `main` acionam uma nova execução do deploy de produção.
+
 ## Estado atual
 
 O DomnAI já possui autenticação, banco, pagamentos, créditos, IA real, memória, biblioteca, lixeira, Orquestrador, Refinador, motor trabalhista determinístico e geração de PDF. A etapa final é a validação completa em produção e a expansão gradual de motores especializados.
