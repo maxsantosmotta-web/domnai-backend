@@ -44,44 +44,35 @@ if 'function editSentMessage(messageId)' not in source:
     source = source.replace(marker, handler + marker, 1)
 
 if 'className="edit-sent-message-button"' not in source:
-    author_pattern = re.compile(
-        r'(?P<indent>\s*)<span className="message-author">\{message\.role === \'assistant\' \? \'DomnAI\' : \'Você\'\}</span>'
-    )
-    replacement = '''\g<indent><div className="message-heading">
-\g<indent>  <span className="message-author">{message.role === 'assistant' ? 'DomnAI' : 'Você'}</span>
-\g<indent>  {message.role === 'user' && !message.processing ? (
-\g<indent>    <button
-\g<indent>      type="button"
-\g<indent>      className="edit-sent-message-button"
-\g<indent>      onClick={() => editSentMessage(message.id)}
-\g<indent>      disabled={responding}
-\g<indent>      aria-label="Editar mensagem enviada"
-\g<indent>      title="Editar mensagem"
-\g<indent>    >
-\g<indent>      Editar
-\g<indent>    </button>
-\g<indent>  ) : null}
-\g<indent></div>'''
-    source, count = author_pattern.subn(replacement, source, count=1)
-    if count != 1:
+    author = '<span className="message-author">{message.role === \'assistant\' ? \'DomnAI\' : \'Você\'}</span>'
+    replacement = '''<div className="message-heading">
+                    <span className="message-author">{message.role === 'assistant' ? 'DomnAI' : 'Você'}</span>
+                    {message.role === 'user' && !message.processing ? (
+                      <button
+                        type="button"
+                        className="edit-sent-message-button"
+                        onClick={() => editSentMessage(message.id)}
+                        disabled={responding}
+                        aria-label="Editar mensagem enviada"
+                        title="Editar mensagem"
+                      >
+                        Editar
+                      </button>
+                    ) : null}
+                  </div>'''
+    if author not in source:
         raise RuntimeError('Cabeçalho das mensagens não localizado no Dashboard final.')
+    source = source.replace(author, replacement, 1)
 
 if "tabIndex={message.role === 'user' ? 0 : undefined}" not in source:
-    source, count = re.subn(
-        r'(<article className=\{`chat-message \$\{message\.role\}\$\{message\.isError \? \' error\' : \'\'\}`\} key=\{message\.id\})>',
-        r"\1 tabIndex={message.role === 'user' ? 0 : undefined}>",
+    article_pattern = re.compile(r'(<article\b[^>]*\bkey=\{message\.id\})(>)')
+    source, count = article_pattern.subn(
+        lambda match: match.group(1) + " tabIndex={message.role === 'user' ? 0 : undefined}" + match.group(2),
         source,
         count=1,
     )
     if count != 1:
-        source, count = re.subn(
-            r'(<article className=\{`chat-message \$\{message\.role\}`\} key=\{message\.id\})>',
-            r"\1 tabIndex={message.role === 'user' ? 0 : undefined}>",
-            source,
-            count=1,
-        )
-    if count != 1:
-        raise RuntimeError('Cartão de mensagem não localizado para interação contextual.')
+        raise RuntimeError('Cartão final de mensagem não localizado para interação contextual.')
 
 if 'ref={composerInputRef}' not in source:
     source, count = re.subn(
@@ -158,8 +149,10 @@ css = '''
   outline: none;
 }
 '''
-if '/* sent-message-editing-final */' not in styles:
-    styles = styles.rstrip() + css + '\n'
+start = styles.find('/* sent-message-editing-final */')
+if start >= 0:
+    styles = styles[:start].rstrip()
+styles = styles.rstrip() + css + '\n'
 STYLES.write_text(styles, encoding='utf-8')
 
-print('Edição contextual aplicada com override final seguro: invisível por padrão e visível apenas após interação.')
+print('Edição contextual aplicada ao markup final: invisível por padrão e exibida somente após interação com a mensagem.')
