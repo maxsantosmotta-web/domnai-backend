@@ -45,7 +45,10 @@ if 'function editSentMessage(messageId)' not in source:
 
 if 'className="edit-sent-message-button"' not in source:
     author = '<span className="message-author">{message.role === \'assistant\' ? \'DomnAI\' : \'Você\'}</span>'
-    replacement = '''<div className="message-heading">
+    replacement = '''<div
+                    className="message-heading"
+                    tabIndex={message.role === 'user' ? 0 : undefined}
+                  >
                     <span className="message-author">{message.role === 'assistant' ? 'DomnAI' : 'Você'}</span>
                     {message.role === 'user' && !message.processing ? (
                       <button
@@ -63,16 +66,6 @@ if 'className="edit-sent-message-button"' not in source:
     if author not in source:
         raise RuntimeError('Cabeçalho das mensagens não localizado no Dashboard final.')
     source = source.replace(author, replacement, 1)
-
-if "tabIndex={message.role === 'user' ? 0 : undefined}" not in source:
-    article_pattern = re.compile(r'(<article\b[^>]*\bkey=\{message\.id\})(>)')
-    source, count = article_pattern.subn(
-        lambda match: match.group(1) + " tabIndex={message.role === 'user' ? 0 : undefined}" + match.group(2),
-        source,
-        count=1,
-    )
-    if count != 1:
-        raise RuntimeError('Cartão final de mensagem não localizado para interação contextual.')
 
 if 'ref={composerInputRef}' not in source:
     source, count = re.subn(
@@ -106,6 +99,7 @@ css = '''
   align-items: center;
   justify-content: space-between;
   gap: 12px;
+  outline: none;
 }
 
 .edit-sent-message-button {
@@ -122,14 +116,14 @@ css = '''
 
 @media (hover: hover) and (pointer: fine) {
   .chat-message.user:hover .edit-sent-message-button,
-  .chat-message.user:focus-within .edit-sent-message-button {
+  .message-heading:focus-within .edit-sent-message-button {
     display: inline-flex !important;
   }
 }
 
 @media (hover: none), (pointer: coarse) {
-  .chat-message.user:focus .edit-sent-message-button,
-  .chat-message.user:focus-within .edit-sent-message-button {
+  .message-heading:focus .edit-sent-message-button,
+  .message-heading:focus-within .edit-sent-message-button {
     display: inline-flex !important;
   }
 }
@@ -144,10 +138,6 @@ css = '''
   cursor: not-allowed;
   opacity: 0.35;
 }
-
-.chat-message.user:focus {
-  outline: none;
-}
 '''
 start = styles.find('/* sent-message-editing-final */')
 if start >= 0:
@@ -155,4 +145,4 @@ if start >= 0:
 styles = styles.rstrip() + css + '\n'
 STYLES.write_text(styles, encoding='utf-8')
 
-print('Edição contextual aplicada ao markup final: invisível por padrão e exibida somente após interação com a mensagem.')
+print('Edição contextual aplicada diretamente ao cabeçalho gerado da mensagem.')
