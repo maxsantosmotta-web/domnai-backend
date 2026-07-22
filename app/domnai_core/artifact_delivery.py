@@ -8,6 +8,13 @@ from app.services.pdf_report import generate_pdf_report
 from app.services.spreadsheet_artifact import generate_csv, generate_xlsx
 
 
+_MIME_TYPES = {
+    'pdf': 'application/pdf',
+    'csv': 'text/csv; charset=utf-8',
+    'xlsx': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+}
+
+
 def artifact_offer(artifact_type: str | None) -> str:
     if artifact_type == 'pdf':
         return 'Posso gerar este conteúdo em PDF e enviar o arquivo aqui no chat.'
@@ -34,8 +41,8 @@ def create_artifact(
         generated = generate_pdf_report({
             'title': title,
             'operation': operation or 'Análise geral',
-            'summary': answer,
-            'sections': [{'title': 'Resultado', 'content': answer}],
+            'summary': '',
+            'sections': [{'title': 'Conteúdo consolidado', 'content': answer}],
             'metrics': [],
             'tables': [],
             'charts': [],
@@ -55,11 +62,12 @@ def create_artifact(
     else:
         raise ValueError('Tipo de artefato inválido.')
 
+    mime_type = str(getattr(generated, 'mime_type', '') or _MIME_TYPES[artifact_type])
     artifact_usage = charge_artifact(user_id, artifact_type, idempotency_key=billing_key)
     asset = LibraryAsset(
         user_id=user_id,
         name=generated.filename,
-        mime_type=generated.mime_type,
+        mime_type=mime_type,
         size_bytes=len(generated.content),
         content=generated.content,
     )
