@@ -5,47 +5,67 @@ import re
 def patch_main() -> None:
     path = Path('/app/app/main.py')
     source = path.read_text(encoding='utf-8')
-    removals = (
-        'from app.api.admin_cutover import router as admin_cutover_router\n',
-        'from app.api.admin_legacy_retirement import router as admin_legacy_retirement_router\n',
-        'from app.api.admin_shadow_validation import router as admin_shadow_validation_router\n',
-        'from app.domnai_core.parallel_api_bootstrap import mount_parallel_api\n',
-        'from app.services.cutover_worker_bootstrap import start_cutover_aware_chat_worker\n',
-        'from app.services.shadow_validation_worker import start_shadow_validation_worker\n',
+
+    # Remova imports legados independentemente de espaçamento ou ordem gerada
+    # pelos patches anteriores.
+    source = re.sub(
+        r'^from app\.(?:api\.(?:admin_cutover|admin_legacy_retirement|admin_shadow_validation)|domnai_core\.parallel_api_bootstrap|services\.(?:cutover_worker_bootstrap|shadow_validation_worker)) import .*\n',
+        '',
+        source,
+        flags=re.M,
     )
-    for marker in removals:
-        source = source.replace(marker, '')
+
     if 'from app.services.chat_task_worker import start_chat_task_worker\n' not in source:
+        anchor = 'from app.frontend_static import FrontendStaticFiles\n'
+        if anchor not in source:
+            raise RuntimeError('Importação de FrontendStaticFiles não localizada no app principal.')
         source = source.replace(
-            'from app.frontend_static import FrontendStaticFiles\n',
-            'from app.frontend_static import FrontendStaticFiles\nfrom app.services.chat_task_worker import start_chat_task_worker\n',
+            anchor,
+            anchor + 'from app.services.chat_task_worker import start_chat_task_worker\n',
             1,
         )
-    source = source.replace(
-        '    start_cutover_aware_chat_worker()\n    start_shadow_validation_worker()\n',
-        '    start_chat_task_worker()\n',
-        1,
+
+    # Substitui o corpo inteiro do hook de startup. Não depende do nome ou da
+    # quantidade de chamadas que patches anteriores tenham deixado ali.
+    startup_pattern = re.compile(
+        r'(@app\.on_event\(["\']startup["\']\)\n'
+        r'def start_persistent_chat_worker\(\):\n)'
+        r'(?:[ \t]+.*\n)+',
+        flags=re.M,
     )
-    for marker in (
-        'app.include_router(admin_shadow_validation_router)\n',
-        'app.include_router(admin_cutover_router)\n',
-        'app.include_router(admin_legacy_retirement_router)\n',
-        '# Desligada por padrão. Reverter a flag remove imediatamente toda a superfície paralela.\nmount_parallel_api(app)\n',
-    ):
-        source = source.replace(marker, '')
+    source, startup_count = startup_pattern.subn(
+        r'\1    start_chat_task_worker()\n',
+        source,
+        count=1,
+    )
+    if startup_count != 1:
+        raise RuntimeError('Hook de startup do chat não localizado no app principal.')
+
+    # Remove inclusões de rotas e montagem paralela mesmo que comentários ou
+    # linhas em branco tenham mudado.
+    source = re.sub(
+        r'^app\.include_router\((?:admin_cutover_router|admin_legacy_retirement_router|admin_shadow_validation_router)\)\n',
+        '',
+        source,
+        flags=re.M,
+    )
+    source = re.sub(r'^mount_parallel_api\(app\)\n', '', source, flags=re.M)
+
     executable_markers = (
         'admin_cutover_router',
         'admin_legacy_retirement_router',
         'admin_shadow_validation_router',
-        'mount_parallel_api(app)',
-        'start_cutover_aware_chat_worker()',
-        'start_shadow_validation_worker()',
+        'mount_parallel_api(',
+        'start_cutover_aware_chat_worker(',
+        'start_shadow_validation_worker(',
     )
     for marker in executable_markers:
         if marker in source:
             raise RuntimeError(f'Referência legada executável permaneceu no app principal: {marker}')
     if source.count('start_chat_task_worker()') != 1:
         raise RuntimeError('Worker do novo núcleo deve iniciar exatamente uma vez.')
+
+    compile(source, str(path), 'exec')
     path.write_text(source, encoding='utf-8')
 
 
@@ -54,7 +74,6 @@ def patch_worker() -> None:
     source = path.read_text(encoding='utf-8')
 
     # Um patch anterior gerava quebras de linha reais dentro de strings Python.
-    # Corrigimos o arquivo produzido antes de qualquer outra transformação.
     source = source.replace('usuário):\n"', 'usuário):\\n"')
     source = source.replace('+ "\nUse somente fatos', '+ "\\nUse somente fatos')
     source = source.replace('USUÁRIO:\n" + "\n\n".join', 'USUÁRIO:\\n" + "\\n\\n".join')
@@ -124,4 +143,4 @@ def patch_worker() -> None:
 
 patch_main()
 patch_worker()
-print('Runtime finalizado no novo núcleo: sem cutover, shadow, fallback ou memória legada; PDF e planilha entregues pelo domnai_core.')
+print('Runtime finalizado no novo núcleo: startup e worker sem referências executáveis ao legado.')
