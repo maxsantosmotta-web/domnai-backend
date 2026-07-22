@@ -23,15 +23,16 @@ if 'const [editingActionMessageId, setEditingActionMessageId]' not in source:
     )
 
 if 'function toggleEditingAction(message)' not in source:
-    marker = '  function editSentMessage(messageId) {'
-    if marker not in source:
-        marker = '  async function sendMessage(event) {'
-    source = source.replace(marker, '''  function toggleEditingAction(message) {
+    marker = '  async function sendMessage(event) {'
+    toggle = '''  function toggleEditingAction(message) {
     if (message.role !== 'user' || message.processing || responding) return;
     setEditingActionMessageId((current) => current === message.id ? null : message.id);
   }
 
-''' + marker, 1)
+'''
+    if marker not in source:
+        raise RuntimeError('Função de envio não localizada no Dashboard final.')
+    source = source.replace(marker, toggle + marker, 1)
 
 if 'function editSentMessage(messageId)' not in source:
     handler = '''  function editSentMessage(messageId) {
@@ -61,9 +62,28 @@ if 'function editSentMessage(messageId)' not in source:
 
 '''
     marker = '  async function sendMessage(event) {'
-    if marker not in source:
-        raise RuntimeError('Função de envio não localizada no Dashboard final.')
     source = source.replace(marker, handler + marker, 1)
+
+# Rebuild the final message-card opening after every previous frontend patch.
+article_pattern = re.compile(r'<article\b.*?\bkey=\{message\.id\}.*?>', re.S)
+article_replacement = '''<article
+                  className={`chat-message ${message.role}${message.isError ? ' error' : ''}`}
+                  key={message.id}
+                  style={{ WebkitTouchCallout: 'default', userSelect: 'none' }}
+                  onClick={(event) => {
+                    if (!event.target.closest('button, a')) toggleEditingAction(message);
+                  }}
+                  onPointerDown={(event) => startLongPress(() => confirmDeleteMessage(message.id), event)}
+                  onPointerUp={finishLongPress}
+                  onPointerCancel={cancelLongPress}
+                  onPointerMove={moveLongPress}
+                  onContextMenu={(event) => {
+                    if (!event.target.closest('.message-text-selectable')) event.preventDefault();
+                  }}
+                >'''
+source, article_count = article_pattern.subn(article_replacement, source, count=1)
+if article_count != 1:
+    raise RuntimeError('Cartão final de mensagem não localizado para reconstrução segura.')
 
 if 'className="edit-sent-message-button"' not in source:
     author = '<span className="message-author">{message.role === \'assistant\' ? \'DomnAI\' : \'Você\'}</span>'
@@ -89,18 +109,6 @@ if 'className="edit-sent-message-button"' not in source:
         raise RuntimeError('Cabeçalho das mensagens não localizado no Dashboard final.')
     source = source.replace(author, replacement, 1)
 
-if 'onClick={() => toggleEditingAction(message)}' not in source:
-    article_pattern = re.compile(
-        r'(<article\b(?=[^>]*chat-message)(?=[^>]*key=\{message\.id\})[^>]*)(>)'
-    )
-    source, count = article_pattern.subn(
-        lambda match: match.group(1) + ' onClick={() => toggleEditingAction(message)}' + match.group(2),
-        source,
-        count=1,
-    )
-    if count != 1:
-        raise RuntimeError('Cartão real da mensagem não localizado no markup final.')
-
 if 'ref={composerInputRef}' not in source:
     source, count = re.subn(
         r'<textarea\s+value=\{draft\}',
@@ -117,11 +125,11 @@ for marker in (
     'function toggleEditingAction(message)',
     'function editSentMessage(messageId)',
     'className="edit-sent-message-button"',
-    'onClick={() => toggleEditingAction(message)}',
     'editing-action-open',
     'event.stopPropagation();',
     'ref={composerInputRef}',
     'setMessages(messages.slice(0, messageIndex));',
+    'onPointerDown={(event) => startLongPress(() => confirmDeleteMessage(message.id), event)}',
 ):
     if marker not in source:
         raise RuntimeError(f'Edição de mensagem incompleta: {marker}')
@@ -132,33 +140,24 @@ styles = STYLES.read_text(encoding='utf-8')
 css = '''
 
 /* sent-message-editing-final */
-.chat-message.user {
-  position: relative;
-  cursor: pointer;
-}
-
 .message-heading {
   display: flex;
   align-items: center;
+  justify-content: space-between;
   gap: 12px;
 }
 
 .edit-sent-message-button {
   display: none !important;
-  position: absolute;
-  right: 8px;
-  bottom: 8px;
-  z-index: 4;
-  border: 1px solid rgba(127, 127, 127, 0.24);
-  background: rgba(20, 20, 20, 0.96);
+  border: 0;
+  background: transparent;
   color: inherit;
   font: inherit;
   font-size: 0.76rem;
   line-height: 1;
-  padding: 7px 10px;
+  padding: 5px 7px;
   cursor: pointer;
-  border-radius: 8px;
-  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.28);
+  border-radius: 7px;
 }
 
 @media (hover: hover) and (pointer: fine) {
@@ -173,7 +172,7 @@ css = '''
 
 .edit-sent-message-button:hover,
 .edit-sent-message-button:focus-visible {
-  background: rgba(38, 38, 38, 0.98);
+  background: rgba(127, 127, 127, 0.14);
   outline: none;
 }
 
@@ -188,4 +187,4 @@ if start >= 0:
 styles = styles.rstrip() + css + '\n'
 STYLES.write_text(styles, encoding='utf-8')
 
-print('Edição conectada ao cartão inteiro da mensagem; botão flutua dentro da caixa sem alterar o layout.')
+print('Cartão final reconstruído: exclusão por pressão longa preservada e edição contextual ligada à mensagem inteira sem sobreposição.')
