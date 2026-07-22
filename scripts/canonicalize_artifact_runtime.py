@@ -70,6 +70,10 @@ def patch_worker() -> None:
     path = Path("/app/app/services/chat_task_worker.py")
     source = path.read_text(encoding="utf-8")
 
+    source = source.replace('usuário):\n"', 'usuário):\\n"')
+    source = source.replace('+ "\nUse somente fatos', '+ "\\nUse somente fatos')
+    source = source.replace('USUÁRIO:\n" + "\n\n".join', 'USUÁRIO:\\n" + "\\n\\n".join')
+
     source = source.replace(
         "from app.services.orchestrated_brain import generate_orchestrated_response\n",
         "from app.domnai_core.chat_runtime import generate_new_core_response\n",
