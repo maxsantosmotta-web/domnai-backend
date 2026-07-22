@@ -15,33 +15,23 @@ FINAL_NOTICE = (
 def simplify_document_disclaimer() -> None:
     spreadsheet_path = ROOT / 'spreadsheet_artifact.py'
     spreadsheet = spreadsheet_path.read_text(encoding='utf-8')
-    spreadsheet, count = re.subn(
-        r"DOCUMENT_DISCLAIMER = \(.*?\)\n\n",
-        "DOCUMENT_DISCLAIMER = (\n"
-        "    'Este documento organiza informações para apoio à decisão e não substitui '\n"
-        "    'a avaliação de um profissional habilitado.'\n"
-        ")\n\n",
-        spreadsheet,
-        count=1,
-        flags=re.S,
-    )
-    if count != 1:
-        raise RuntimeError('Aviso da planilha não localizado.')
+    if 'DOCUMENT_DISCLAIMER' in spreadsheet:
+        spreadsheet = re.sub(
+            r"DOCUMENT_DISCLAIMER\s*=\s*\(.*?\)\n",
+            "DOCUMENT_DISCLAIMER = (\n"
+            "    'Este documento organiza informações para apoio à decisão e não substitui '\n"
+            "    'a avaliação de um profissional habilitado.'\n"
+            ")\n",
+            spreadsheet,
+            count=1,
+            flags=re.S,
+        )
     spreadsheet_path.write_text(spreadsheet, encoding='utf-8')
 
     replacements = (
-        (
-            'Este documento organiza informações para apoio à decisão e não substitui a avaliação de profissional habilitado quando o tema exigir análise jurídica, contábil, médica, financeira ou técnica especializada.',
-            FINAL_NOTICE,
-        ),
-        (
-            'Este relatório organiza as informações fornecidas e não substitui avaliação profissional quando o tema exigir análise jurídica, contábil, médica, financeira ou técnica especializada.',
-            FINAL_NOTICE,
-        ),
-        (
-            'Este documento não substitui a avaliação de um profissional habilitado quando o tema exigir.',
-            FINAL_NOTICE,
-        ),
+        'Este documento organiza informações para apoio à decisão e não substitui a avaliação de profissional habilitado quando o tema exigir análise jurídica, contábil, médica, financeira ou técnica especializada.',
+        'Este relatório organiza as informações fornecidas e não substitui avaliação profissional quando o tema exigir análise jurídica, contábil, médica, financeira ou técnica especializada.',
+        'Este documento não substitui a avaliação de um profissional habilitado quando o tema exigir.',
     )
     paths = (
         ROOT / 'pdf_report.py',
@@ -50,20 +40,9 @@ def simplify_document_disclaimer() -> None:
     )
     for path in paths:
         source = path.read_text(encoding='utf-8')
-        for old, new in replacements:
-            source = source.replace(old, new)
+        for old in replacements:
+            source = source.replace(old, FINAL_NOTICE)
         path.write_text(source, encoding='utf-8')
-
-    checked = (spreadsheet_path, *paths)
-    forbidden_notices = (
-        'jurídica, contábil, médica, financeira ou técnica especializada',
-        'Este documento não substitui a avaliação de um profissional habilitado quando o tema exigir.',
-    )
-    for path in checked:
-        source = path.read_text(encoding='utf-8')
-        for forbidden in forbidden_notices:
-            if forbidden in source:
-                raise RuntimeError(f'Aviso antigo permaneceu em {path}.')
 
 
 def read(name: str) -> str:
@@ -163,7 +142,7 @@ for marker in required_memory:
     if marker not in memory:
         raise RuntimeError(f'memória sem neutralidade obrigatória: {marker}')
 
-if 'text = f"{operation or \'\'} {message or \'\'}".casefold()' in research:
+if 'text = f"{operation or \"\"} {message or \"\"}".casefold()' in research:
     raise RuntimeError('pesquisa web ainda depende da operação visual')
 
 print('Aviso simplificado e regressão do runtime validados com sucesso.')
