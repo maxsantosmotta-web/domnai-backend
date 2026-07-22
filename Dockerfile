@@ -144,8 +144,8 @@ COPY scripts/enforce_vacation_classification_by_dates.py /tmp/enforce_vacation_c
 COPY scripts/enforce_labor_notice_integrity.py /tmp/enforce_labor_notice_integrity.py
 COPY scripts/finalize_conversation_integrity.py /tmp/finalize_conversation_integrity.py
 COPY scripts/retire_legacy_chat_memory.py /tmp/retire_legacy_chat_memory.py
-COPY scripts/finalize_new_core_only.py /tmp/finalize_new_core_only.py
 COPY scripts/stabilize_artifact_build.py /tmp/stabilize_artifact_build.py
+COPY scripts/canonicalize_artifact_runtime.py /tmp/canonicalize_artifact_runtime.py
 RUN python /tmp/make_runtime_patches_idempotent.py \
     && python -m py_compile /tmp/*.py \
     && python /tmp/connect_chat_sources_backend.py \
@@ -174,7 +174,7 @@ RUN python /tmp/make_runtime_patches_idempotent.py \
     && python /tmp/finalize_conversation_integrity.py \
     && python /tmp/retire_legacy_chat_memory.py \
     && python /tmp/stabilize_artifact_build.py \
-    && python /tmp/finalize_new_core_only.py \
+    && python /tmp/canonicalize_artifact_runtime.py \
     && python -m compileall -q app
 COPY --from=frontend-builder /frontend/dist ./frontend/dist
 EXPOSE 8080
