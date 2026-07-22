@@ -29,75 +29,39 @@ _OFFER_MARKERS = (
     "arquivo csv editável",
 )
 
-_ACCEPTANCE_EXACT = {
-    "sim",
-    "pode",
-    "quero",
-    "ok",
-    "claro",
-    "perfeito",
-}
-
+_ACCEPTANCE_EXACT = {"sim", "pode", "quero", "ok", "claro", "perfeito"}
 _ACCEPTANCE_PHRASES = (
-    "sim, pode",
-    "sim pode",
-    "pode gerar",
-    "pode criar",
-    "quero o pdf",
-    "quero a planilha",
-    "gere o pdf",
-    "gera o pdf",
-    "crie o pdf",
-    "cria o pdf",
-    "faça o pdf",
-    "transforme em pdf",
-    "transforma em pdf",
-    "gere a planilha",
-    "crie a planilha",
+    "sim, pode", "sim pode", "pode gerar", "pode criar",
+    "quero o pdf", "quero a planilha", "gere o pdf", "gera o pdf",
+    "crie o pdf", "cria o pdf", "faça o pdf", "transforme em pdf",
+    "transforma em pdf", "gere a planilha", "crie a planilha",
 )
 
 _SPREADSHEET_REQUEST_MARKERS = (
-    "planilha",
-    "excel",
-    "xlsx",
-    "csv",
-    "tabela editável",
-    "tabela editavel",
-    "folha de cálculo",
-    "folha de calculo",
-    "linhas e colunas",
-    "formato tabular",
-    "quadro editável",
-    "quadro editavel",
+    "planilha", "excel", "xlsx", "csv", "tabela editável", "tabela editavel",
+    "folha de cálculo", "folha de calculo", "linhas e colunas", "formato tabular",
+    "quadro editável", "quadro editavel",
 )
 
 _EXPLICIT_ARTIFACT_MARKERS = (
-    "pdf",
-    *_SPREADSHEET_REQUEST_MARKERS,
-    "gere um relatório",
-    "crie um relatório",
-    "crie o arquivo",
-    "gere o arquivo",
-    "transforme em arquivo",
-    "transforma em arquivo",
+    "pdf", *_SPREADSHEET_REQUEST_MARKERS, "gere um relatório", "crie um relatório",
+    "crie o arquivo", "gere o arquivo", "transforme em arquivo", "transforma em arquivo",
 )
 
 _REUSE_MARKERS = (
-    "abrir arquivo",
-    "abre o arquivo",
-    "baixar",
-    "download",
-    "manda o link",
-    "envia o link",
-    "me passa o link",
-    "salvar na galeria",
+    "abrir arquivo", "abre o arquivo", "baixar", "download", "manda o link",
+    "envia o link", "me passa o link", "salvar na galeria",
 )
 
 _CREATED_MARKERS = (
-    "arquivo criado",
-    "pdf criado",
-    "planilha criada",
-    "enviado no chat",
+    "arquivo criado", "pdf criado", "planilha criada", "enviado no chat",
+)
+
+_DIRECT_PDF_MARKERS = (
+    "pdf", "em formato pdf", "manda isso no pdf", "mande isso no pdf",
+    "me manda no pdf", "me mande no pdf", "gera o pdf", "gere o pdf",
+    "cria o pdf", "crie o pdf", "faça o pdf", "transforma em pdf",
+    "transforme em pdf", "fechar no pdf", "finalizar no pdf",
 )
 
 
@@ -121,10 +85,7 @@ def _accepted_offer(value: str) -> bool:
     normalized = _normalize(value).strip(" .,!?:;")
     if normalized in _ACCEPTANCE_EXACT:
         return True
-    return any(
-        normalized == phrase or normalized.startswith(f"{phrase} ")
-        for phrase in _ACCEPTANCE_PHRASES
-    )
+    return any(normalized == phrase or normalized.startswith(f"{phrase} ") for phrase in _ACCEPTANCE_PHRASES)
 
 
 def _artifact_type_from_offer(text: str) -> str:
@@ -142,11 +103,46 @@ def _remove_offer_from_answer(text: str) -> str:
     return "\n\n".join(kept).strip()
 
 
-def resolve_pending_artifact_acceptance(message: str, history: list[dict]) -> dict | None:
-    """Resolve aceite simples; formato explicitamente pedido sempre tem prioridade."""
+def _last_completed_assistant_answer(history: list[dict]) -> str:
+    for item in reversed(history):
+        if str(item.get("role") or "").strip().lower() != "assistant":
+            continue
+        content = str(item.get("content") or "").strip()
+        if not content:
+            continue
+        normalized = _normalize(content)
+        if "openai respondeu http" in normalized or "não foi possível" in normalized:
+            continue
+        return _remove_offer_from_answer(content)
+    return ""
+
+
+def _direct_pdf_decision(message: str, operation: str | None, history: list[dict]) -> dict | None:
+    normalized = _normalize(message)
+    if not _contains_any(normalized, _DIRECT_PDF_MARKERS):
+        return None
     if _explicit_spreadsheet_request(message):
         return None
-    if not _accepted_offer(message):
+    source_answer = _last_completed_assistant_answer(history)
+    if not source_answer:
+        return None
+    return {
+        "action": "create",
+        "artifact_type": "pdf",
+        "title": str(operation or "Relatório consolidado").strip()[:180],
+        "sheet_name": "Dados",
+        "headers": [],
+        "rows": [],
+        "source_answer": source_answer,
+        "local_artifact_followup": True,
+    }
+
+
+def resolve_pending_artifact_acceptance(message: str, history: list[dict]) -> dict | None:
+    direct = _direct_pdf_decision(message, None, history)
+    if direct:
+        return direct
+    if _explicit_spreadsheet_request(message) or not _accepted_offer(message):
         return None
 
     for index in range(len(history) - 1, -1, -1):
@@ -156,7 +152,6 @@ def resolve_pending_artifact_acceptance(message: str, history: list[dict]) -> di
         content = str(item.get("content") or "").strip()
         if not _contains_any(_normalize(content), _OFFER_MARKERS):
             continue
-
         source_answer = _remove_offer_from_answer(content)
         if len(source_answer) < 120:
             for previous_index in range(index - 1, -1, -1):
@@ -167,10 +162,8 @@ def resolve_pending_artifact_acceptance(message: str, history: list[dict]) -> di
                 if len(candidate) >= 120:
                     source_answer = candidate
                     break
-
         if len(source_answer) < 120:
             return None
-
         artifact_type = _artifact_type_from_offer(content)
         return {
             "action": "create",
@@ -228,7 +221,6 @@ def _parse_decision(raw_text: str) -> dict:
     headers = [str(item or "").strip()[:180] for item in (payload.get("headers") or [])[:50]]
     headers = [item for item in headers if item]
     rows = _clean_rows(payload.get("rows"), len(headers))
-
     if action == "create" and artifact_type in {"xlsx", "csv"} and not headers:
         action = "offer"
 
@@ -242,35 +234,28 @@ def _parse_decision(raw_text: str) -> dict:
     }
 
 
-def _requires_artifact_decision(
-    message: str,
-    operation: str | None,
-    history: list[dict],
-    answer: str,
-) -> bool:
+def _requires_artifact_decision(message: str, operation: str | None, history: list[dict], answer: str) -> bool:
     del operation, answer
     normalized = _normalize(message)
     recent_text = _history_text(history)
     offer_already_made = _contains_any(recent_text, _OFFER_MARKERS)
     artifact_already_created = _contains_any(recent_text, _CREATED_MARKERS)
-
     if artifact_already_created and _contains_any(normalized, _REUSE_MARKERS):
         return False
-
     explicit_request = _contains_any(normalized, _EXPLICIT_ARTIFACT_MARKERS)
     accepted_previous_offer = offer_already_made and _accepted_offer(normalized)
     return explicit_request or accepted_previous_offer
 
 
-def decide_artifact(
-    *,
-    message: str,
-    operation: str | None,
-    history: list[dict],
-    answer: str,
-) -> dict:
+def decide_artifact(*, message: str, operation: str | None, history: list[dict], answer: str) -> dict:
+    direct = _direct_pdf_decision(message, operation, history)
+    if direct:
+        return direct
+
     accepted = resolve_pending_artifact_acceptance(message, history)
     if accepted:
+        if operation and str(accepted.get("title") or "").casefold() == "documento domnai":
+            accepted["title"] = str(operation).strip()[:180]
         return accepted
 
     if not _requires_artifact_decision(message, operation, history, answer):
@@ -286,7 +271,6 @@ def decide_artifact(
         "recent_history": history[-10:],
         "completed_answer": answer,
     }
-
     instructions = """
 Você decide como criar um arquivo que foi pedido explicitamente pelo usuário.
 Retorne somente JSON válido com:
@@ -298,19 +282,13 @@ Retorne somente JSON válido com:
   "headers":["colunas da planilha"],
   "rows":[["valores"]]
 }
-
 Regras:
 - Não ofereça arquivo por iniciativa própria.
-- Só use create porque a mensagem atual pediu explicitamente um arquivo ou aceitou uma oferta anterior real.
+- Só use create quando a mensagem atual pediu explicitamente um arquivo ou aceitou uma oferta anterior real.
 - O formato explicitamente pedido na mensagem atual sempre tem prioridade.
-- Entenda como pedido de planilha expressões naturais como Excel, tabela editável, folha de cálculo, linhas e colunas e formato tabular.
-- Use offer apenas quando o usuário pediu planilha/CSV, mas faltam dados indispensáveis para formar colunas e linhas com segurança.
-- Use none quando o pedido não puder ser atendido sem inventar conteúdo.
-- PDF é adequado para relatório, parecer, análise narrativa, plano ou documento de leitura.
-- XLSX/CSV é adequado quando os dados precisam ser editados, calculados, filtrados, comparados ou reutilizados em linhas e colunas.
-- Para XLSX/CSV com action=create, produza headers e rows completos usando apenas dados sustentados pela conversa e pela resposta. Não invente números.
-- Prefira XLSX para uso humano e CSV quando o usuário pedir CSV ou quando o foco for importação de dados.
-- Não escolha e-mail nem link externo. O arquivo é entregue diretamente no chat e salvo automaticamente na Biblioteca após a geração real.
+- Para XLSX/CSV com action=create, produza headers e rows completos usando apenas dados sustentados pela conversa e pela resposta.
+- Não invente números.
+- O arquivo é entregue diretamente no chat e salvo automaticamente na Biblioteca.
 """.strip()
 
     try:
@@ -321,10 +299,7 @@ Regras:
                 "instructions": instructions,
                 "input": [{
                     "role": "user",
-                    "content": [{
-                        "type": "input_text",
-                        "text": json.dumps(request_payload, ensure_ascii=False),
-                    }],
+                    "content": [{"type": "input_text", "text": json.dumps(request_payload, ensure_ascii=False)}],
                 }],
                 "temperature": 0.0,
                 "max_output_tokens": 1800,
