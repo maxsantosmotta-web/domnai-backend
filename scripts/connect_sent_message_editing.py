@@ -22,6 +22,18 @@ if 'const [editingActionMessageId, setEditingActionMessageId]' not in source:
         1,
     )
 
+if 'function toggleEditingAction(message)' not in source:
+    marker = '  function editSentMessage(messageId) {'
+    if marker not in source:
+        marker = '  async function sendMessage(event) {'
+    toggle = '''  function toggleEditingAction(message) {
+    if (message.role !== 'user' || message.processing || responding) return;
+    setEditingActionMessageId((current) => current === message.id ? null : message.id);
+  }
+
+'''
+    source = source.replace(marker, toggle + marker, 1)
+
 if 'function editSentMessage(messageId)' not in source:
     handler = '''  function editSentMessage(messageId) {
     if (responding) return;
@@ -58,11 +70,7 @@ if 'className="edit-sent-message-button"' not in source:
     author = '<span className="message-author">{message.role === \'assistant\' ? \'DomnAI\' : \'Você\'}</span>'
     replacement = '''<div
                     className={`message-heading${editingActionMessageId === message.id ? ' editing-action-open' : ''}`}
-                    onClick={() => {
-                      if (message.role === 'user' && !message.processing && !responding) {
-                        setEditingActionMessageId((current) => current === message.id ? null : message.id);
-                      }
-                    }}
+                    onClick={() => toggleEditingAction(message)}
                   >
                     <span className="message-author">{message.role === 'assistant' ? 'DomnAI' : 'Você'}</span>
                     {message.role === 'user' && !message.processing ? (
@@ -85,6 +93,20 @@ if 'className="edit-sent-message-button"' not in source:
         raise RuntimeError('Cabeçalho das mensagens não localizado no Dashboard final.')
     source = source.replace(author, replacement, 1)
 
+plain_text = '{message.text ? <p>{message.text}</p> : null}'
+interactive_text = '''{message.text ? (
+                    <p
+                      className={message.role === 'user' ? 'editable-message-body' : undefined}
+                      onClick={() => toggleEditingAction(message)}
+                    >
+                      {message.text}
+                    </p>
+                  ) : null}'''
+if 'editable-message-body' not in source:
+    if plain_text not in source:
+        raise RuntimeError('Corpo textual da mensagem não localizado no Dashboard final.')
+    source = source.replace(plain_text, interactive_text, 1)
+
 if 'ref={composerInputRef}' not in source:
     source, count = re.subn(
         r'<textarea\s+value=\{draft\}',
@@ -98,8 +120,10 @@ if 'ref={composerInputRef}' not in source:
 for marker in (
     'const composerInputRef = useRef(null);',
     'editingActionMessageId',
+    'function toggleEditingAction(message)',
     'function editSentMessage(messageId)',
     'className="edit-sent-message-button"',
+    'editable-message-body',
     'editing-action-open',
     'event.stopPropagation();',
     'ref={composerInputRef}',
@@ -114,23 +138,36 @@ styles = STYLES.read_text(encoding='utf-8')
 css = '''
 
 /* sent-message-editing-final */
+.chat-message.user {
+  position: relative;
+}
+
 .message-heading {
   display: flex;
   align-items: center;
-  justify-content: space-between;
   gap: 12px;
+}
+
+.editable-message-body {
+  cursor: pointer;
 }
 
 .edit-sent-message-button {
   display: none !important;
-  border: 0;
-  background: transparent;
+  position: absolute;
+  right: 8px;
+  bottom: -28px;
+  z-index: 4;
+  border: 1px solid rgba(127, 127, 127, 0.24);
+  background: rgba(20, 20, 20, 0.96);
   color: inherit;
   font: inherit;
-  font-size: 0.78rem;
-  padding: 4px 6px;
+  font-size: 0.76rem;
+  line-height: 1;
+  padding: 7px 10px;
   cursor: pointer;
-  border-radius: 6px;
+  border-radius: 8px;
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.28);
 }
 
 @media (hover: hover) and (pointer: fine) {
@@ -145,7 +182,7 @@ css = '''
 
 .edit-sent-message-button:hover,
 .edit-sent-message-button:focus-visible {
-  background: rgba(127, 127, 127, 0.14);
+  background: rgba(38, 38, 38, 0.98);
   outline: none;
 }
 
@@ -160,4 +197,4 @@ if start >= 0:
 styles = styles.rstrip() + css + '\n'
 STYLES.write_text(styles, encoding='utf-8')
 
-print('Edição contextual corrigida: toque alterna a ação no celular e hover exibe no desktop.')
+print('Edição móvel conectada ao corpo inteiro da mensagem, sem sobrepor o conteúdo da caixa.')
