@@ -7,9 +7,11 @@ text = path.read_text(encoding="utf-8")
 # O decisor moderno já possui resolução natural e explícita de PDF/XLSX/CSV.
 # Não reintroduzir o gatilho legado de geração automática por tamanho de resposta.
 modern_markers = (
-    "def _intent_from_message(",
-    "def _direct_artifact_decision(",
-    "_DIRECT_FORMATS",
+    "def detect_artifact_request(",
+    "def _direct_document_decision(",
+    "_PDF_FORMAT_TERMS",
+    "_XLSX_FORMAT_TERMS",
+    "_CSV_FORMAT_TERMS",
 )
 if all(marker in text for marker in modern_markers):
     print("Compatibilidade de artifact exports: decisor moderno preservado.")
