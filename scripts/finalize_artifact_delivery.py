@@ -1,59 +1,79 @@
 from pathlib import Path
+import ast
 
 # Escopo fechado: entrega pendente, decisão delegada, remoção de contradições e finalização premium.
+
+
+def _extend_named_collection(source: str, name: str, values: tuple[str, ...]) -> str:
+    """Atualiza set/tuple pelo AST, sem depender da formatação textual do arquivo."""
+    tree = ast.parse(source)
+    target_node = None
+    for node in tree.body:
+        if not isinstance(node, ast.Assign) or len(node.targets) != 1:
+            continue
+        target = node.targets[0]
+        if isinstance(target, ast.Name) and target.id == name:
+            target_node = node
+            break
+    if target_node is None or not hasattr(target_node, "end_lineno"):
+        raise RuntimeError(f'Coleção {name} não encontrada no decisor de artefatos.')
+
+    literal_text = ast.get_source_segment(source, target_node.value)
+    try:
+        current = ast.literal_eval(literal_text)
+    except (ValueError, SyntaxError) as exc:
+        raise RuntimeError(f'Coleção {name} não pôde ser interpretada com segurança.') from exc
+
+    if isinstance(current, set):
+        merged = sorted(set(current).union(values))
+        replacement = name + " = {\n" + "".join(f"    {item!r},\n" for item in merged) + "}"
+    elif isinstance(current, tuple):
+        merged = list(dict.fromkeys([*current, *values]))
+        replacement = name + " = (\n" + "".join(f"    {item!r},\n" for item in merged) + ")"
+    else:
+        raise RuntimeError(f'Coleção {name} precisa ser set ou tuple.')
+
+    lines = source.splitlines(keepends=True)
+    start = target_node.lineno - 1
+    end = target_node.end_lineno
+    suffix = "\n" if lines[end - 1].endswith("\n") else ""
+    lines[start:end] = [replacement + suffix]
+    updated = "".join(lines)
+    compile(updated, 'artifact_decision.py', 'exec')
+    return updated
+
 
 # 1) Aceitar delegação natural do usuário como autorização para concluir o arquivo oferecido.
 decision_path = Path('/app/app/services/artifact_decision.py')
 decision = decision_path.read_text(encoding='utf-8')
-
-exact_marker = '''_ACCEPTANCE_EXACT = {
-    "sim",
-    "pode",
-    "quero",
-    "ok",
-    "claro",
-    "perfeito",
-}'''
-exact_replacement = '''_ACCEPTANCE_EXACT = {
-    "sim",
-    "pode",
-    "quero",
-    "ok",
-    "claro",
-    "perfeito",
-    "voce decide",
-    "você decide",
-    "pode escolher",
-    "como achar melhor",
-    "como voce achar melhor",
-    "como você achar melhor",
-}'''
-if exact_marker in decision:
-    decision = decision.replace(exact_marker, exact_replacement, 1)
-elif '"como você achar melhor"' not in decision:
-    raise RuntimeError('Bloco de aceites do decisor de artefatos não encontrado.')
-
-phrase_marker = '''    "gere a planilha",
-    "crie a planilha",
-)'''
-phrase_replacement = '''    "gere a planilha",
-    "crie a planilha",
-    "voce decide",
-    "você decide",
-    "pode escolher",
-    "escolha voce",
-    "escolha você",
-    "como achar melhor",
-    "como voce achar melhor",
-    "como você achar melhor",
-    "da forma que achar melhor",
-    "do jeito que achar melhor",
-)'''
-if phrase_marker in decision:
-    decision = decision.replace(phrase_marker, phrase_replacement, 1)
-elif '"do jeito que achar melhor"' not in decision:
-    raise RuntimeError('Bloco de frases de aceite do decisor não encontrado.')
-
+decision = _extend_named_collection(
+    decision,
+    '_ACCEPTANCE_EXACT',
+    (
+        'voce decide',
+        'você decide',
+        'pode escolher',
+        'como achar melhor',
+        'como voce achar melhor',
+        'como você achar melhor',
+    ),
+)
+decision = _extend_named_collection(
+    decision,
+    '_ACCEPTANCE_PHRASES',
+    (
+        'voce decide',
+        'você decide',
+        'pode escolher',
+        'escolha voce',
+        'escolha você',
+        'como achar melhor',
+        'como voce achar melhor',
+        'como você achar melhor',
+        'da forma que achar melhor',
+        'do jeito que achar melhor',
+    ),
+)
 decision_path.write_text(decision, encoding='utf-8')
 
 # 2) Registrar estado real de entrega pendente no payload da tarefa.
