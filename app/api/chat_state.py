@@ -173,6 +173,7 @@ def _merge_server_task_messages(db, user_id: str, incoming: list[dict], existing
 
     merged = list(incoming)
     positions = {key: index for index, item in enumerate(merged) if (key := _task_key(item))}
+    active_statuses = {"queued", "processing", "generated"}
 
     for key in set(incoming_by_key) | set(existing_by_key):
         task_id, role = key
@@ -181,15 +182,19 @@ def _merge_server_task_messages(db, user_id: str, incoming: list[dict], existing
         incoming_item = incoming_by_key.get(key)
         authoritative = incoming_item
 
-        if role == "assistant" and task is not None:
-            if task.status == "completed":
-                authoritative = _completed_assistant(task, existing_item or incoming_item)
-            elif existing_item and not existing_item.get("processing") and not existing_item.get("isError"):
+        if task is not None and task.status in active_statuses:
+            if incoming_item is None and existing_item is not None:
                 authoritative = existing_item
-            elif task.status in {"queued", "processing", "generated"} and existing_item:
+            elif role == "assistant" and existing_item is not None:
                 authoritative = existing_item
-        elif incoming_item is None and existing_item is not None and task is not None:
-            authoritative = existing_item
+        elif role == "assistant" and task is not None and task.status == "completed":
+            authoritative = (
+                _completed_assistant(task, existing_item or incoming_item)
+                if incoming_item is not None
+                else None
+            )
+        elif incoming_item is None:
+            authoritative = None
 
         if authoritative is None:
             continue
