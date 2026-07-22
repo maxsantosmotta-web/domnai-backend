@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import json
 import os
+import re
+import unicodedata
 from typing import Any
 
 from app.services.metered_brain import _openai_request
@@ -17,56 +19,204 @@ _NONE = {
 }
 
 _OFFER_MARKERS = (
-    "posso gerar este conteúdo em pdf",
-    "posso gerar esse conteúdo em pdf",
-    "posso transformar este conteúdo em pdf",
+    "posso gerar este conteudo em pdf",
+    "posso gerar esse conteudo em pdf",
+    "posso transformar este conteudo em pdf",
     "posso organizar esse resultado em um pdf",
     "posso organizar este resultado em um pdf",
     "posso compilar esse resultado em um pdf",
     "posso compilar este resultado em um pdf",
     "pdf profissional",
-    "planilha editável",
-    "arquivo csv editável",
+    "planilha editavel",
+    "arquivo csv editavel",
 )
 
-_ACCEPTANCE_EXACT = {"sim", "pode", "quero", "ok", "claro", "perfeito"}
+_ACCEPTANCE_EXACT = {
+    "sim",
+    "pode",
+    "quero",
+    "ok",
+    "claro",
+    "perfeito",
+    "isso",
+    "pode sim",
+    "sim por favor",
+}
+
 _ACCEPTANCE_PHRASES = (
-    "sim, pode", "sim pode", "pode gerar", "pode criar",
-    "quero o pdf", "quero a planilha", "gere o pdf", "gera o pdf",
-    "crie o pdf", "cria o pdf", "faça o pdf", "transforme em pdf",
-    "transforma em pdf", "gere a planilha", "crie a planilha",
+    "sim pode",
+    "pode gerar",
+    "pode criar",
+    "pode fazer",
+    "pode montar",
+    "quero o arquivo",
+    "quero o documento",
+    "quero a planilha",
+    "quero o pdf",
+    "manda pra mim",
+    "mande pra mim",
+    "envia pra mim",
+    "envie pra mim",
 )
 
-_SPREADSHEET_REQUEST_MARKERS = (
-    "planilha", "excel", "xlsx", "csv", "tabela editável", "tabela editavel",
-    "folha de cálculo", "folha de calculo", "linhas e colunas", "formato tabular",
-    "quadro editável", "quadro editavel",
+# Reconhecimento combinatório: intenção/ação x conteúdo x formato x entrega.
+# Não depende de uma frase exata. Novas combinações naturais são cobertas pelos
+# grupos abaixo sem precisar cadastrar cada sentença completa.
+_ACTION_TERMS = (
+    "gerar", "gera", "gere", "gerando",
+    "criar", "cria", "crie", "criando",
+    "fazer", "faz", "faca", "fazendo",
+    "montar", "monta", "monte",
+    "transformar", "transforma", "transforme",
+    "converter", "converte", "converta",
+    "exportar", "exporta", "exporte",
+    "preparar", "prepara", "prepare",
+    "organizar", "organiza", "organize",
+    "compilar", "compila", "compile",
+    "formatar", "formata", "formate",
+    "finalizar", "finaliza", "finalize",
+    "fechar", "fecha", "feche",
+    "entregar", "entrega", "entregue",
+    "mandar", "manda", "mande",
+    "enviar", "envia", "envie",
+    "salvar", "salva", "salve",
+    "baixar", "baixa", "baixe",
+    "imprimir", "imprime", "imprima",
+    "colocar", "coloca", "coloque",
+    "passar", "passa", "passe",
 )
 
-_EXPLICIT_ARTIFACT_MARKERS = (
-    "pdf", *_SPREADSHEET_REQUEST_MARKERS, "gere um relatório", "crie um relatório",
-    "crie o arquivo", "gere o arquivo", "transforme em arquivo", "transforma em arquivo",
+_DESIRE_TERMS = (
+    "quero",
+    "preciso",
+    "gostaria",
+    "pode",
+    "poderia",
+    "consegue",
+    "conseguiria",
+    "tem como",
+    "da para",
+    "da pra",
+    "seria possivel",
+    "eu quero",
+    "eu preciso",
+)
+
+_REFERENCE_TERMS = (
+    "isso",
+    "esse conteudo",
+    "este conteudo",
+    "esse resultado",
+    "este resultado",
+    "essa analise",
+    "esta analise",
+    "esse relatorio",
+    "este relatorio",
+    "essa conversa",
+    "esta conversa",
+    "tudo",
+    "tudo isso",
+    "o que conversamos",
+    "o que foi feito",
+    "o resultado final",
+    "a resposta",
+    "as informacoes",
+    "os dados",
+    "o material",
+)
+
+_DELIVERY_TERMS = (
+    "para baixar",
+    "pra baixar",
+    "para download",
+    "pra download",
+    "para imprimir",
+    "pra imprimir",
+    "em arquivo",
+    "como arquivo",
+    "em documento",
+    "como documento",
+    "em formato",
+    "versao final",
+    "arquivo final",
+    "me manda",
+    "me mande",
+    "me envia",
+    "me envie",
+)
+
+_PDF_FORMAT_TERMS = (
+    "pdf",
+    "formato pdf",
+    "arquivo pdf",
+    "documento pdf",
+    "arquivo para impressao",
+    "documento para impressao",
+    "versao para impressao",
+    "versao para imprimir",
+    "pronto para imprimir",
+)
+
+_XLSX_FORMAT_TERMS = (
+    "xlsx",
+    "excel",
+    "planilha",
+    "folha de calculo",
+    "tabela editavel",
+    "quadro editavel",
+    "linhas e colunas",
+    "formato tabular",
+    "arquivo de excel",
+)
+
+_CSV_FORMAT_TERMS = (
+    "csv",
+    "arquivo csv",
+    "formato csv",
+    "valores separados por virgula",
+    "arquivo para importacao",
+    "formato de importacao",
+)
+
+_GENERIC_DOCUMENT_TERMS = (
+    "documento",
+    "relatorio",
+    "arquivo",
+    "material",
+    "versao para impressao",
+    "versao final",
+)
+
+_NEGATION_PATTERNS = (
+    r"\bnao\s+(?:quero|preciso|gere|gera|gerar|crie|cria|criar|faca|fazer|mande|mandar|envie|enviar)\b",
+    r"\bsem\s+(?:pdf|planilha|excel|xlsx|csv|arquivo|documento)\b",
+    r"\bnao\s+(?:em|no|na)\s+(?:pdf|planilha|excel|xlsx|csv)\b",
 )
 
 _REUSE_MARKERS = (
-    "abrir arquivo", "abre o arquivo", "baixar", "download", "manda o link",
-    "envia o link", "me passa o link", "salvar na galeria",
+    "abrir arquivo",
+    "abre o arquivo",
+    "baixar",
+    "download",
+    "manda o link",
+    "envia o link",
+    "me passa o link",
+    "salvar na galeria",
 )
 
 _CREATED_MARKERS = (
-    "arquivo criado", "pdf criado", "planilha criada", "enviado no chat",
-)
-
-_DIRECT_PDF_MARKERS = (
-    "pdf", "em formato pdf", "manda isso no pdf", "mande isso no pdf",
-    "me manda no pdf", "me mande no pdf", "gera o pdf", "gere o pdf",
-    "cria o pdf", "crie o pdf", "faça o pdf", "transforma em pdf",
-    "transforme em pdf", "fechar no pdf", "finalizar no pdf",
+    "arquivo criado",
+    "pdf criado",
+    "planilha criada",
+    "enviado no chat",
 )
 
 
 def _normalize(value: str) -> str:
-    return " ".join(str(value or "").casefold().split())
+    text = unicodedata.normalize("NFKD", str(value or "").casefold())
+    text = "".join(char for char in text if not unicodedata.combining(char))
+    text = re.sub(r"[^a-z0-9]+", " ", text)
+    return " ".join(text.split())
 
 
 def _history_text(history: list[dict], limit: int = 12) -> str:
@@ -77,23 +227,93 @@ def _contains_any(value: str, markers: tuple[str, ...]) -> bool:
     return any(marker in value for marker in markers)
 
 
-def _explicit_spreadsheet_request(value: str) -> bool:
-    return _contains_any(_normalize(value), _SPREADSHEET_REQUEST_MARKERS)
+def _has_negation(normalized: str) -> bool:
+    return any(re.search(pattern, normalized) for pattern in _NEGATION_PATTERNS)
+
+
+def _has_request_intent(normalized: str) -> bool:
+    return (
+        _contains_any(normalized, _ACTION_TERMS)
+        or _contains_any(normalized, _DESIRE_TERMS)
+        or _contains_any(normalized, _DELIVERY_TERMS)
+    )
+
+
+def _has_reference(normalized: str) -> bool:
+    return _contains_any(normalized, _REFERENCE_TERMS)
+
+
+def detect_artifact_request(message: str, history: list[dict] | None = None) -> str | None:
+    """Detecta intenção natural de gerar PDF, XLSX ou CSV.
+
+    A decisão cruza grupos de ação, desejo, referência, entrega e formato.
+    Não exige sentença cadastrada nem palavra-chave isolada. O histórico é usado
+    apenas para aceitar respostas curtas a uma oferta real já feita.
+    """
+    normalized = _normalize(message)
+    if not normalized or _has_negation(normalized):
+        return None
+
+    has_request = _has_request_intent(normalized)
+    has_reference = _has_reference(normalized)
+    short_request = len(normalized.split()) <= 6
+
+    if _contains_any(normalized, _CSV_FORMAT_TERMS):
+        if has_request or has_reference or short_request:
+            return "csv"
+
+    if _contains_any(normalized, _XLSX_FORMAT_TERMS):
+        if has_request or has_reference or short_request:
+            return "xlsx"
+
+    if _contains_any(normalized, _PDF_FORMAT_TERMS):
+        if has_request or has_reference or short_request:
+            return "pdf"
+
+    # Pedidos de documento/relatório para entrega ou impressão são PDF por padrão.
+    if _contains_any(normalized, _GENERIC_DOCUMENT_TERMS) and (
+        has_request or _contains_any(normalized, _DELIVERY_TERMS)
+    ):
+        return "pdf"
+
+    # Expressões como "organiza isso para eu baixar" ou "fecha tudo para imprimir".
+    if has_reference and _contains_any(normalized, _DELIVERY_TERMS):
+        if "import" in normalized or "sistema" in normalized:
+            return "csv"
+        return "pdf"
+
+    recent_text = _history_text(history or [])
+    offer_already_made = _contains_any(recent_text, _OFFER_MARKERS)
+    accepted = normalized in _ACCEPTANCE_EXACT or any(
+        normalized == phrase or normalized.startswith(f"{phrase} ")
+        for phrase in _ACCEPTANCE_PHRASES
+    )
+    if offer_already_made and accepted:
+        if "csv" in recent_text:
+            return "csv"
+        if "planilha" in recent_text or "xlsx" in recent_text or "excel" in recent_text:
+            return "xlsx"
+        return "pdf"
+
+    return None
 
 
 def _accepted_offer(value: str) -> bool:
-    normalized = _normalize(value).strip(" .,!?:;")
+    normalized = _normalize(value)
     if normalized in _ACCEPTANCE_EXACT:
         return True
-    return any(normalized == phrase or normalized.startswith(f"{phrase} ") for phrase in _ACCEPTANCE_PHRASES)
+    return any(
+        normalized == phrase or normalized.startswith(f"{phrase} ")
+        for phrase in _ACCEPTANCE_PHRASES
+    )
 
 
 def _artifact_type_from_offer(text: str) -> str:
     normalized = _normalize(text)
-    if "planilha" in normalized or "xlsx" in normalized or "excel" in normalized:
-        return "xlsx"
     if "csv" in normalized:
         return "csv"
+    if "planilha" in normalized or "xlsx" in normalized or "excel" in normalized:
+        return "xlsx"
     return "pdf"
 
 
@@ -111,17 +331,19 @@ def _last_completed_assistant_answer(history: list[dict]) -> str:
         if not content:
             continue
         normalized = _normalize(content)
-        if "openai respondeu http" in normalized or "não foi possível" in normalized:
+        if "openai respondeu http" in normalized or "nao foi possivel" in normalized:
             continue
         return _remove_offer_from_answer(content)
     return ""
 
 
-def _direct_pdf_decision(message: str, operation: str | None, history: list[dict]) -> dict | None:
-    normalized = _normalize(message)
-    if not _contains_any(normalized, _DIRECT_PDF_MARKERS):
-        return None
-    if _explicit_spreadsheet_request(message):
+def _direct_document_decision(
+    message: str,
+    operation: str | None,
+    history: list[dict],
+) -> dict | None:
+    artifact_type = detect_artifact_request(message, history)
+    if artifact_type != "pdf":
         return None
     source_answer = _last_completed_assistant_answer(history)
     if not source_answer:
@@ -139,10 +361,14 @@ def _direct_pdf_decision(message: str, operation: str | None, history: list[dict
 
 
 def resolve_pending_artifact_acceptance(message: str, history: list[dict]) -> dict | None:
-    direct = _direct_pdf_decision(message, None, history)
+    direct = _direct_document_decision(message, None, history)
     if direct:
         return direct
-    if _explicit_spreadsheet_request(message) or not _accepted_offer(message):
+
+    detected_type = detect_artifact_request(message, history)
+    if detected_type in {"xlsx", "csv"}:
+        return None
+    if not _accepted_offer(message):
         return None
 
     for index in range(len(history) - 1, -1, -1):
@@ -234,21 +460,29 @@ def _parse_decision(raw_text: str) -> dict:
     }
 
 
-def _requires_artifact_decision(message: str, operation: str | None, history: list[dict], answer: str) -> bool:
+def _requires_artifact_decision(
+    message: str,
+    operation: str | None,
+    history: list[dict],
+    answer: str,
+) -> bool:
     del operation, answer
     normalized = _normalize(message)
     recent_text = _history_text(history)
-    offer_already_made = _contains_any(recent_text, _OFFER_MARKERS)
     artifact_already_created = _contains_any(recent_text, _CREATED_MARKERS)
     if artifact_already_created and _contains_any(normalized, _REUSE_MARKERS):
         return False
-    explicit_request = _contains_any(normalized, _EXPLICIT_ARTIFACT_MARKERS)
-    accepted_previous_offer = offer_already_made and _accepted_offer(normalized)
-    return explicit_request or accepted_previous_offer
+    return detect_artifact_request(message, history) is not None
 
 
-def decide_artifact(*, message: str, operation: str | None, history: list[dict], answer: str) -> dict:
-    direct = _direct_pdf_decision(message, operation, history)
+def decide_artifact(
+    *,
+    message: str,
+    operation: str | None,
+    history: list[dict],
+    answer: str,
+) -> dict:
+    direct = _direct_document_decision(message, operation, history)
     if direct:
         return direct
 
@@ -258,7 +492,8 @@ def decide_artifact(*, message: str, operation: str | None, history: list[dict],
             accepted["title"] = str(operation).strip()[:180]
         return accepted
 
-    if not _requires_artifact_decision(message, operation, history, answer):
+    artifact_type = detect_artifact_request(message, history)
+    if not artifact_type or not _requires_artifact_decision(message, operation, history, answer):
         return dict(_NONE)
 
     api_key = os.getenv("OPENAI_API_KEY", "").strip()
@@ -268,11 +503,12 @@ def decide_artifact(*, message: str, operation: str | None, history: list[dict],
     request_payload = {
         "operation": operation,
         "current_message": message,
-        "recent_history": history[-10:],
+        "detected_artifact_type": artifact_type,
+        "recent_history": history[-20:],
         "completed_answer": answer,
     }
     instructions = """
-Você decide como criar um arquivo que foi pedido explicitamente pelo usuário.
+Você estrutura um arquivo que o usuário pediu em linguagem natural.
 Retorne somente JSON válido com:
 {
   "action":"none|offer|create",
@@ -283,28 +519,37 @@ Retorne somente JSON válido com:
   "rows":[["valores"]]
 }
 Regras:
-- Não ofereça arquivo por iniciativa própria.
-- Só use create quando a mensagem atual pediu explicitamente um arquivo ou aceitou uma oferta anterior real.
-- O formato explicitamente pedido na mensagem atual sempre tem prioridade.
-- Para XLSX/CSV com action=create, produza headers e rows completos usando apenas dados sustentados pela conversa e pela resposta.
-- Não invente números.
-- O arquivo é entregue diretamente no chat e salvo automaticamente na Biblioteca.
+- Respeite detected_artifact_type; não troque o formato pedido.
+- Use create quando houver dados suficientes no histórico ou na resposta consolidada.
+- Para XLSX/CSV, produza headers e rows completos apenas com dados sustentados pela conversa.
+- Não invente números, nomes ou fatos.
+- Use offer apenas quando realmente faltarem dados indispensáveis para formar a tabela.
+- O arquivo será entregue no chat e salvo na Biblioteca.
 """.strip()
 
     try:
         raw_text, _usage = _openai_request(
             api_key,
             {
-                "model": os.getenv("DOMNAI_ARTIFACT_MODEL", os.getenv("DOMNAI_OPENAI_MODEL", "gpt-4.1-mini")).strip(),
+                "model": os.getenv(
+                    "DOMNAI_ARTIFACT_MODEL",
+                    os.getenv("DOMNAI_OPENAI_MODEL", "gpt-4.1-mini"),
+                ).strip(),
                 "instructions": instructions,
                 "input": [{
                     "role": "user",
-                    "content": [{"type": "input_text", "text": json.dumps(request_payload, ensure_ascii=False)}],
+                    "content": [{
+                        "type": "input_text",
+                        "text": json.dumps(request_payload, ensure_ascii=False),
+                    }],
                 }],
                 "temperature": 0.0,
                 "max_output_tokens": 1800,
             },
         )
-        return _parse_decision(raw_text)
+        parsed = _parse_decision(raw_text)
+        if parsed.get("action") != "none":
+            parsed["artifact_type"] = artifact_type
+        return parsed
     except Exception:
         return dict(_NONE)
