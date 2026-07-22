@@ -1,11 +1,11 @@
 from pathlib import Path
+import re
 
 DASHBOARD = Path('/frontend/src/Dashboard.jsx')
 STYLES = Path('/frontend/src/dashboard-adjustments.css')
 
 source = DASHBOARD.read_text(encoding='utf-8')
 
-# References and state used only by the contextual action sheet.
 if 'const composerInputRef = useRef(null);' not in source:
     anchor = '  const fileInputRef = useRef(null);\n'
     if anchor not in source:
@@ -22,8 +22,6 @@ if 'const [messageActionTarget, setMessageActionTarget]' not in source:
         1,
     )
 
-# The old deletion patch ignored the selectable text and opened a browser confirm.
-# Long press now opens one contextual menu for the complete message.
 source = source.replace(
     "    if (event.target.closest('button, .message-text-selectable')) return;",
     "    if (event.target.closest('button')) return;",
@@ -46,7 +44,6 @@ new_context = '''onContextMenu={(event) => {
 if old_context in source:
     source = source.replace(old_context, new_context, 1)
 
-# Give the selectable text a stable DOM id for the explicit "Selecionar texto" action.
 selectable_old = '''<span className="message-text-selectable" style={{ WebkitTouchCallout: 'default', userSelect: 'text' }}>{message.text}</span>'''
 selectable_new = '''<span
                         id={`message-text-${message.id}`}
@@ -132,30 +129,33 @@ if 'ref={composerInputRef}' not in source:
         raise RuntimeError('Campo de mensagem não localizado no Dashboard final.')
     source = source.replace(textarea, '<textarea ref={composerInputRef} value={draft}', 1)
 
-# Insert the action sheet immediately before the composer. It does not alter message layout.
 if 'className="message-action-sheet"' not in source:
-    marker = '            <form className="chat-composer'
-    index = source.find(marker)
-    if index < 0:
+    composer_match = re.search(
+        r'(?m)^(?P<indent>[ \t]*)<form\b[^>]*className=(?:"[^"]*\bchat-composer\b[^"]*"|\{`[^`]*\bchat-composer\b[^`]*`\})',
+        source,
+    )
+    if not composer_match:
         raise RuntimeError('Compositor final não localizado para inserir o menu contextual.')
-    sheet = '''            {messageActionTarget ? (
-              <>
-                <button
-                  type="button"
-                  className="message-action-backdrop"
-                  aria-label="Fechar ações da mensagem"
-                  onClick={closeMessageActions}
-                />
-                <aside className="message-action-sheet" role="menu" aria-label="Ações da mensagem">
-                  <button type="button" role="menuitem" onClick={copyMessageAction}>Copiar</button>
-                  <button type="button" role="menuitem" onClick={selectMessageTextAction}>Selecionar texto</button>
-                  {messageActionTarget.role === 'user' ? (
-                    <button type="button" role="menuitem" onClick={() => editSentMessage(messageActionTarget.id)}>Editar mensagem</button>
-                  ) : null}
-                  <button type="button" role="menuitem" className="danger" onClick={deleteMessageAction}>Apagar mensagem</button>
-                </aside>
-              </>
-            ) : null}
+    index = composer_match.start()
+    indent = composer_match.group('indent')
+    sheet = f'''{indent}{{messageActionTarget ? (
+{indent}  <>
+{indent}    <button
+{indent}      type="button"
+{indent}      className="message-action-backdrop"
+{indent}      aria-label="Fechar ações da mensagem"
+{indent}      onClick={{closeMessageActions}}
+{indent}    />
+{indent}    <aside className="message-action-sheet" role="menu" aria-label="Ações da mensagem">
+{indent}      <button type="button" role="menuitem" onClick={{copyMessageAction}}>Copiar</button>
+{indent}      <button type="button" role="menuitem" onClick={{selectMessageTextAction}}>Selecionar texto</button>
+{indent}      {{messageActionTarget.role === 'user' ? (
+{indent}        <button type="button" role="menuitem" onClick={{() => editSentMessage(messageActionTarget.id)}}>Editar mensagem</button>
+{indent}      ) : null}}
+{indent}      <button type="button" role="menuitem" className="danger" onClick={{deleteMessageAction}}>Apagar mensagem</button>
+{indent}    </aside>
+{indent}  </>
+{indent}) : null}}
 '''
     source = source[:index] + sheet + source[index:]
 
@@ -176,7 +176,6 @@ for marker in required:
     if marker not in source:
         raise RuntimeError(f'Menu contextual de mensagem incompleto: {marker}')
 
-# Guard the exact corruption previously rendered as visible text.
 for forbidden in (
     'startLongPress(() => confirmDeleteMessage(message.id), event)} onPointerUp=',
     'onPointerUp=onPointerCancel=',
