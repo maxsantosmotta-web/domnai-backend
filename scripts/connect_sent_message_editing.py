@@ -26,13 +26,12 @@ if 'function toggleEditingAction(message)' not in source:
     marker = '  function editSentMessage(messageId) {'
     if marker not in source:
         marker = '  async function sendMessage(event) {'
-    toggle = '''  function toggleEditingAction(message) {
+    source = source.replace(marker, '''  function toggleEditingAction(message) {
     if (message.role !== 'user' || message.processing || responding) return;
     setEditingActionMessageId((current) => current === message.id ? null : message.id);
   }
 
-'''
-    source = source.replace(marker, toggle + marker, 1)
+''' + marker, 1)
 
 if 'function editSentMessage(messageId)' not in source:
     handler = '''  function editSentMessage(messageId) {
@@ -68,10 +67,7 @@ if 'function editSentMessage(messageId)' not in source:
 
 if 'className="edit-sent-message-button"' not in source:
     author = '<span className="message-author">{message.role === \'assistant\' ? \'DomnAI\' : \'Você\'}</span>'
-    replacement = '''<div
-                    className={`message-heading${editingActionMessageId === message.id ? ' editing-action-open' : ''}`}
-                    onClick={() => toggleEditingAction(message)}
-                  >
+    replacement = '''<div className={`message-heading${editingActionMessageId === message.id ? ' editing-action-open' : ''}`}>
                     <span className="message-author">{message.role === 'assistant' ? 'DomnAI' : 'Você'}</span>
                     {message.role === 'user' && !message.processing ? (
                       <button
@@ -93,19 +89,17 @@ if 'className="edit-sent-message-button"' not in source:
         raise RuntimeError('Cabeçalho das mensagens não localizado no Dashboard final.')
     source = source.replace(author, replacement, 1)
 
-plain_text = '{message.text ? <p>{message.text}</p> : null}'
-interactive_text = '''{message.text ? (
-                    <p
-                      className={message.role === 'user' ? 'editable-message-body' : undefined}
-                      onClick={() => toggleEditingAction(message)}
-                    >
-                      {message.text}
-                    </p>
-                  ) : null}'''
-if 'editable-message-body' not in source:
-    if plain_text not in source:
-        raise RuntimeError('Corpo textual da mensagem não localizado no Dashboard final.')
-    source = source.replace(plain_text, interactive_text, 1)
+if 'onClick={() => toggleEditingAction(message)}' not in source:
+    article_pattern = re.compile(
+        r'(<article\b(?=[^>]*chat-message)(?=[^>]*key=\{message\.id\})[^>]*)(>)'
+    )
+    source, count = article_pattern.subn(
+        lambda match: match.group(1) + ' onClick={() => toggleEditingAction(message)}' + match.group(2),
+        source,
+        count=1,
+    )
+    if count != 1:
+        raise RuntimeError('Cartão real da mensagem não localizado no markup final.')
 
 if 'ref={composerInputRef}' not in source:
     source, count = re.subn(
@@ -123,7 +117,7 @@ for marker in (
     'function toggleEditingAction(message)',
     'function editSentMessage(messageId)',
     'className="edit-sent-message-button"',
-    'editable-message-body',
+    'onClick={() => toggleEditingAction(message)}',
     'editing-action-open',
     'event.stopPropagation();',
     'ref={composerInputRef}',
@@ -140,6 +134,7 @@ css = '''
 /* sent-message-editing-final */
 .chat-message.user {
   position: relative;
+  cursor: pointer;
 }
 
 .message-heading {
@@ -148,15 +143,11 @@ css = '''
   gap: 12px;
 }
 
-.editable-message-body {
-  cursor: pointer;
-}
-
 .edit-sent-message-button {
   display: none !important;
   position: absolute;
   right: 8px;
-  bottom: -28px;
+  bottom: 8px;
   z-index: 4;
   border: 1px solid rgba(127, 127, 127, 0.24);
   background: rgba(20, 20, 20, 0.96);
@@ -197,4 +188,4 @@ if start >= 0:
 styles = styles.rstrip() + css + '\n'
 STYLES.write_text(styles, encoding='utf-8')
 
-print('Edição móvel conectada ao corpo inteiro da mensagem, sem sobrepor o conteúdo da caixa.')
+print('Edição conectada ao cartão inteiro da mensagem; botão flutua dentro da caixa sem alterar o layout.')
