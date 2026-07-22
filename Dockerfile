@@ -51,6 +51,7 @@ COPY scripts/enable_desktop_enter_to_send.py /tmp/enable_desktop_enter_to_send.p
 COPY scripts/finalize_natural_conversation_and_artifact_flow.py /tmp/finalize_natural_conversation_and_artifact_flow.py
 COPY scripts/rename_operation_labels.py /tmp/rename_operation_labels.py
 COPY scripts/finalize_operation_groups.py /tmp/finalize_operation_groups.py
+COPY scripts/apply_final_operation_catalog.py /tmp/apply_final_operation_catalog.py
 COPY scripts/validate_frontend_dist.py /tmp/validate_frontend_dist.py
 RUN apk add --no-cache python3 \
     && python3 /tmp/connect_domnai_chat.py \
@@ -100,6 +101,7 @@ RUN apk add --no-cache python3 \
     && python3 /tmp/finalize_natural_conversation_and_artifact_flow.py \
     && python3 /tmp/rename_operation_labels.py \
     && python3 /tmp/finalize_operation_groups.py \
+    && python3 /tmp/apply_final_operation_catalog.py \
     && npm run build \
     && python3 /tmp/validate_frontend_dist.py
 
