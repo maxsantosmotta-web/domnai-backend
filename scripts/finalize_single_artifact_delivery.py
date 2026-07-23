@@ -40,6 +40,42 @@ def patch_artifact_source_selection() -> None:
     if accepted_count != 1:
         raise RuntimeError('Função _accepted_offer não localizada em artifact_decision.py.')
 
+    offered_type_pattern = re.compile(
+        r'def _artifact_type_from_offer\(text: str\) -> str:\n.*?(?=\ndef _remove_offer_from_answer\()',
+        flags=re.S,
+    )
+    offered_type_replacement = '''def _artifact_type_from_offer(text: str) -> str:
+    normalized = _normalize(text)
+    positions = {
+        "pdf": min(
+            (normalized.find(term) for term in ("pdf", "documento pdf", "arquivo pdf") if term in normalized),
+            default=-1,
+        ),
+        "xlsx": min(
+            (normalized.find(term) for term in ("planilha", "xlsx", "excel") if term in normalized),
+            default=-1,
+        ),
+        "csv": min(
+            (normalized.find(term) for term in ("csv", "arquivo csv") if term in normalized),
+            default=-1,
+        ),
+    }
+    offered = [(position, artifact_type) for artifact_type, position in positions.items() if position >= 0]
+    if not offered:
+        return "pdf"
+    offered.sort(key=lambda item: item[0])
+    return offered[0][1]
+
+
+'''
+    source, offered_type_count = offered_type_pattern.subn(
+        offered_type_replacement,
+        source,
+        count=1,
+    )
+    if offered_type_count != 1:
+        raise RuntimeError('Função _artifact_type_from_offer não localizada em artifact_decision.py.')
+
     last_answer_pattern = re.compile(
         r'def _last_completed_assistant_answer\(history: list\[dict\]\) -> str:\n.*?(?=\ndef _direct_document_decision\()',
         flags=re.S,
@@ -305,4 +341,4 @@ if ARTIFACT_DECISION_PATH.exists():
 if DASHBOARD_PATH.exists():
     remove_frontend_post_artifact_message()
 
-print('Entrega finalizada: aceitação natural e seleção do conteúdo corrigidas estruturalmente, com uma única mensagem junto ao arquivo.')
+print('Entrega finalizada: primeiro formato oferecido preservado sem alterar conteúdo, mensagem ou aviso.')
