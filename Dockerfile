@@ -54,6 +54,7 @@ COPY scripts/finalize_operation_groups.py /tmp/finalize_operation_groups.py
 COPY scripts/apply_final_operation_catalog.py /tmp/apply_final_operation_catalog.py
 COPY scripts/connect_sent_message_editing.py /tmp/connect_sent_message_editing.py
 COPY scripts/stabilize_artifact_build.py /tmp/stabilize_artifact_build.py
+COPY scripts/finalize_single_artifact_delivery.py /tmp/finalize_single_artifact_delivery.py
 COPY scripts/validate_frontend_dist.py /tmp/validate_frontend_dist.py
 RUN apk add --no-cache python3 \
     && python3 /tmp/connect_domnai_chat.py \
@@ -106,6 +107,7 @@ RUN apk add --no-cache python3 \
     && python3 /tmp/apply_final_operation_catalog.py \
     && python3 /tmp/connect_sent_message_editing.py \
     && python3 /tmp/stabilize_artifact_build.py \
+    && python3 /tmp/finalize_single_artifact_delivery.py \
     && npm run build \
     && python3 /tmp/validate_frontend_dist.py
 
@@ -147,6 +149,7 @@ COPY scripts/retire_legacy_chat_memory.py /tmp/retire_legacy_chat_memory.py
 COPY scripts/stabilize_artifact_build.py /tmp/stabilize_artifact_build.py
 COPY scripts/canonicalize_artifact_runtime.py /tmp/canonicalize_artifact_runtime.py
 COPY scripts/finalize_chat_state_idempotency.py /tmp/finalize_chat_state_idempotency.py
+COPY scripts/finalize_single_artifact_delivery.py /tmp/finalize_single_artifact_delivery.py
 RUN python /tmp/make_runtime_patches_idempotent.py \
     && python -m py_compile /tmp/*.py \
     && python /tmp/connect_chat_sources_backend.py \
@@ -177,6 +180,7 @@ RUN python /tmp/make_runtime_patches_idempotent.py \
     && python /tmp/stabilize_artifact_build.py \
     && python /tmp/canonicalize_artifact_runtime.py \
     && python /tmp/finalize_chat_state_idempotency.py \
+    && python /tmp/finalize_single_artifact_delivery.py \
     && python -m compileall -q app
 COPY --from=frontend-builder /frontend/dist ./frontend/dist
 EXPOSE 8080
