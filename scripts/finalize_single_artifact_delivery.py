@@ -9,11 +9,9 @@ PDF_REPORT_PATH = Path('/app/app/services/pdf_report.py')
 DASHBOARD_PATH = Path('/frontend/src/Dashboard.jsx')
 
 
-
 def write_python(path: Path, source: str) -> None:
     compile(source, str(path), 'exec')
     path.write_text(source, encoding='utf-8')
-
 
 
 def patch_artifact_source_selection() -> None:
@@ -47,6 +45,11 @@ def patch_artifact_source_selection() -> None:
     answer: str,
 ) -> dict | None:
     if not operation:
+        return None
+
+    # Pedido explícito ou aceitação de uma oferta anterior têm prioridade absoluta:
+    # nesses casos o fluxo deve criar o arquivo, nunca devolver uma nova oferta.
+    if detect_artifact_request(message, history) is not None or _accepted_offer(message):
         return None
 
     recent_text = _history_text(history, limit=24)
@@ -119,7 +122,6 @@ def patch_artifact_source_selection() -> None:
     write_python(ARTIFACT_DECISION_PATH, source)
 
 
-
 def patch_pdf_quality() -> None:
     source = PDF_REPORT_PATH.read_text(encoding='utf-8')
 
@@ -183,7 +185,6 @@ def _clean_document_body(value: Any, limit: int = 30000) -> str:
     write_python(PDF_REPORT_PATH, source)
 
 
-
 def remove_backend_post_artifact_messages() -> None:
     worker = WORKER_PATH.read_text(encoding='utf-8')
     worker, worker_count = re.subn(
@@ -211,7 +212,6 @@ def remove_backend_post_artifact_messages() -> None:
 
     if worker_count == 0 and api_count == 0:
         print('Avisos posteriores já estavam ausentes no backend.')
-
 
 
 def remove_frontend_post_artifact_message() -> None:
@@ -258,4 +258,4 @@ if ARTIFACT_DECISION_PATH.exists():
 if DASHBOARD_PATH.exists():
     remove_frontend_post_artifact_message()
 
-print('Entrega finalizada: oferta contextual de PDF, conteúdo útil, relatório limpo e uma única mensagem junto ao arquivo.')
+print('Entrega finalizada: pedido explícito preservado, oferta contextual de PDF, relatório limpo e uma única mensagem junto ao arquivo.')
