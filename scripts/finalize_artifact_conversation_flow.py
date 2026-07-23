@@ -139,19 +139,41 @@ def patch_pdf_layout() -> None:
 
 def patch_worker_delivery_message() -> None:
     source = WORKER_PATH.read_text(encoding='utf-8')
-    pattern = re.compile(
-        r'(                artifacts\.append\(artifact\)\n)'
-        r'(?:                .*\n)+?'
-        r'(?=            except Exception:)',
-        flags=re.M,
+    create_block_pattern = re.compile(
+        r'(?P<start>        if decision\.get\("action"\) == "create":\n)'
+        r'(?P<body>.*?)'
+        r'(?P<offer>        elif decision\.get\("action"\) == "offer":)',
+        flags=re.S,
     )
-    replacement = (
-        r'\1'
-        '                reply = ' + repr(DELIVERY_REPLY) + '\n'
+    match = create_block_pattern.search(source)
+    if not match:
+        raise RuntimeError('Bloco final de criação do artefato não localizado.')
+
+    body = match.group('body')
+    append_marker = '                artifacts.append(artifact)\n'
+    append_index = body.find(append_marker)
+    if append_index < 0:
+        raise RuntimeError('Persistência do artefato criado não localizada no bloco final.')
+    append_end = append_index + len(append_marker)
+
+    exception_match = re.search(
+        r'            except Exception(?: as \w+)?:\n.*\Z',
+        body,
+        flags=re.S,
     )
-    source, count = pattern.subn(replacement, source, count=1)
-    if count != 1 and DELIVERY_REPLY not in source:
-        raise RuntimeError('Mensagem final da entrega não localizada.')
+    if not exception_match:
+        raise RuntimeError('Tratamento de falha da entrega não localizado no bloco final.')
+
+    canonical_body = (
+        body[:append_end]
+        + '                reply = ' + repr(DELIVERY_REPLY) + '\n'
+        + exception_match.group(0)
+    )
+    replacement = match.group('start') + canonical_body + match.group('offer')
+    source = source[:match.start()] + replacement + source[match.end():]
+
+    if source.count(DELIVERY_REPLY) != 1:
+        raise RuntimeError('A mensagem final da entrega deve existir exatamente uma vez.')
     _write_compiled(WORKER_PATH, source)
 
 
