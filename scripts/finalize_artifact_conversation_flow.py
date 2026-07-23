@@ -172,8 +172,17 @@ def patch_worker_delivery_message() -> None:
     replacement = match.group('start') + canonical_body + match.group('offer')
     source = source[:match.start()] + replacement + source[match.end():]
 
-    if source.count(DELIVERY_REPLY) != 1:
-        raise RuntimeError('A mensagem final da entrega deve existir exatamente uma vez.')
+    canonical_literal = '                reply = ' + repr(DELIVERY_REPLY) + '\n'
+    if source.count(canonical_literal) != 1:
+        raise RuntimeError('A atribuição canônica da mensagem final deve existir exatamente uma vez.')
+
+    final_create_match = create_block_pattern.search(source)
+    if not final_create_match:
+        raise RuntimeError('Bloco final de criação desapareceu após a normalização.')
+    final_body = final_create_match.group('body')
+    if '_artifact_completion_message(' in final_body or 'post_artifact_text' in final_body:
+        raise RuntimeError('Uma segunda mensagem de entrega permaneceu no caminho final do artefato.')
+
     _write_compiled(WORKER_PATH, source)
 
 
