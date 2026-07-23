@@ -17,23 +17,41 @@ def write_python(path: Path, source: str) -> None:
 def patch_artifact_source_selection() -> None:
     source = ARTIFACT_DECISION_PATH.read_text(encoding='utf-8')
 
-    acceptance_anchor = '''_ACCEPTANCE_EXACT = {
-    "sim",
-'''
-    acceptance_replacement = '''_ACCEPTANCE_EXACT = {
-    "sim",
-    "eu quero",
-'''
-    if acceptance_replacement not in source:
-        if acceptance_anchor not in source:
-            raise RuntimeError('Conjunto de aceitações naturais não localizado em artifact_decision.py.')
-        source = source.replace(acceptance_anchor, acceptance_replacement, 1)
+    accepted_offer_pattern = re.compile(
+        r'def _accepted_offer\(value: str\) -> bool:\n.*?(?=\ndef _artifact_type_from_offer\()',
+        flags=re.S,
+    )
+    accepted_offer_replacement = '''def _accepted_offer(value: str) -> bool:
+    normalized = _normalize(value)
+    if normalized in _ACCEPTANCE_EXACT or normalized == "eu quero":
+        return True
+    return any(
+        normalized == phrase or normalized.startswith(f"{phrase} ")
+        for phrase in _ACCEPTANCE_PHRASES
+    )
 
-    anchor = '''        normalized = _normalize(content)
-        if "openai respondeu http" in normalized or "nao foi possivel" in normalized:
-            continue
+
 '''
-    replacement = '''        normalized = _normalize(content)
+    source, accepted_count = accepted_offer_pattern.subn(
+        accepted_offer_replacement,
+        source,
+        count=1,
+    )
+    if accepted_count != 1:
+        raise RuntimeError('Função _accepted_offer não localizada em artifact_decision.py.')
+
+    last_answer_pattern = re.compile(
+        r'def _last_completed_assistant_answer\(history: list\[dict\]\) -> str:\n.*?(?=\ndef _direct_document_decision\()',
+        flags=re.S,
+    )
+    last_answer_replacement = '''def _last_completed_assistant_answer(history: list[dict]) -> str:
+    for item in reversed(history):
+        if str(item.get("role") or "").strip().lower() != "assistant":
+            continue
+        content = str(item.get("content") or "").strip()
+        if not content:
+            continue
+        normalized = _normalize(content)
         invalid_artifact_source = (
             "openai respondeu http" in normalized
             or "nao foi possivel" in normalized
@@ -52,11 +70,20 @@ def patch_artifact_source_selection() -> None:
         )
         if invalid_artifact_source:
             continue
+        cleaned = _remove_offer_from_answer(content)
+        if cleaned:
+            return cleaned
+    return ""
+
+
 '''
-    if replacement not in source:
-        if anchor not in source:
-            raise RuntimeError('Seleção da última resposta útil não localizada em artifact_decision.py.')
-        source = source.replace(anchor, replacement, 1)
+    source, answer_count = last_answer_pattern.subn(
+        last_answer_replacement,
+        source,
+        count=1,
+    )
+    if answer_count != 1:
+        raise RuntimeError('Função _last_completed_assistant_answer não localizada em artifact_decision.py.')
 
     mature_helper = '''def _mature_conversation_pdf_offer(
     message: str,
@@ -278,4 +305,4 @@ if ARTIFACT_DECISION_PATH.exists():
 if DASHBOARD_PATH.exists():
     remove_frontend_post_artifact_message()
 
-print('Entrega finalizada: aceitação natural preservada, recusas excluídas do PDF e uma única mensagem junto ao arquivo.')
+print('Entrega finalizada: aceitação natural e seleção do conteúdo corrigidas estruturalmente, com uma única mensagem junto ao arquivo.')
