@@ -16,6 +16,19 @@ def write_python(path: Path, source: str) -> None:
 
 def patch_artifact_source_selection() -> None:
     source = ARTIFACT_DECISION_PATH.read_text(encoding='utf-8')
+
+    acceptance_anchor = '''_ACCEPTANCE_EXACT = {
+    "sim",
+'''
+    acceptance_replacement = '''_ACCEPTANCE_EXACT = {
+    "sim",
+    "eu quero",
+'''
+    if acceptance_replacement not in source:
+        if acceptance_anchor not in source:
+            raise RuntimeError('Conjunto de aceitações naturais não localizado em artifact_decision.py.')
+        source = source.replace(acceptance_anchor, acceptance_replacement, 1)
+
     anchor = '''        normalized = _normalize(content)
         if "openai respondeu http" in normalized or "nao foi possivel" in normalized:
             continue
@@ -24,6 +37,13 @@ def patch_artifact_source_selection() -> None:
         invalid_artifact_source = (
             "openai respondeu http" in normalized
             or "nao foi possivel" in normalized
+            or "nao consigo gerar arquivos" in normalized
+            or "nao consigo criar o arquivo" in normalized
+            or "nao consigo enviar arquivos" in normalized
+            or "nao consigo gerar o pdf" in normalized
+            or "texto final para copiar e colar" in normalized
+            or "texto formatado para voce copiar" in normalized
+            or "passo a passo para criar o pdf" in normalized
             or "sandbox mnt data" in normalized
             or "arquivo foi gerado" in normalized
             or "arquivo criado e enviado" in normalized
@@ -258,4 +278,4 @@ if ARTIFACT_DECISION_PATH.exists():
 if DASHBOARD_PATH.exists():
     remove_frontend_post_artifact_message()
 
-print('Entrega finalizada: pedido explícito preservado, oferta contextual de PDF, relatório limpo e uma única mensagem junto ao arquivo.')
+print('Entrega finalizada: aceitação natural preservada, recusas excluídas do PDF e uma única mensagem junto ao arquivo.')
