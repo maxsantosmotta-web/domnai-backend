@@ -147,7 +147,6 @@ COPY scripts/retire_legacy_chat_memory.py /tmp/retire_legacy_chat_memory.py
 COPY scripts/stabilize_artifact_build.py /tmp/stabilize_artifact_build.py
 COPY scripts/canonicalize_artifact_runtime.py /tmp/canonicalize_artifact_runtime.py
 COPY scripts/finalize_chat_state_idempotency.py /tmp/finalize_chat_state_idempotency.py
-COPY scripts/finalize_artifact_conversation_flow.py /tmp/finalize_artifact_conversation_flow.py
 RUN python /tmp/make_runtime_patches_idempotent.py \
     && python -m py_compile /tmp/*.py \
     && python /tmp/connect_chat_sources_backend.py \
@@ -178,7 +177,6 @@ RUN python /tmp/make_runtime_patches_idempotent.py \
     && python /tmp/stabilize_artifact_build.py \
     && python /tmp/canonicalize_artifact_runtime.py \
     && python /tmp/finalize_chat_state_idempotency.py \
-    && python /tmp/finalize_artifact_conversation_flow.py \
     && python -m compileall -q app
 COPY --from=frontend-builder /frontend/dist ./frontend/dist
 EXPOSE 8080
