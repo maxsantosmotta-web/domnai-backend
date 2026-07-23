@@ -5,12 +5,15 @@ import re
 ARTIFACT_DECISION_PATH = Path('/app/app/services/artifact_decision.py')
 WORKER_PATH = Path('/app/app/services/chat_task_worker.py')
 CHAT_API_PATH = Path('/app/app/api/chat.py')
+PDF_REPORT_PATH = Path('/app/app/services/pdf_report.py')
 DASHBOARD_PATH = Path('/frontend/src/Dashboard.jsx')
+
 
 
 def write_python(path: Path, source: str) -> None:
     compile(source, str(path), 'exec')
     path.write_text(source, encoding='utf-8')
+
 
 
 def patch_artifact_source_selection() -> None:
@@ -36,7 +39,149 @@ def patch_artifact_source_selection() -> None:
         if anchor not in source:
             raise RuntimeError('Seleção da última resposta útil não localizada em artifact_decision.py.')
         source = source.replace(anchor, replacement, 1)
+
+    mature_helper = '''def _mature_conversation_pdf_offer(
+    message: str,
+    operation: str | None,
+    history: list[dict],
+    answer: str,
+) -> dict | None:
+    if not operation:
+        return None
+
+    recent_text = _history_text(history, limit=24)
+    if _contains_any(recent_text, _OFFER_MARKERS) or _contains_any(recent_text, _CREATED_MARKERS):
+        return None
+
+    user_turns = 1 + sum(
+        1 for item in history[-24:]
+        if str(item.get("role") or "").strip().lower() == "user"
+        and len(str(item.get("content") or "").strip()) >= 15
+    )
+    assistant_turns = sum(
+        1 for item in history[-24:]
+        if str(item.get("role") or "").strip().lower() == "assistant"
+        and len(str(item.get("content") or "").strip()) >= 80
+    )
+    normalized_answer = _normalize(answer)
+    pending_markers = (
+        "preciso saber", "preciso que voce", "por favor me diga", "me informe",
+        "para afinar o diagnostico", "para continuar preciso", "faltam as seguintes",
+        "responda as perguntas", "antes preciso saber",
+    )
+    completion_markers = (
+        "recomendo", "causas mais provaveis", "passos iniciais", "proximos passos",
+        "conclusao", "resultado", "orientacao", "analise final", "diagnostico",
+        "plano de acao", "lista de verificacao",
+    )
+
+    conversation_is_mature = (
+        user_turns >= 3
+        and assistant_turns >= 2
+        and len(recent_text) >= 700
+        and len(str(answer or "").strip()) >= 450
+        and any(marker in normalized_answer for marker in completion_markers)
+        and not any(marker in normalized_answer for marker in pending_markers)
+    )
+    if not conversation_is_mature:
+        return None
+
+    return {
+        "action": "offer",
+        "artifact_type": "pdf",
+        "title": str(operation).strip()[:180] or "Relatório consolidado",
+        "sheet_name": "Dados",
+        "headers": [],
+        "rows": [],
+    }
+
+
+'''
+    decide_anchor = 'def decide_artifact(\n'
+    if 'def _mature_conversation_pdf_offer(' not in source:
+        if decide_anchor not in source:
+            raise RuntimeError('Entrada de decide_artifact não localizada.')
+        source = source.replace(decide_anchor, mature_helper + decide_anchor, 1)
+
+    entry_anchor = '''    direct = _direct_document_decision(message, operation, history)
+'''
+    entry_replacement = '''    mature_offer = _mature_conversation_pdf_offer(message, operation, history, answer)
+    if mature_offer:
+        return mature_offer
+
+    direct = _direct_document_decision(message, operation, history)
+'''
+    if entry_replacement not in source:
+        if entry_anchor not in source:
+            raise RuntimeError('Início da decisão de artefato não localizado.')
+        source = source.replace(entry_anchor, entry_replacement, 1)
+
     write_python(ARTIFACT_DECISION_PATH, source)
+
+
+
+def patch_pdf_quality() -> None:
+    source = PDF_REPORT_PATH.read_text(encoding='utf-8')
+
+    if '\nimport re\n' not in source:
+        source = source.replace('from io import BytesIO\n', 'from io import BytesIO\nimport re\n', 1)
+
+    old_paragraph = '''def _paragraph_text(value: Any, limit: int = 10000) -> str:
+    return escape(_safe_text(value, limit)).replace("\\n", "<br/>")
+'''
+    new_paragraph = '''def _paragraph_text(value: Any, limit: int = 10000) -> str:
+    text = escape(_safe_text(value, limit))
+    text = re.sub(r"\\*\\*(.+?)\\*\\*", r"<b>\\1</b>", text)
+    return text.replace("\\n", "<br/>")
+
+
+def _clean_document_body(value: Any, limit: int = 30000) -> str:
+    text = _safe_text(value, limit)
+    paragraphs = [part.strip() for part in re.split(r"\\n\\s*\\n", text) if part.strip()]
+    removable_endings = (
+        "quer que eu", "se quiser posso", "se quiser, posso", "deseja que eu",
+        "posso ajudar", "quer que eu ajude", "ou prefere que eu",
+    )
+    while paragraphs:
+        normalized = " ".join(paragraphs[-1].casefold().split())
+        if not normalized.startswith(removable_endings):
+            break
+        paragraphs.pop()
+    return "\\n\\n".join(paragraphs).strip()
+'''
+    if new_paragraph not in source:
+        if old_paragraph not in source:
+            raise RuntimeError('Conversão de texto do PDF não localizada.')
+        source = source.replace(old_paragraph, new_paragraph, 1)
+
+    title_anchor = '''    title = _safe_text(payload.get("title"), 180) or "Relatório DomnAI"
+    operation = _safe_text(payload.get("operation"), 180)
+    summary = _safe_text(payload.get("summary"), 20000)
+'''
+    title_replacement = '''    title = _safe_text(payload.get("title"), 180) or "Relatório DomnAI"
+    operation = _safe_text(payload.get("operation"), 180)
+    if title.casefold() in {"relatório consolidado", "relatorio consolidado", "documento domnai", "relatório domnai", "relatorio domnai"} and operation:
+        title = operation
+    if operation.casefold() == title.casefold():
+        operation = ""
+    summary = _clean_document_body(payload.get("summary"), 20000)
+'''
+    if title_replacement not in source:
+        if title_anchor not in source:
+            raise RuntimeError('Cabeçalho do relatório PDF não localizado.')
+        source = source.replace(title_anchor, title_replacement, 1)
+
+    body_anchor = '''        body = _safe_text(section.get("content"), 30000)
+'''
+    body_replacement = '''        body = _clean_document_body(section.get("content"), 30000)
+'''
+    if body_replacement not in source:
+        if body_anchor not in source:
+            raise RuntimeError('Conteúdo das seções do PDF não localizado.')
+        source = source.replace(body_anchor, body_replacement, 1)
+
+    write_python(PDF_REPORT_PATH, source)
+
 
 
 def remove_backend_post_artifact_messages() -> None:
@@ -66,6 +211,7 @@ def remove_backend_post_artifact_messages() -> None:
 
     if worker_count == 0 and api_count == 0:
         print('Avisos posteriores já estavam ausentes no backend.')
+
 
 
 def remove_frontend_post_artifact_message() -> None:
@@ -106,9 +252,10 @@ def remove_frontend_post_artifact_message() -> None:
 
 if ARTIFACT_DECISION_PATH.exists():
     patch_artifact_source_selection()
+    patch_pdf_quality()
     remove_backend_post_artifact_messages()
 
 if DASHBOARD_PATH.exists():
     remove_frontend_post_artifact_message()
 
-print('Entrega de artefato finalizada: conteúdo útil preservado e somente uma mensagem junto ao arquivo.')
+print('Entrega finalizada: oferta contextual de PDF, conteúdo útil, relatório limpo e uma única mensagem junto ao arquivo.')
