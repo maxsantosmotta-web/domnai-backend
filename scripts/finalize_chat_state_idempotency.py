@@ -1,8 +1,10 @@
 from pathlib import Path
 import re
+import sys
 
 
 WORKER_PATH = Path('/app/app/services/chat_task_worker.py')
+APP_ROOT = '/app'
 
 
 CANONICAL_APPEND = '''def _append_completed_response(
@@ -133,6 +135,9 @@ CANONICAL_APPEND = '''def _append_completed_response(
 
 
 def _test_cycle_logic() -> None:
+    if APP_ROOT not in sys.path:
+        sys.path.insert(0, APP_ROOT)
+
     from app.services.conversation_cycle import build_cycle_state, latest_cycle_state
 
     first = build_cycle_state(operation="Análise imobiliária", message="Quero avaliar um imóvel.", previous=None)
