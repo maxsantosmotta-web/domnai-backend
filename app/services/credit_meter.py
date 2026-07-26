@@ -11,6 +11,7 @@ from app.services.metered_brain import MeteredBrainResult
 ADMIN_CREDITS = 100000
 DEFAULT_USD_PER_CREDIT = 0.001
 ARTIFACT_MINIMUM_CREDITS = 7
+OPERATION_CYCLE_CREDITS = 7
 
 MODEL_RATES_USD_PER_MILLION = {
     "gpt-4o-mini": {"input": 0.15, "cached_input": 0.075, "output": 0.60},
@@ -104,6 +105,106 @@ def _debit_credits(account: BillingAccount, amount: int) -> None:
     remaining -= from_plan
     if remaining:
         account.extra_credits -= remaining
+
+
+def operation_cycle_idempotency_key(user_id: str, cycle_id: str) -> str:
+    normalized_user = str(user_id or "").strip()
+    normalized_cycle = str(cycle_id or "").strip()
+    if not normalized_user or not normalized_cycle:
+        raise ValueError("user_id e cycle_id são obrigatórios para a cobrança por ciclo.")
+    return f"operation-cycle:{normalized_user}:{normalized_cycle}"
+
+
+def ensure_operation_cycle_credit(user_id: str) -> None:
+    with session_scope() as db:
+        account = db.get(BillingAccount, user_id)
+        if account is None:
+            raise HTTPException(status_code=402, detail="Você não possui créditos para iniciar uma nova operação.")
+        _ensure_financial_access(account)
+        if _is_admin(account):
+            return
+        if _available_credits(account) < OPERATION_CYCLE_CREDITS:
+            raise HTTPException(
+                status_code=402,
+                detail=f"Créditos insuficientes. Uma nova operação utiliza {OPERATION_CYCLE_CREDITS} créditos.",
+            )
+
+
+def charge_operation_cycle(
+    user_id: str,
+    cycle_id: str,
+    *,
+    operation: str | None = None,
+    reason: str | None = None,
+) -> dict:
+    idempotency_key = operation_cycle_idempotency_key(user_id, cycle_id)
+    operation_label = " ".join(str(operation or "Nova operação").strip().split())[:120] or "Nova operação"
+    reason_label = " ".join(str(reason or "novo_contexto").strip().split())[:80] or "novo_contexto"
+
+    with session_scope() as db:
+        account = db.scalar(
+            select(BillingAccount)
+            .where(BillingAccount.user_id == user_id)
+            .with_for_update()
+        )
+        if account is None:
+            raise HTTPException(status_code=402, detail="Conta de créditos não encontrada.")
+        _ensure_financial_access(account)
+
+        existing = db.scalar(
+            select(CreditTransaction).where(CreditTransaction.stripe_event_id == idempotency_key)
+        )
+        if existing is not None:
+            return {
+                "charged_credits": abs(int(existing.amount or 0)),
+                "remaining_credits": _available_credits(account),
+                "idempotentReplay": True,
+                "cycle_id": cycle_id,
+                "idempotency_key": idempotency_key,
+            }
+
+        if _is_admin(account):
+            db.add(CreditTransaction(
+                user_id=user_id,
+                kind="admin_operation_cycle",
+                amount=0,
+                plan_balance=account.plan_credits,
+                extra_balance=account.extra_credits,
+                stripe_event_id=idempotency_key,
+                description=f"Operação administrativa: {operation_label} ({reason_label})"[:255],
+            ))
+            return {
+                "charged_credits": 0,
+                "remaining_credits": _available_credits(account),
+                "admin_exempt": True,
+                "cycle_id": cycle_id,
+                "idempotency_key": idempotency_key,
+            }
+
+        available = _available_credits(account)
+        if available < OPERATION_CYCLE_CREDITS:
+            raise HTTPException(
+                status_code=402,
+                detail=f"Créditos insuficientes. Uma nova operação utiliza {OPERATION_CYCLE_CREDITS} créditos e o saldo disponível é {available}.",
+            )
+
+        _debit_credits(account, OPERATION_CYCLE_CREDITS)
+        db.add(CreditTransaction(
+            user_id=user_id,
+            kind="operation_cycle",
+            amount=-OPERATION_CYCLE_CREDITS,
+            plan_balance=account.plan_credits,
+            extra_balance=account.extra_credits,
+            stripe_event_id=idempotency_key,
+            description=f"Nova operação: {operation_label} ({reason_label})"[:255],
+        ))
+        return {
+            "charged_credits": OPERATION_CYCLE_CREDITS,
+            "remaining_credits": _available_credits(account),
+            "admin_exempt": False,
+            "cycle_id": cycle_id,
+            "idempotency_key": idempotency_key,
+        }
 
 
 def ensure_minimum_credit(user_id: str) -> None:
