@@ -3,6 +3,7 @@
   "short_name": "DomnAI",
   "description": "Transforme escolhas em resultados com inteligência.",
   "lang": "pt-BR",
+  "id": "/#/​",
   "start_url": "/#/",
   "scope": "/",
   "display": "standalone",
@@ -11,8 +12,14 @@
   "theme_color": "#080808",
   "icons": [
     {
-      "src": "/domnai-logo-oficial.png",
-      "sizes": "983x793",
+      "src": "/domnai-icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/domnai-icon-512.png",
+      "sizes": "512x512",
       "type": "image/png",
       "purpose": "any"
     }
