@@ -1,1 +1,0 @@
-PWA icon correction in progress
