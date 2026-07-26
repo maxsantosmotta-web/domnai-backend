@@ -51,11 +51,19 @@ CANONICAL_APPEND = '''def _append_completed_response(
             messages = []
 
         previous_context_state = latest_cycle_state(messages)
+        continuity_observation = classify_continuity(
+            operation=payload.get("operation"),
+            previous_state=previous_context_state,
+            new_message=requested_text,
+            last_delivery=str((previous_context_state or {}).get("lastDeliverySummary") or ""),
+        )
         context_state = build_cycle_state(
             operation=payload.get("operation"),
             message=requested_text,
             previous=previous_context_state,
             force_new=bool(payload.get("force_new_cycle")),
+            continuity_observation=continuity_observation,
+            last_delivery=str(reply or ""),
         )
 
         user_index = None
@@ -139,6 +147,13 @@ def _test_cycle_logic() -> None:
     if APP_ROOT not in sys.path:
         sys.path.insert(0, APP_ROOT)
 
+    from app.services.continuity_classifier import (
+        AMBIGUOUS,
+        CONTINUATION,
+        CORRECTION,
+        NEW_SUBJECT,
+        classify_continuity,
+    )
     from app.services.conversation_cycle import build_cycle_state, latest_cycle_state, objective_cycle_event
 
     first = build_cycle_state(operation="Análise imobiliária", message="Quero avaliar um imóvel.", previous=None)
@@ -167,11 +182,46 @@ def _test_cycle_logic() -> None:
     assert latest_cycle_state([{"role": "assistant", "contextState": continued}])["cycleId"] == continued["cycleId"]
     assert latest_cycle_state([{"role": "assistant"}]) is None
 
+    base_state = build_cycle_state(
+        operation="Análise imobiliária",
+        message="Quero avaliar um imóvel e as opções de financiamento.",
+        previous=None,
+        last_delivery="Análise do imóvel e das condições de financiamento.",
+    )
+    correction = classify_continuity(
+        operation="Análise imobiliária",
+        previous_state=base_state,
+        new_message="Na verdade, o imóvel tem 120 m², não 100.",
+    )
+    continuation = classify_continuity(
+        operation="Análise imobiliária",
+        previous_state=base_state,
+        new_message="E se eu financiar em 20 anos?",
+    )
+    new_subject = classify_continuity(
+        operation="Análise imobiliária",
+        previous_state=base_state,
+        new_message="Agora monte um treino para fazer em casa.",
+    )
+    ambiguous = classify_continuity(
+        operation="Análise imobiliária",
+        previous_state=base_state,
+        new_message="Também quero uma orientação diferente.",
+    )
+
+    assert correction["label"] == CORRECTION
+    assert continuation["label"] == CONTINUATION
+    assert new_subject["label"] == NEW_SUBJECT
+    assert new_subject["confidence"] >= 0.90
+    assert ambiguous["label"] == AMBIGUOUS
+    assert ambiguous["requiresConfirmation"] is True
+
 
 def main() -> None:
     source = WORKER_PATH.read_text(encoding='utf-8')
 
     cycle_import = 'from app.services.conversation_cycle import build_cycle_state, latest_cycle_state\n'
+    classifier_import = 'from app.services.continuity_classifier import classify_continuity\n'
     if cycle_import not in source:
         source, import_count = re.subn(
             r'(from app\.services\.credit_meter import [^\n]+\n)',
@@ -181,6 +231,10 @@ def main() -> None:
         )
         if import_count != 1:
             raise RuntimeError('Importação de credit_meter não localizada no worker transformado.')
+    if classifier_import not in source:
+        if cycle_import not in source:
+            raise RuntimeError('Importação do ciclo não localizada para ancorar o classificador.')
+        source = source.replace(cycle_import, cycle_import + classifier_import, 1)
 
     pattern = re.compile(r'def _append_completed_response\(.*?\n(?=def _process_task\()', flags=re.S)
     source, count = pattern.subn(CANONICAL_APPEND.rstrip() + '\n\n', source, count=1)
@@ -193,6 +247,8 @@ def main() -> None:
         'construção do ciclo': source.count('build_cycle_state('),
         'leitura do ciclo': source.count('latest_cycle_state('),
         'importação do ciclo': source.count(cycle_import.strip()),
+        'importação do classificador': source.count(classifier_import.strip()),
+        'classificação observada': source.count('continuity_observation = classify_continuity('),
         'sinal objetivo de reinício': source.count('force_new=bool(payload.get("force_new_cycle"))'),
     }
     invalid = {name: count for name, count in checks.items() if count != 1}
@@ -202,7 +258,7 @@ def main() -> None:
     compile(source, str(WORKER_PATH), 'exec')
     WORKER_PATH.write_text(source, encoding='utf-8')
     _test_cycle_logic()
-    print('Regras objetivas e persistência do ciclo testadas com sucesso.')
+    print('Regras objetivas e classificador em modo observação testados com sucesso.')
 
 
 if __name__ == '__main__':
