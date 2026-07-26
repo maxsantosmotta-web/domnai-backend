@@ -48,6 +48,13 @@ CANONICAL_APPEND = '''def _append_completed_response(
         except json.JSONDecodeError:
             messages = []
 
+        previous_context_state = latest_cycle_state(messages)
+        context_state = build_cycle_state(
+            operation=payload.get("operation"),
+            message=requested_text,
+            previous=previous_context_state,
+        )
+
         user_index = None
         assistant_index = None
         normalized_messages = []
@@ -112,6 +119,7 @@ CANONICAL_APPEND = '''def _append_completed_response(
             "isError": False,
             "taskId": task_id,
             "processing": False,
+            "contextState": context_state,
         }
         if assistant_index is None:
             messages.append(final_message)
@@ -124,8 +132,42 @@ CANONICAL_APPEND = '''def _append_completed_response(
 '''
 
 
+def _test_cycle_logic() -> None:
+    from app.services.conversation_cycle import build_cycle_state, latest_cycle_state
+
+    first = build_cycle_state(
+        operation="Análise imobiliária",
+        message="Quero avaliar um imóvel.",
+        previous=None,
+    )
+    continued = build_cycle_state(
+        operation="Análise imobiliária",
+        message="O imóvel tem 120 m².",
+        previous=first,
+    )
+    changed = build_cycle_state(
+        operation="Exercício em casa",
+        message="Monte um treino.",
+        previous=continued,
+    )
+
+    assert first["cycleId"] == continued["cycleId"]
+    assert first["firstMessage"] == continued["firstMessage"]
+    assert changed["cycleId"] != continued["cycleId"]
+    assert latest_cycle_state([{"role": "assistant", "contextState": continued}])["cycleId"] == continued["cycleId"]
+    assert latest_cycle_state([{"role": "assistant"}]) is None
+
+
 def main() -> None:
     source = WORKER_PATH.read_text(encoding='utf-8')
+
+    import_anchor = 'from app.services.credit_meter import charge_usage, ensure_minimum_credit\n'
+    cycle_import = 'from app.services.conversation_cycle import build_cycle_state, latest_cycle_state\n'
+    if cycle_import not in source:
+        if import_anchor not in source:
+            raise RuntimeError('Importação de credit_meter não localizada no worker final.')
+        source = source.replace(import_anchor, import_anchor + cycle_import, 1)
+
     pattern = re.compile(
         r'def _append_completed_response\(.*?\n(?=def _process_task\()',
         flags=re.S,
@@ -135,9 +177,17 @@ def main() -> None:
         raise RuntimeError('Função de persistência final do chat não localizada.')
     if source.count('def _append_completed_response(') != 1:
         raise RuntimeError('Persistência final do chat deve existir exatamente uma vez.')
+    if source.count('"contextState": context_state') != 1:
+        raise RuntimeError('Estado do ciclo deve ser persistido exatamente uma vez.')
+    if source.count('build_cycle_state(') != 1:
+        raise RuntimeError('Estado do ciclo deve ser construído exatamente uma vez no worker.')
+    if source.count('latest_cycle_state(') != 1:
+        raise RuntimeError('Estado anterior deve ser lido exatamente uma vez no worker.')
+
     compile(source, str(WORKER_PATH), 'exec')
     WORKER_PATH.write_text(source, encoding='utf-8')
-    print('Persistência do chat finalizada sem duplicar mensagens ao atualizar a tela.')
+    _test_cycle_logic()
+    print('Persistência do chat e estado estruturado do ciclo testados com sucesso.')
 
 
 if __name__ == '__main__':
