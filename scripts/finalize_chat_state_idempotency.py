@@ -135,21 +135,9 @@ CANONICAL_APPEND = '''def _append_completed_response(
 def _test_cycle_logic() -> None:
     from app.services.conversation_cycle import build_cycle_state, latest_cycle_state
 
-    first = build_cycle_state(
-        operation="Análise imobiliária",
-        message="Quero avaliar um imóvel.",
-        previous=None,
-    )
-    continued = build_cycle_state(
-        operation="Análise imobiliária",
-        message="O imóvel tem 120 m².",
-        previous=first,
-    )
-    changed = build_cycle_state(
-        operation="Exercício em casa",
-        message="Monte um treino.",
-        previous=continued,
-    )
+    first = build_cycle_state(operation="Análise imobiliária", message="Quero avaliar um imóvel.", previous=None)
+    continued = build_cycle_state(operation="Análise imobiliária", message="O imóvel tem 120 m².", previous=first)
+    changed = build_cycle_state(operation="Exercício em casa", message="Monte um treino.", previous=continued)
 
     assert first["cycleId"] == continued["cycleId"]
     assert first["firstMessage"] == continued["firstMessage"]
@@ -161,28 +149,32 @@ def _test_cycle_logic() -> None:
 def main() -> None:
     source = WORKER_PATH.read_text(encoding='utf-8')
 
-    import_anchor = 'from app.services.credit_meter import charge_usage, ensure_minimum_credit\n'
     cycle_import = 'from app.services.conversation_cycle import build_cycle_state, latest_cycle_state\n'
     if cycle_import not in source:
-        if import_anchor not in source:
-            raise RuntimeError('Importação de credit_meter não localizada no worker final.')
-        source = source.replace(import_anchor, import_anchor + cycle_import, 1)
+        source, import_count = re.subn(
+            r'(from app\.services\.credit_meter import [^\n]+\n)',
+            r'\1' + cycle_import,
+            source,
+            count=1,
+        )
+        if import_count != 1:
+            raise RuntimeError('Importação de credit_meter não localizada no worker transformado.')
 
-    pattern = re.compile(
-        r'def _append_completed_response\(.*?\n(?=def _process_task\()',
-        flags=re.S,
-    )
+    pattern = re.compile(r'def _append_completed_response\(.*?\n(?=def _process_task\()', flags=re.S)
     source, count = pattern.subn(CANONICAL_APPEND.rstrip() + '\n\n', source, count=1)
     if count != 1:
         raise RuntimeError('Função de persistência final do chat não localizada.')
-    if source.count('def _append_completed_response(') != 1:
-        raise RuntimeError('Persistência final do chat deve existir exatamente uma vez.')
-    if source.count('"contextState": context_state') != 1:
-        raise RuntimeError('Estado do ciclo deve ser persistido exatamente uma vez.')
-    if source.count('build_cycle_state(') != 1:
-        raise RuntimeError('Estado do ciclo deve ser construído exatamente uma vez no worker.')
-    if source.count('latest_cycle_state(') != 1:
-        raise RuntimeError('Estado anterior deve ser lido exatamente uma vez no worker.')
+
+    checks = {
+        'função de persistência': source.count('def _append_completed_response('),
+        'estado persistido': source.count('"contextState": context_state'),
+        'construção do ciclo': source.count('build_cycle_state('),
+        'leitura do ciclo': source.count('latest_cycle_state('),
+        'importação do ciclo': source.count(cycle_import.strip()),
+    }
+    invalid = {name: count for name, count in checks.items() if count != 1}
+    if invalid:
+        raise RuntimeError(f'Validação estrutural do ciclo falhou: {invalid}')
 
     compile(source, str(WORKER_PATH), 'exec')
     WORKER_PATH.write_text(source, encoding='utf-8')
