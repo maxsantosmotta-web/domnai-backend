@@ -4,6 +4,13 @@ from datetime import datetime, timezone
 from typing import Any
 from uuid import uuid4
 
+from app.services.operation_charge_decision import (
+    ASK_CONFIRMATION,
+    CHARGE,
+    DO_NOT_CHARGE,
+    decide_operation_charge,
+)
+
 
 def _clean(value: Any, limit: int) -> str:
     return " ".join(str(value or "").strip().split())[:limit]
@@ -63,9 +70,13 @@ def build_cycle_state(
         first_message = _clean(message, 500)
 
     observation = continuity_observation if isinstance(continuity_observation, dict) else {}
+    charge_decision = decide_operation_charge(
+        objective_event=event,
+        continuity=observation,
+    )
 
     return {
-        "version": 3,
+        "version": 4,
         "cycleId": cycle_id,
         "operation": normalized_operation,
         "firstMessage": first_message,
@@ -81,5 +92,58 @@ def build_cycle_state(
             "requiresConfirmation": bool(observation.get("requiresConfirmation")),
             "mode": "observation",
         },
+        "chargeDecision": {
+            "decision": _clean(charge_decision.get("decision"), 40),
+            "reason": _clean(charge_decision.get("reason"), 120),
+            "confidence": float(charge_decision.get("confidence") or 0.0),
+            "source": _clean(charge_decision.get("source"), 60),
+            "mode": "decision_only",
+            "debitExecuted": False,
+        },
         "updatedAt": datetime.now(timezone.utc).isoformat(),
     }
+
+
+def _validate_charge_decision_contract() -> None:
+    objective = decide_operation_charge(
+        objective_event={"opensNewCycle": True, "reason": "operation_changed"},
+        continuity={"label": "NOVO_ASSUNTO", "confidence": 1.0},
+    )
+    continuation = decide_operation_charge(
+        objective_event={"opensNewCycle": False, "reason": "continuation"},
+        continuity={"label": "CONTINUACAO", "confidence": 0.92},
+    )
+    correction = decide_operation_charge(
+        objective_event={"opensNewCycle": False, "reason": "continuation"},
+        continuity={"label": "CORRECAO", "confidence": 0.99},
+    )
+    high_confidence_new_subject = decide_operation_charge(
+        objective_event={"opensNewCycle": False, "reason": "continuation"},
+        continuity={
+            "label": "NOVO_ASSUNTO",
+            "confidence": 0.96,
+            "requiresConfirmation": False,
+        },
+    )
+    low_confidence_new_subject = decide_operation_charge(
+        objective_event={"opensNewCycle": False, "reason": "continuation"},
+        continuity={
+            "label": "NOVO_ASSUNTO",
+            "confidence": 0.70,
+            "requiresConfirmation": False,
+        },
+    )
+    ambiguous = decide_operation_charge(
+        objective_event={"opensNewCycle": False, "reason": "continuation"},
+        continuity={"label": "AMBIGUO", "confidence": 0.50, "requiresConfirmation": True},
+    )
+
+    assert objective["decision"] == CHARGE
+    assert continuation["decision"] == DO_NOT_CHARGE
+    assert correction["decision"] == DO_NOT_CHARGE
+    assert high_confidence_new_subject["decision"] == CHARGE
+    assert low_confidence_new_subject["decision"] == ASK_CONFIRMATION
+    assert ambiguous["decision"] == ASK_CONFIRMATION
+
+
+_validate_charge_decision_contract()
