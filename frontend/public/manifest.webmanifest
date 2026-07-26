@@ -11,10 +11,10 @@
   "theme_color": "#080808",
   "icons": [
     {
-      "src": "/domnai-icon.svg",
-      "sizes": "any",
-      "type": "image/svg+xml",
-      "purpose": "any maskable"
+      "src": "/domnai-logo-oficial.png",
+      "sizes": "983x793",
+      "type": "image/png",
+      "purpose": "any"
     }
   ]
 }
