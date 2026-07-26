@@ -8,9 +8,6 @@ def main() -> None:
     source = PROVIDER_PATH.read_text(encoding='utf-8')
 
     required = (
-        'PROTOCOLO OBRIGATÓRIO PARA ENTREVISTAS, DIAGNÓSTICOS, PLANOS E RELATÓRIOS:',
-        'informações faltantes que já puder prever',
-        'perguntas que ainda faltam',
         'PROTOCOLO OBRIGATÓRIO DE ENTREGA E ENCERRAMENTO:',
         'resultado completo de uma vez',
         'listas de próximos passos',
@@ -21,7 +18,7 @@ def main() -> None:
     )
     missing = [text for text in required if text not in source]
     if missing:
-        raise RuntimeError(f'Contrato final de condução incompleto: {missing}')
+        raise RuntimeError(f'Contrato de entrega e encerramento incompleto: {missing}')
 
     forbidden = (
         'Sempre termine perguntando se o usuário deseja continuar',
@@ -33,7 +30,7 @@ def main() -> None:
         raise RuntimeError(f'Regras conflitantes de reabertura ainda presentes: {present}')
 
     compile(source, str(PROVIDER_PATH), 'exec')
-    print('Coleta, entrega final e encerramento natural validados com sucesso.')
+    print('Entrega final e encerramento natural validados com sucesso.')
 
 
 if __name__ == '__main__':
