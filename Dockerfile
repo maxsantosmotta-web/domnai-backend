@@ -150,6 +150,7 @@ COPY scripts/stabilize_artifact_build.py /tmp/stabilize_artifact_build.py
 COPY scripts/canonicalize_artifact_runtime.py /tmp/canonicalize_artifact_runtime.py
 COPY scripts/finalize_chat_state_idempotency.py /tmp/finalize_chat_state_idempotency.py
 COPY scripts/connect_operation_cycle_billing.py /tmp/connect_operation_cycle_billing.py
+COPY scripts/connect_operation_confirmation_gate.py /tmp/connect_operation_confirmation_gate.py
 COPY scripts/finalize_single_artifact_delivery.py /tmp/finalize_single_artifact_delivery.py
 RUN python /tmp/make_runtime_patches_idempotent.py \
     && python -m py_compile /tmp/*.py \
@@ -182,6 +183,7 @@ RUN python /tmp/make_runtime_patches_idempotent.py \
     && python /tmp/canonicalize_artifact_runtime.py \
     && python /tmp/finalize_chat_state_idempotency.py \
     && python /tmp/connect_operation_cycle_billing.py \
+    && python /tmp/connect_operation_confirmation_gate.py \
     && python /tmp/finalize_single_artifact_delivery.py \
     && python -m compileall -q app
 COPY --from=frontend-builder /frontend/dist ./frontend/dist
