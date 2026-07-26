@@ -56,7 +56,7 @@ COPY scripts/connect_sent_message_editing.py /tmp/connect_sent_message_editing.p
 COPY scripts/stabilize_artifact_build.py /tmp/stabilize_artifact_build.py
 COPY scripts/finalize_single_artifact_delivery.py /tmp/finalize_single_artifact_delivery.py
 COPY scripts/validate_frontend_dist.py /tmp/validate_frontend_dist.py
-RUN apk add --no-cache python3 \
+RUN apk add --no-cache python3 imagemagick \
     && python3 /tmp/connect_domnai_chat.py \
     && python3 /tmp/add_chat_retry_button.py \
     && python3 /tmp/connect_operation_to_composer.py \
