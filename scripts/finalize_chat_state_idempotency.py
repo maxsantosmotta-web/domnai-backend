@@ -55,6 +55,7 @@ CANONICAL_APPEND = '''def _append_completed_response(
             operation=payload.get("operation"),
             message=requested_text,
             previous=previous_context_state,
+            force_new=bool(payload.get("force_new_cycle")),
         )
 
         user_index = None
@@ -138,15 +139,31 @@ def _test_cycle_logic() -> None:
     if APP_ROOT not in sys.path:
         sys.path.insert(0, APP_ROOT)
 
-    from app.services.conversation_cycle import build_cycle_state, latest_cycle_state
+    from app.services.conversation_cycle import build_cycle_state, latest_cycle_state, objective_cycle_event
 
     first = build_cycle_state(operation="Análise imobiliária", message="Quero avaliar um imóvel.", previous=None)
     continued = build_cycle_state(operation="Análise imobiliária", message="O imóvel tem 120 m².", previous=first)
     changed = build_cycle_state(operation="Exercício em casa", message="Monte um treino.", previous=continued)
+    restarted = build_cycle_state(
+        operation="Exercício em casa",
+        message="Quero começar outra análise.",
+        previous=changed,
+        force_new=True,
+    )
 
-    assert first["cycleId"] == continued["cycleId"]
-    assert first["firstMessage"] == continued["firstMessage"]
+    assert first["cycleReason"] == "first_conversation"
+    assert first["opensNewCycle"] is True
+    assert continued["cycleId"] == first["cycleId"]
+    assert continued["cycleReason"] == "continuation"
+    assert continued["opensNewCycle"] is False
     assert changed["cycleId"] != continued["cycleId"]
+    assert changed["cycleReason"] == "operation_changed"
+    assert restarted["cycleId"] != changed["cycleId"]
+    assert restarted["cycleReason"] == "explicit_restart"
+    assert objective_cycle_event(operation="Análise imobiliária", previous=first) == {
+        "opensNewCycle": False,
+        "reason": "continuation",
+    }
     assert latest_cycle_state([{"role": "assistant", "contextState": continued}])["cycleId"] == continued["cycleId"]
     assert latest_cycle_state([{"role": "assistant"}]) is None
 
@@ -176,6 +193,7 @@ def main() -> None:
         'construção do ciclo': source.count('build_cycle_state('),
         'leitura do ciclo': source.count('latest_cycle_state('),
         'importação do ciclo': source.count(cycle_import.strip()),
+        'sinal objetivo de reinício': source.count('force_new=bool(payload.get("force_new_cycle"))'),
     }
     invalid = {name: count for name, count in checks.items() if count != 1}
     if invalid:
@@ -184,7 +202,7 @@ def main() -> None:
     compile(source, str(WORKER_PATH), 'exec')
     WORKER_PATH.write_text(source, encoding='utf-8')
     _test_cycle_logic()
-    print('Persistência do chat e estado estruturado do ciclo testados com sucesso.')
+    print('Regras objetivas e persistência do ciclo testadas com sucesso.')
 
 
 if __name__ == '__main__':
