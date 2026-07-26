@@ -217,6 +217,33 @@ def _test_cycle_logic() -> None:
     assert ambiguous["requiresConfirmation"] is True
 
 
+def _test_operation_cycle_billing_contract() -> None:
+    if APP_ROOT not in sys.path:
+        sys.path.insert(0, APP_ROOT)
+
+    from app.services.credit_meter import (
+        OPERATION_CYCLE_CREDITS,
+        charge_operation_cycle,
+        operation_cycle_idempotency_key,
+    )
+
+    assert OPERATION_CYCLE_CREDITS == 7
+    first_key = operation_cycle_idempotency_key("user-123", "cycle-abc")
+    repeated_key = operation_cycle_idempotency_key("user-123", "cycle-abc")
+    other_cycle_key = operation_cycle_idempotency_key("user-123", "cycle-def")
+    assert first_key == "operation-cycle:user-123:cycle-abc"
+    assert repeated_key == first_key
+    assert other_cycle_key != first_key
+
+    credit_source = Path('/app/app/services/credit_meter.py').read_text(encoding='utf-8')
+    assert credit_source.count('def charge_operation_cycle(') == 1
+    assert '.with_for_update()' in credit_source
+    assert 'CreditTransaction.stripe_event_id == idempotency_key' in credit_source
+    assert 'kind="operation_cycle"' in credit_source
+    assert 'amount=-OPERATION_CYCLE_CREDITS' in credit_source
+    assert callable(charge_operation_cycle)
+
+
 def main() -> None:
     source = WORKER_PATH.read_text(encoding='utf-8')
 
@@ -258,7 +285,8 @@ def main() -> None:
     compile(source, str(WORKER_PATH), 'exec')
     WORKER_PATH.write_text(source, encoding='utf-8')
     _test_cycle_logic()
-    print('Regras objetivas e classificador em modo observação testados com sucesso.')
+    _test_operation_cycle_billing_contract()
+    print('Ciclo, classificador e contrato de débito idempotente testados com sucesso.')
 
 
 if __name__ == '__main__':
