@@ -153,6 +153,7 @@ COPY scripts/connect_operation_cycle_billing.py /tmp/connect_operation_cycle_bil
 COPY scripts/connect_operation_confirmation_gate.py /tmp/connect_operation_confirmation_gate.py
 COPY scripts/include_artifacts_in_operation_cycle.py /tmp/include_artifacts_in_operation_cycle.py
 COPY scripts/finalize_single_artifact_delivery.py /tmp/finalize_single_artifact_delivery.py
+COPY scripts/validate_final_chat_conduction.py /tmp/validate_final_chat_conduction.py
 RUN python /tmp/make_runtime_patches_idempotent.py \
     && python -m py_compile /tmp/*.py \
     && python /tmp/connect_chat_sources_backend.py \
@@ -187,6 +188,7 @@ RUN python /tmp/make_runtime_patches_idempotent.py \
     && python /tmp/connect_operation_confirmation_gate.py \
     && python /tmp/include_artifacts_in_operation_cycle.py \
     && python /tmp/finalize_single_artifact_delivery.py \
+    && python /tmp/validate_final_chat_conduction.py \
     && python -m compileall -q app
 COPY --from=frontend-builder /frontend/dist ./frontend/dist
 EXPOSE 8080
