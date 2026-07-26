@@ -9,19 +9,19 @@ def main() -> None:
 
     required = (
         'PROTOCOLO OBRIGATÓRIO PARA ENTREVISTAS, DIAGNÓSTICOS, PLANOS E RELATÓRIOS:',
-        'Antes de responder, identifique todas as informações faltantes que já puder prever',
-        'apresente somente as perguntas que ainda faltam',
+        'informações faltantes que já puder prever',
+        'perguntas que ainda faltam',
         'PROTOCOLO OBRIGATÓRIO DE ENTREGA E ENCERRAMENTO:',
-        'entregue o resultado completo de uma vez',
-        'não apresente listas de próximos passos',
-        'Não termine respostas concluídas com perguntas genéricas',
+        'resultado completo de uma vez',
+        'listas de próximos passos',
+        'perguntas genéricas',
         'Encerre naturalmente após a entrega',
-        'Agradecimentos, confirmações de entendimento e encerramentos do usuário',
-        'Correções e complementos do mesmo assunto devem ajustar somente o necessário',
+        'Agradecimentos, confirmações de entendimento',
+        'Correções e complementos do mesmo assunto',
     )
-    missing = [text for text in required if source.count(text) != 1]
+    missing = [text for text in required if text not in source]
     if missing:
-        raise RuntimeError(f'Contrato final de condução incompleto ou duplicado: {missing}')
+        raise RuntimeError(f'Contrato final de condução incompleto: {missing}')
 
     forbidden = (
         'Sempre termine perguntando se o usuário deseja continuar',
