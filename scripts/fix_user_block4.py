@@ -40,7 +40,7 @@ for old_text in (
 access_path.write_text(access, encoding='utf-8')
 
 
-# 2 e 3) Faturamento: comunicar a cobrança real e separar envio de geração de arquivos.
+# 2 e 3) Faturamento: comunicar a cobrança por operação e os arquivos incluídos.
 billing_path = ROOT / 'dashboard-billing-enhancements.js'
 billing = billing_path.read_text(encoding='utf-8')
 
@@ -67,12 +67,29 @@ billing = billing.replace(
     '<p>Navegação e visualização; use chat e operações ao comprar créditos avulsos.</p>',
 )
 
-new_rules = '<section class="billing-rules-section"><div class="billing-section-title"><small>Consumo</small><h2>Créditos por utilização</h2></div><div class="billing-rules-grid"><span><strong>A partir de 1 crédito</strong> Respostas, conforme o processamento utilizado</span><span><strong>7 créditos</strong> PDF gerado pelo chat</span><span><strong>7 créditos</strong> Planilha gerada pelo chat</span></div></section>'
-if 'Respostas, conforme o processamento utilizado' not in billing:
-    pattern = re.compile(r'<section class="billing-rules-section">.*?</section>', re.S)
-    billing, count = pattern.subn(new_rules, billing, count=1)
-    if count != 1:
-        raise RuntimeError(f'tabela real de consumo de créditos: esperado 1 trecho, encontrado {count}.')
+new_rules = '<section class="billing-rules-section"><div class="billing-section-title"><small>Consumo</small><h2>Créditos por operação</h2></div><div class="billing-rules-grid"><span><strong>7 créditos</strong> Diagnóstico, análise ou relatório concluído</span><span><strong>Sem nova cobrança</strong> Continuação ou correção do mesmo assunto</span><span><strong>Arquivos incluídos</strong> PDF, planilha ou CSV quando disponíveis</span></div></section>'
+pattern = re.compile(r'<section class="billing-rules-section">.*?</section>', re.S)
+billing, count = pattern.subn(new_rules, billing, count=1)
+if count != 1:
+    raise RuntimeError(f'tabela de consumo por operação: esperado 1 trecho, encontrado {count}.')
+
+for forbidden in (
+    'Créditos por utilização',
+    'Respostas, conforme o processamento utilizado',
+    'PDF gerado pelo chat',
+    'Planilha gerada pelo chat',
+):
+    if forbidden in billing:
+        raise RuntimeError(f'nomenclatura antiga ainda presente no faturamento: {forbidden}')
+
+for required in (
+    'Créditos por operação',
+    'Diagnóstico, análise ou relatório concluído',
+    'Continuação ou correção do mesmo assunto',
+    'PDF, planilha ou CSV quando disponíveis',
+):
+    if billing.count(required) != 1:
+        raise RuntimeError(f'nomenclatura final inválida no faturamento: {required}')
 
 
 # 4) Escapar dados persistidos antes de inseri-los em atributos HTML do formulário.
@@ -122,4 +139,4 @@ for old, new in replacements.items():
     dashboard = dashboard.replace(old, new)
 dashboard_path.write_text(dashboard, encoding='utf-8')
 
-print('Bloco 4 corrigido: FREE com saldo, cobrança real, capacidades claras, perfil escapado e falhas em português.')
+print('Bloco 4 corrigido: acesso por créditos, cobrança por operação, arquivos incluídos, perfil escapado e falhas em português.')
