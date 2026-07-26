@@ -1,0 +1,20 @@
+{
+  "name": "DomnAI",
+  "short_name": "DomnAI",
+  "description": "Transforme escolhas em resultados com inteligência.",
+  "lang": "pt-BR",
+  "start_url": "/#/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait-primary",
+  "background_color": "#080808",
+  "theme_color": "#080808",
+  "icons": [
+    {
+      "src": "/domnai-icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}
